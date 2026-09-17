@@ -3,10 +3,13 @@ import { redirect } from "next/navigation";
 import { FormularioLogin } from "@/components/formulario-login";
 import { Marca } from "@/components/marca";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { requiereConfiguracionInicial } from "@/lib/servicios/configuracion-inicial";
 import { obtenerSesion } from "@/lib/sesion";
 
 export default async function PaginaLogin() {
-  if (await obtenerSesion(await headers())) redirect("/inicio");
+  const encabezados = await headers();
+  if (await requiereConfiguracionInicial()) redirect("/configuracion-inicial");
+  if (await obtenerSesion(encabezados)) redirect("/inicio");
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">

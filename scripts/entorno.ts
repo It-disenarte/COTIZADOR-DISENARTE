@@ -1,5 +1,5 @@
 /**
- * En Vercel, migraciones y seed solo corren en el despliegue de producción.
+ * En Vercel, las migraciones solo corren en el despliegue de producción.
  * Los previews de otras ramas usan la misma base y no deben modificarla.
  */
 export function omitirFueraDeProduccion(etiqueta: string): boolean {

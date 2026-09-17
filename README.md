@@ -4,7 +4,7 @@ Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: Fase 1 (Base)**.
 
 | Fase | Estado |
 |---|---|
-| 1. Base: proyecto, Postgres, migraciones, auth, roles, admin por seed, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
+| 1. Base: proyecto, Postgres, migraciones, auth, roles, configuración inicial del admin, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
 | 2. Catálogo · 3. Motor · 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
@@ -31,7 +31,7 @@ src/
     servicios/        lógica de negocio (validan permisos en servidor)
     db/schema.ts      esquema Drizzle
 drizzle/              migraciones SQL versionadas
-scripts/              migrate, seed (corren en el build de Vercel), db-local
+scripts/              migrate (corre en el build de Vercel), crear-admin, db-local
 tests/                Vitest (permisos por rol + API contra Postgres en memoria)
 deploy/respaldo.sh    pg_dump diario con retención de 14 días (alternativa a respaldos de Easypanel)
 ```
@@ -40,11 +40,10 @@ deploy/respaldo.sh    pg_dump diario con retención de 14 días (alternativa a r
 
 ```bash
 npm install
-cp .env.example .env        # llenar BETTER_AUTH_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
+cp .env.example .env        # llenar BETTER_AUTH_SECRET
 npm run db:local            # terminal 1: Postgres embebido (PGlite) en 127.0.0.1:5433, datos en ./.pglite
 npm run db:migrate          # terminal 2
-npm run db:seed
-npm run dev                 # http://localhost:3000
+npm run dev                 # http://localhost:3000 → pantalla de configuración inicial
 ```
 
 `db:local` es solo para probar en una PC. En producción se usa el Postgres de Easypanel.
@@ -62,9 +61,8 @@ route handlers con cookies reales de Better Auth.
 
 ## Despliegue: Vercel + Postgres en el VPS
 
-La app **crea sus tablas sola**: el build de producción de Vercel (`vercel-build`) corre `db:migrate`, luego
-`db:seed` (crea la cuenta admin una sola vez) y después `next build`. En los despliegues *preview* (otras ramas)
-migraciones y seed se omiten para no tocar la base.
+La app **crea sus tablas sola**: el build de producción de Vercel (`vercel-build`) corre `db:migrate` y después
+`next build`. En los despliegues *preview* (otras ramas) las migraciones se omiten para no tocar la base.
 
 ### 1. Base de datos (Easypanel)
 
@@ -93,21 +91,27 @@ La base queda accesible desde internet: la seguridad depende de que la contrase�
    ```
    DATABASE_URL=postgres://cotizador:PASSWORD@IP_DEL_VPS:PUERTO_EXPUESTO/cotizador
    BETTER_AUTH_SECRET=<ver .env.example para generarlo>
-   ADMIN_EMAIL=<correo del admin>
-   ADMIN_NOMBRE=Administrador
-   ADMIN_PASSWORD=<temporal, mínimo 10 caracteres>
    ```
    `BETTER_AUTH_URL` es opcional: si no se define, se usa el dominio de producción del proyecto en Vercel.
 3. **Settings → Functions → Region:** la más cercana al VPS (menos latencia por consulta).
-4. **Deploy.** En el log del build debe aparecer:
-   ```
-   [migrate] migraciones aplicadas
-   [seed] cuenta admin creada para ...
-   ```
-5. Entrar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`; la app obliga a cambiar la contraseña. Después se pueden borrar
-   `ADMIN_PASSWORD` y `ADMIN_EMAIL` de Vercel (el seed no hace nada si faltan).
+4. **Deploy.** En el log del build debe aparecer `[migrate] migraciones aplicadas`.
+5. **En cuanto termine el despliegue**, abrir la app: aparece la **Configuración inicial**. Capturar nombre, correo
+   y contraseña del Admin total. Esa pantalla desaparece para siempre al existir la primera cuenta.
 
 **Actualizar:** push a `main`. Las migraciones nuevas se aplican solas en el build.
+
+### Recuperar el acceso de admin
+
+Si se pierde la contraseña del admin o todas las cuentas admin quedan desactivadas, desde una PC con el proyecto:
+
+```bash
+npm install
+# en .env: DATABASE_URL=<URL pública de la base de producción>
+npm run crear-admin
+```
+
+Pide el correo y la contraseña (oculta). Si el correo no existe crea un admin; si existe, le pone la contraseña
+nueva, lo deja activo con rol Admin total y cierra sus sesiones. Queda registrado en la bitácora.
 
 ### Respaldos
 
@@ -122,6 +126,10 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
 
 ## Decisiones de la fase 1
 
+- **Cuenta inicial (cambio sobre la sección 3):** en lugar de `ADMIN_EMAIL` / `ADMIN_PASSWORD` en variables de
+  entorno, una pantalla de configuración inicial que solo existe mientras la base no tiene cuentas (protegida con
+  bloqueo en Postgres contra solicitudes simultáneas) y el comando `npm run crear-admin` para recuperar acceso.
+  Ninguna contraseña queda en variables, archivos ni logs.
 - **Roles y permisos:** matriz única en `src/lib/permisos.ts`. Cada route handler llama `requireSesion` +
   `requirePermiso` en servidor; el menú solo oculta enlaces.
 - **Sesiones:** sin caché de cookie; rol, desactivación y restablecimientos aplican en la siguiente petición.
@@ -135,7 +143,7 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
 - **Migraciones:** `scripts/migrate.ts` usa el migrador de `drizzle-orm`, que aplica la misma carpeta `drizzle/` y
   la misma tabla de control que `drizzle-kit migrate`.
 - **Despliegue:** app en Vercel y Postgres en el VPS (Easypanel), en lugar de todo en Docker en el VPS
-  (sección 11). Migraciones y seed en el build de producción; pool de 3 conexiones por instancia.
+  (sección 11). Migraciones en el build de producción; pool de 3 conexiones por instancia.
 - **PDF (fase 5):** se generan al momento y se descargan; no se guardan en disco (cambio sobre la sección 10.2).
 - **Caso 5:** los 403 de crear usuario se prueban contra la API real. "Editar insumo" y "ver cotización ajena" se
   prueban hoy a nivel de `requirePermiso` / `requireVerCotizacion`; esos endpoints nacen en las fases 2 y 6 y ahí

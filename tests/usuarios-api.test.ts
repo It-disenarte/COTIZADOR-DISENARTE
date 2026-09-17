@@ -9,15 +9,15 @@ vi.mock("@/lib/db", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { bitacora, cuentas, usuarios } = await import("@/lib/db/schema");
-const { sembrarAdmin } = await import("@/lib/seed");
+const { bitacora, cuentas, sesiones, usuarios } = await import("@/lib/db/schema");
+const { crearORecuperarAdmin, requiereConfiguracionInicial } = await import("@/lib/servicios/configuracion-inicial");
+const rutaConfiguracion = await import("@/app/api/configuracion-inicial/route");
 const rutaUsuarios = await import("@/app/api/usuarios/route");
 const rutaUsuario = await import("@/app/api/usuarios/[id]/route");
 const rutaReset = await import("@/app/api/usuarios/[id]/password/route");
 const rutaCuentaPassword = await import("@/app/api/cuenta/password/route");
 
-const ADMIN = { email: "admin@disenartemx.com", password: "Temporal-Admin-2026" };
-const ADMIN_NUEVA = "Admin-Definitiva-2026";
+const ADMIN = { nombre: "Admin Diseñarte", email: "admin@disenartemx.com", password: "Admin-Definitiva-2026" };
 
 let cookieAdmin = "";
 
@@ -41,31 +41,52 @@ async function cuentaLista(rol: "ventas" | "agente_admin", email: string) {
   return { id, cookie, password: definitiva };
 }
 
-describe("Seed de la cuenta admin", () => {
-  it("crea la cuenta una sola vez, con argon2id y cambio obligatorio", async () => {
-    expect(await sembrarAdmin(db, ADMIN)).toBe("creado");
-    expect(await sembrarAdmin(db, { ...ADMIN, password: "Otra-Password-9999" })).toBe("ya_existia");
+const configurar = (cuerpo: unknown) =>
+  rutaConfiguracion.POST(peticion("/api/configuracion-inicial", { metodo: "POST", cuerpo }), undefined);
 
-    const filas = await db.select().from(usuarios).where(eq(usuarios.email, ADMIN.email));
-    expect(filas).toHaveLength(1);
-    expect(filas[0]).toMatchObject({ rol: "admin", activo: true, debeCambiarPassword: true });
-
-    const [cuenta] = await db.select().from(cuentas).where(eq(cuentas.userId, filas[0].id));
-    expect(cuenta.password?.startsWith("$argon2id$")).toBe(true);
+describe("Configuración inicial (primer admin)", () => {
+  it("valida los datos", async () => {
+    expect((await configurar({ ...ADMIN, password: "corta" })).status).toBe(400);
+    expect((await configurar({ ...ADMIN, email: "no-es-correo" })).status).toBe(400);
+    expect(await requiereConfiguracionInicial()).toBe(true);
   });
 
-  it("sin variables no hace nada, y rechaza contraseñas cortas solo al crear", async () => {
-    expect(await sembrarAdmin(db, { email: undefined, password: undefined })).toBe("omitido");
-    expect(await sembrarAdmin(db, { email: ADMIN.email, password: undefined })).toBe("omitido");
-    await expect(sembrarAdmin(db, { email: "nuevo@disenartemx.com", password: "corta" })).rejects.toThrow();
-    // Si la cuenta ya existe, una variable vieja o corta no rompe el build.
-    expect(await sembrarAdmin(db, { email: ADMIN.email, password: "corta" })).toBe("ya_existia");
+  it("con solicitudes simultáneas solo se crea una cuenta, admin y sin cambio obligatorio", async () => {
+    const respuestas = await Promise.all([
+      configurar(ADMIN),
+      configurar({ nombre: "Intruso", email: "intruso@x.mx", password: "Intruso-123456" }),
+    ]);
+    expect(respuestas.map((r) => r.status).sort()).toEqual([201, 409]);
+
+    const todos = await db.select().from(usuarios);
+    expect(todos).toHaveLength(1);
+    expect(todos[0]).toMatchObject({ email: ADMIN.email, rol: "admin", activo: true, debeCambiarPassword: false });
+
+    const [cuenta] = await db.select().from(cuentas).where(eq(cuentas.userId, todos[0].id));
+    expect(cuenta.password?.startsWith("$argon2id$")).toBe(true);
+    expect(await requiereConfiguracionInicial()).toBe(false);
+  });
+
+  it("después ya no se puede usar", async () => {
+    expect((await configurar({ nombre: "Otro", email: "otro@x.mx", password: "Otro-Password-123" })).status).toBe(409);
+    expect(await db.select().from(usuarios)).toHaveLength(1);
+  });
+
+  it("el admin entra directo con la contraseña que eligió", async () => {
+    cookieAdmin = await iniciarSesion(ADMIN.email, ADMIN.password);
+    const res = await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: cookieAdmin }), undefined);
+    expect(res.status).toBe(200);
   });
 });
 
 describe("Cambio obligatorio de contraseña", () => {
+  const temporal = "Temporal-Admin-2026";
+  const nueva = "Otra-Admin-Definitiva-2026";
+  let segundoAdmin = "";
+
   beforeAll(async () => {
-    cookieAdmin = await iniciarSesion(ADMIN.email, ADMIN.password);
+    await crearComoAdmin({ nombre: "Segundo admin", email: "admin2@disenartemx.com", rol: "admin", passwordTemporal: temporal });
+    segundoAdmin = await iniciarSesion("admin2@disenartemx.com", temporal);
   });
 
   it("sin sesión la API responde 401", async () => {
@@ -73,14 +94,14 @@ describe("Cambio obligatorio de contraseña", () => {
     expect(res.status).toBe(401);
   });
 
-  it("mientras no cambie la contraseña, el admin recibe 403 en el resto de la API", async () => {
-    const res = await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: cookieAdmin }), undefined);
+  it("con contraseña temporal, incluso un admin recibe 403 en el resto de la API", async () => {
+    const res = await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: segundoAdmin }), undefined);
     expect(res.status).toBe(403);
   });
 
   it("rechaza una contraseña actual incorrecta", async () => {
     const res = await rutaCuentaPassword.POST(
-      peticion("/api/cuenta/password", { metodo: "POST", cookie: cookieAdmin, cuerpo: { actual: "no-es-esta-123", nueva: ADMIN_NUEVA } }),
+      peticion("/api/cuenta/password", { metodo: "POST", cookie: segundoAdmin, cuerpo: { actual: "no-es-esta-123", nueva } }),
       undefined,
     );
     expect(res.status).toBe(400);
@@ -88,16 +109,16 @@ describe("Cambio obligatorio de contraseña", () => {
 
   it("al cambiarla se libera la API y la contraseña anterior deja de servir", async () => {
     const res = await rutaCuentaPassword.POST(
-      peticion("/api/cuenta/password", { metodo: "POST", cookie: cookieAdmin, cuerpo: { actual: ADMIN.password, nueva: ADMIN_NUEVA } }),
+      peticion("/api/cuenta/password", { metodo: "POST", cookie: segundoAdmin, cuerpo: { actual: temporal, nueva } }),
       undefined,
     );
     expect(res.status).toBe(200);
 
-    const lista = await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: cookieAdmin }), undefined);
+    const lista = await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: segundoAdmin }), undefined);
     expect(lista.status).toBe(200);
 
-    expect((await intentarIniciarSesion(ADMIN.email, ADMIN.password)).ok).toBe(false);
-    expect((await intentarIniciarSesion(ADMIN.email, ADMIN_NUEVA)).ok).toBe(true);
+    expect((await intentarIniciarSesion("admin2@disenartemx.com", temporal)).ok).toBe(false);
+    expect((await intentarIniciarSesion("admin2@disenartemx.com", nueva)).ok).toBe(true);
   });
 
   it("el registro público está deshabilitado", async () => {
@@ -252,5 +273,43 @@ describe("Caso 5 — permisos por rol en la API", () => {
     const texto = JSON.stringify(filas);
     expect(texto).not.toContain("$argon2");
     expect(texto).not.toContain("Temporal-1234567");
+  });
+
+  describe("Comando crear-admin (recuperación de acceso)", () => {
+    it("crea un admin nuevo que entra sin cambio obligatorio", async () => {
+      expect(
+        await crearORecuperarAdmin({ nombre: "Admin CLI", email: "cli@disenartemx.com", password: "Cli-Password-2026" }),
+      ).toBe("creado");
+      const [fila] = await db.select().from(usuarios).where(eq(usuarios.email, "cli@disenartemx.com"));
+      expect(fila).toMatchObject({ rol: "admin", activo: true, debeCambiarPassword: false });
+      const cookie = await iniciarSesion("cli@disenartemx.com", "Cli-Password-2026");
+      expect((await rutaUsuarios.GET(peticion("/api/usuarios", { cookie }), undefined)).status).toBe(200);
+    });
+
+    it("recupera una cuenta existente desactivada: nueva contraseña, admin, activa y sin sesiones", async () => {
+      await rutaUsuario.PATCH(
+        peticion(`/api/usuarios/${ventas.id}`, { metodo: "PATCH", cookie: cookieAdmin, cuerpo: { activo: false } }),
+        ctxId(ventas.id),
+      );
+
+      expect(
+        await crearORecuperarAdmin({ nombre: "ignorado", email: "VENTAS@disenartemx.com", password: "Recuperada-2026" }),
+      ).toBe("recuperado");
+
+      const [fila] = await db.select().from(usuarios).where(eq(usuarios.id, ventas.id));
+      expect(fila).toMatchObject({ rol: "admin", activo: true, debeCambiarPassword: false, name: "Prueba ventas" });
+      expect(await db.select().from(sesiones).where(eq(sesiones.userId, ventas.id))).toHaveLength(0);
+      expect((await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: ventas.cookie }), undefined)).status).toBe(401);
+
+      expect((await intentarIniciarSesion("ventas@disenartemx.com", ventas.password)).ok).toBe(false);
+      expect((await intentarIniciarSesion("ventas@disenartemx.com", "Recuperada-2026")).ok).toBe(true);
+
+      const registros = await db.select().from(bitacora).where(eq(bitacora.entidadId, ventas.id));
+      expect(registros.some((r) => r.usuarioId === null && JSON.stringify(r.despues).includes("comando_crear_admin"))).toBe(true);
+    });
+
+    it("valida la contraseña", async () => {
+      await expect(crearORecuperarAdmin({ nombre: "X", email: "x@disenartemx.com", password: "corta" })).rejects.toThrow();
+    });
   });
 });

@@ -11,10 +11,10 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts",
     "db:local": "tsx scripts/db-local.ts",
-    "vercel-build": "npm run db:migrate && npm run db:seed && next build",
-    "start": "next start"
+    "vercel-build": "npm run db:migrate && next build",
+    "start": "next start",
+    "crear-admin": "tsx scripts/crear-admin.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",

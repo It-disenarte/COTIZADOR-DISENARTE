@@ -16,6 +16,14 @@ export const CrearUsuario = z.object({
 });
 export type CrearUsuario = z.infer<typeof CrearUsuario>;
 
+/** Primer admin (pantalla de configuración inicial) o admin creado desde el comando crear-admin. */
+export const PrimerAdmin = z.object({
+  nombre,
+  email: z.email({ error: "Correo inválido." }).trim().toLowerCase(),
+  password,
+});
+export type PrimerAdmin = z.infer<typeof PrimerAdmin>;
+
 export const ActualizarUsuario = z
   .object({
     nombre: nombre.optional(),

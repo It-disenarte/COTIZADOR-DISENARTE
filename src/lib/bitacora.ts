@@ -8,7 +8,8 @@ type Escritor = { insert: (tabla: typeof bitacora) => { values: (v: typeof bitac
 export async function registrarBitacora(
   escritor: Escritor,
   entrada: {
-    usuarioId: string;
+    /** null = acción del sistema (p. ej. el comando crear-admin) */
+    usuarioId: string | null;
     entidad: string;
     entidadId: string | null;
     accion: Accion;

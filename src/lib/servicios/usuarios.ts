@@ -54,10 +54,13 @@ export async function listarUsuarios(actor: UsuarioSesion | null): Promise<Usuar
   return db.select(columnasPublicas).from(usuarios).orderBy(asc(usuarios.name));
 }
 
-/** Inserta usuario + cuenta de credenciales. Compartido con el seed. */
+/**
+ * Inserta usuario + cuenta de credenciales. Las contraseñas asignadas por otra persona son temporales
+ * (`debeCambiarPassword` true); las que elige el propio usuario no.
+ */
 export async function insertarUsuarioConPassword(
   tx: Pick<typeof db, "insert">,
-  datos: { nombre: string; email: string; rol: UsuarioSesion["rol"]; password: string },
+  datos: { nombre: string; email: string; rol: UsuarioSesion["rol"]; password: string; debeCambiarPassword?: boolean },
 ) {
   const [nuevo] = await tx
     .insert(usuarios)
@@ -66,7 +69,7 @@ export async function insertarUsuarioConPassword(
       email: datos.email.toLowerCase(),
       rol: datos.rol,
       activo: true,
-      debeCambiarPassword: true,
+      debeCambiarPassword: datos.debeCambiarPassword ?? true,
       emailVerified: true,
     })
     .returning({ id: usuarios.id });
