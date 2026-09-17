@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -H 0.0.0.0",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -13,7 +12,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "db:local": "tsx scripts/db-local.ts"
+    "db:local": "tsx scripts/db-local.ts",
+    "vercel-build": "npm run db:migrate && npm run db:seed && next build",
+    "start": "next start"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",
@@ -46,5 +47,8 @@
     "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

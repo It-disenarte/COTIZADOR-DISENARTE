@@ -4,14 +4,14 @@ Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: Fase 1 (Base)**.
 
 | Fase | Estado |
 |---|---|
-| 1. Base: proyecto, Docker, Postgres, migraciones, auth, roles, admin por seed, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
+| 1. Base: proyecto, Postgres, migraciones, auth, roles, admin por seed, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
 | 2. Catálogo · 3. Motor · 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
 
 Next.js 16 (App Router) + TypeScript estricto · Tailwind 4 con componentes estilo shadcn/ui · Poppins ·
-PostgreSQL 16 · Drizzle ORM · Better Auth (email y contraseña, sesiones en BD) · argon2id · Zod · Vitest ·
-Despliegue con `Dockerfile` en el VPS de Hostinger administrado con **Easypanel** (dominio y HTTPS los pone Easypanel).
+PostgreSQL 16 · Drizzle ORM · Better Auth (email y contraseña, sesiones en BD) · argon2id · Zod · Vitest.
+App en **Vercel**; PostgreSQL en el VPS de Hostinger administrado con **Easypanel**.
 
 ## Estructura
 
@@ -31,10 +31,9 @@ src/
     servicios/        lógica de negocio (validan permisos en servidor)
     db/schema.ts      esquema Drizzle
 drizzle/              migraciones SQL versionadas
-scripts/              migrate, seed, db-local
+scripts/              migrate, seed (corren en el build de Vercel), db-local
 tests/                Vitest (permisos por rol + API contra Postgres en memoria)
 deploy/respaldo.sh    pg_dump diario con retención de 14 días (alternativa a respaldos de Easypanel)
-Dockerfile            imagen que Easypanel construye
 ```
 
 ## Desarrollo local (Windows, sin Docker)
@@ -48,7 +47,7 @@ npm run db:seed
 npm run dev                 # http://localhost:3000
 ```
 
-`db:local` es solo para probar en una PC sin Docker. En el VPS se usa el Postgres de Easypanel.
+`db:local` es solo para probar en una PC. En producción se usa el Postgres de Easypanel.
 
 ## Pruebas
 
@@ -61,12 +60,13 @@ npm run lint
 Las pruebas de API corren las **mismas migraciones** de producción sobre PGlite y llaman directamente a los
 route handlers con cookies reales de Better Auth.
 
-## Despliegue en el VPS (Easypanel)
+## Despliegue: Vercel + Postgres en el VPS
 
-La app **crea sus tablas sola**: al arrancar el contenedor corre `db:migrate` (migraciones de `drizzle/`),
-luego `db:seed` (crea la cuenta admin una sola vez) y después inicia Next.js.
+La app **crea sus tablas sola**: el build de producción de Vercel (`vercel-build`) corre `db:migrate`, luego
+`db:seed` (crea la cuenta admin una sola vez) y después `next build`. En los despliegues *preview* (otras ramas)
+migraciones y seed se omiten para no tocar la base.
 
-### 1. Base de datos
+### 1. Base de datos (Easypanel)
 
 En el proyecto `hub_disenarte`: **+ Service → Postgres**.
 
@@ -75,42 +75,39 @@ En el proyecto `hub_disenarte`: **+ Service → Postgres**.
 | Service Name | `cotizador-db` |
 | Database Name | `cotizador` |
 | User | `cotizador` |
-| Password | vacío (genera una aleatoria) |
+| Password | vacío (genera una aleatoria y larga) |
 | Docker Image | `postgres:16` |
 
-No expongas su puerto a internet. Copia la **Internal Connection URL** del servicio (host
-`hub_disenarte_cotizador-db`, puerto 5432): es la `DATABASE_URL` de la app.
+Exponer su puerto igual que `inventario-db`, con un puerto distinto. La URL queda así:
 
-### 2. App
+```
+postgres://cotizador:PASSWORD@IP_DEL_VPS:PUERTO_EXPUESTO/cotizador
+```
 
-1. **+ Service → App**, nombre `cotizador`.
-2. **Source:** GitHub → repositorio y rama `main` (la primera vez hay que conectar GitHub en los ajustes de Easypanel).
-3. **Build:** `Dockerfile` (ruta `Dockerfile`).
-4. **Environment:**
+La base queda accesible desde internet: la seguridad depende de que la contraseña sea larga y aleatoria.
+
+### 2. App (Vercel)
+
+1. **Add New → Project** → importar el repositorio de GitHub. Vercel detecta Next.js y usa `vercel-build`.
+2. **Environment Variables:**
    ```
-   DATABASE_URL=<Internal Connection URL del paso 1>
-   BETTER_AUTH_SECRET=<openssl rand -base64 32>
-   BETTER_AUTH_URL=https://cotizador.disenartemx.com
+   DATABASE_URL=postgres://cotizador:PASSWORD@IP_DEL_VPS:PUERTO_EXPUESTO/cotizador
+   BETTER_AUTH_SECRET=<ver .env.example para generarlo>
    ADMIN_EMAIL=<correo del admin>
    ADMIN_NOMBRE=Administrador
    ADMIN_PASSWORD=<temporal, mínimo 10 caracteres>
    ```
-5. **Domains:** `cotizador.disenartemx.com` → puerto **3000**, HTTPS activado. En el DNS, registro `A` del
-   subdominio apuntando a la IP del VPS.
-6. **Deploy.** En los logs debe aparecer:
+   `BETTER_AUTH_URL` es opcional: si no se define, se usa el dominio de producción del proyecto en Vercel.
+3. **Settings → Functions → Region:** la más cercana al VPS (menos latencia por consulta).
+4. **Deploy.** En el log del build debe aparecer:
    ```
    [migrate] migraciones aplicadas
    [seed] cuenta admin creada para ...
    ```
-7. Entrar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`; la app obliga a cambiar la contraseña. Después se puede borrar
-   `ADMIN_PASSWORD` de Environment (el seed no vuelve a tocar una cuenta existente).
+5. Entrar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`; la app obliga a cambiar la contraseña. Después se pueden borrar
+   `ADMIN_PASSWORD` y `ADMIN_EMAIL` de Vercel (el seed no hace nada si faltan).
 
-`BETTER_AUTH_URL` debe ser exactamente el dominio final con `https://`, o el inicio de sesión falla.
-
-**Actualizar:** hacer push a `main` y dar **Deploy** en Easypanel (o activar auto deploy). Las migraciones
-nuevas se aplican solas.
-
-**Fase 5 (PDF):** agregar en la app un **Mount → Volume** en `/data/pdfs` para que los PDF sobrevivan a los redeploys.
+**Actualizar:** push a `main`. Las migraciones nuevas se aplican solas en el build.
 
 ### Respaldos
 
@@ -122,8 +119,6 @@ Restaurar (probarlo antes de salir a producción):
 ```bash
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
-
-Falta definir el destino de la copia fuera del VPS (Google Drive con rclone u otro).
 
 ## Decisiones de la fase 1
 
@@ -137,10 +132,11 @@ Falta definir el destino de la copia fuera del VPS (Google Drive con rclone u ot
   por la API propia para validar permisos y escribir en `bitacora` (sin guardar contraseñas ni hashes).
 - **Protección contra auto-bloqueo:** el admin no puede desactivarse ni quitarse el rol a sí mismo.
 - **Contraseñas:** mínimo 10 caracteres; argon2id (19 MiB, 2 pasadas).
-- **Migraciones al arrancar:** `scripts/migrate.ts` usa el migrador de `drizzle-orm`, que aplica la misma carpeta
-  `drizzle/` y la misma tabla de control que `drizzle-kit migrate`.
-- **Despliegue:** Easypanel en lugar del `docker-compose` + Caddy de la sección 11 de la especificación; Easypanel
-  cumple el mismo papel (contenedores, red interna sin exponer Postgres, HTTPS automático).
+- **Migraciones:** `scripts/migrate.ts` usa el migrador de `drizzle-orm`, que aplica la misma carpeta `drizzle/` y
+  la misma tabla de control que `drizzle-kit migrate`.
+- **Despliegue:** app en Vercel y Postgres en el VPS (Easypanel), en lugar de todo en Docker en el VPS
+  (sección 11). Migraciones y seed en el build de producción; pool de 3 conexiones por instancia.
+- **PDF (fase 5):** se generan al momento y se descargan; no se guardan en disco (cambio sobre la sección 10.2).
 - **Caso 5:** los 403 de crear usuario se prueban contra la API real. "Editar insumo" y "ver cotización ajena" se
   prueban hoy a nivel de `requirePermiso` / `requireVerCotizacion`; esos endpoints nacen en las fases 2 y 6 y ahí
   se agregan sus pruebas HTTP.

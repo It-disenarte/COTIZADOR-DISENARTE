@@ -54,9 +54,12 @@ describe("Seed de la cuenta admin", () => {
     expect(cuenta.password?.startsWith("$argon2id$")).toBe(true);
   });
 
-  it("rechaza contraseñas cortas y variables faltantes", async () => {
-    await expect(sembrarAdmin(db, { email: "x@y.mx", password: "corta" })).rejects.toThrow();
-    await expect(sembrarAdmin(db, { email: undefined, password: undefined })).rejects.toThrow();
+  it("sin variables no hace nada, y rechaza contraseñas cortas solo al crear", async () => {
+    expect(await sembrarAdmin(db, { email: undefined, password: undefined })).toBe("omitido");
+    expect(await sembrarAdmin(db, { email: ADMIN.email, password: undefined })).toBe("omitido");
+    await expect(sembrarAdmin(db, { email: "nuevo@disenartemx.com", password: "corta" })).rejects.toThrow();
+    // Si la cuenta ya existe, una variable vieja o corta no rompe el build.
+    expect(await sembrarAdmin(db, { email: ADMIN.email, password: "corta" })).toBe("ya_existia");
   });
 });
 

@@ -7,8 +7,17 @@ import { cuentas, ROLES, sesiones, usuarios, verificaciones } from "@/lib/db/sch
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/roles";
 
+// En Vercel, si no se define BETTER_AUTH_URL, se usa el dominio de producción del proyecto
+// (el personalizado si se asignó uno; si no, el *.vercel.app).
+const urlProduccionVercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : undefined;
+const baseURL = process.env.BETTER_AUTH_URL || urlProduccionVercel;
+
 export const auth = betterAuth({
   appName: "Cotizador Diseñarte",
+  baseURL,
+  trustedOrigins: [baseURL, urlProduccionVercel].filter((u): u is string => Boolean(u)),
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user: usuarios, session: sesiones, account: cuentas, verification: verificaciones },
