@@ -28,6 +28,15 @@ export const ETIQUETA_MODO: Record<ModoComponente, string> = {
   fijo: "Fijo (una vez)",
 };
 
+export const ESTADOS_COTIZACION = ["borrador", "enviada", "ganada", "perdida"] as const;
+export type EstadoCotizacion = (typeof ESTADOS_COTIZACION)[number];
+export const ETIQUETA_ESTADO: Record<EstadoCotizacion, string> = {
+  borrador: "Borrador",
+  enviada: "Enviada",
+  ganada: "Ganada",
+  perdida: "Perdida",
+};
+
 export const ZONAS = ["local", "foraneo"] as const;
 export type Zona = (typeof ZONAS)[number];
 export const ETIQUETA_ZONA: Record<Zona, string> = { local: "Local", foraneo: "Foráneo" };

@@ -1,6 +1,6 @@
-import { boolean, index, numeric, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 // Imports relativos: drizzle-kit lee este archivo fuera de Next y no resuelve el alias "@/".
-import { FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "../catalogo/constantes";
+import { ESTADOS_COTIZACION, FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "../catalogo/constantes";
 import { ROLES } from "../roles";
 
 export { ROLES, type Rol } from "../roles";
@@ -158,6 +158,52 @@ export const parametros = pgTable("parametros", {
   unidad: text("unidad").notNull(),
   ...tiempos,
 });
+
+export const estadoCotizacionEnum = pgEnum("estado_cotizacion", ESTADOS_COTIZACION);
+
+export const cotizaciones = pgTable(
+  "cotizaciones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    folio: text("folio").notNull().unique(),
+    clienteId: uuid("cliente_id").references(() => clientes.id),
+    vendedorId: uuid("vendedor_id")
+      .notNull()
+      .references(() => usuarios.id),
+    titulo: text("titulo").notNull(),
+    solicitante: text("solicitante"),
+    estado: estadoCotizacionEnum("estado").notNull().default("borrador"),
+    versionActual: integer("version_actual").notNull().default(1),
+    ...tiempos,
+  },
+  (t) => [index("cotizaciones_vendedor_idx").on(t.vendedorId), index("cotizaciones_estado_idx").on(t.estado)],
+);
+
+export const cotizacionVersiones = pgTable(
+  "cotizacion_versiones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cotizacionId: uuid("cotizacion_id")
+      .notNull()
+      .references(() => cotizaciones.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    creadaPor: uuid("creada_por").references(() => usuarios.id),
+    /** Todo lo capturado en el asistente */
+    entrada: jsonb("entrada").notNull(),
+    /** Snapshot de insumos, recetas y parámetros usados */
+    precios: jsonb("precios").notNull(),
+    /** Salida completa del motor */
+    resultado: jsonb("resultado").notNull(),
+    /** Llamadas a Gemini, supuestos y links (fase 7) */
+    trazabilidad: jsonb("trazabilidad"),
+    pdfPath: text("pdf_path"),
+    ...tiempos,
+  },
+  (t) => [
+    index("cotizacion_versiones_cotizacion_idx").on(t.cotizacionId),
+    uniqueIndex("cotizacion_versiones_unica").on(t.cotizacionId, t.version),
+  ],
+);
 
 export const clientes = pgTable(
   "clientes",

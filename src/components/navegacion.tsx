@@ -13,8 +13,8 @@ type Elemento = { href: string; etiqueta: string; icono: typeof House; permiso?:
 // Navegación por rol (sección 8). Las pantallas de fases posteriores se muestran deshabilitadas.
 const ELEMENTOS: Elemento[] = [
   { href: "/inicio", etiqueta: "Inicio", icono: House },
-  { href: "/cotizaciones/nueva", etiqueta: "Nueva cotización", icono: FilePlus2, permiso: "cotizaciones.propias", fase: 4 },
-  { href: "/cotizaciones", etiqueta: "Mis cotizaciones", icono: FolderClock, permiso: "cotizaciones.propias", fase: 6 },
+  { href: "/cotizaciones/nueva", etiqueta: "Nueva cotización", icono: FilePlus2, permiso: "cotizaciones.propias" },
+  { href: "/cotizaciones", etiqueta: "Mis cotizaciones", icono: FolderClock, permiso: "cotizaciones.propias" },
   { href: "/catalogo", etiqueta: "Catálogo", icono: Package, permiso: "catalogo.ver" },
   { href: "/historial", etiqueta: "Historial general", icono: History, permiso: "cotizaciones.ver_todas", fase: 6 },
   { href: "/usuarios", etiqueta: "Usuarios", icono: Users, permiso: "usuarios.gestionar" },

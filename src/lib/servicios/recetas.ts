@@ -19,6 +19,8 @@ export type ComponenteDetalle = {
     nombre: string;
     unidadCosto: (typeof insumos.$inferSelect)["unidadCosto"];
     costo: string | null;
+    anchoUtilM: string | null;
+    areaLaminaM2: string | null;
     requiereRevision: boolean;
     archivado: boolean;
   };
@@ -39,6 +41,8 @@ async function cargarComponentes(lector: Lector, recetaIds: string[]): Promise<M
       nombre: insumos.nombre,
       unidadCosto: insumos.unidadCosto,
       costo: insumos.costo,
+      anchoUtilM: insumos.anchoUtilM,
+      areaLaminaM2: insumos.areaLaminaM2,
       requiereRevision: insumos.requiereRevision,
       archivado: insumos.archivado,
     })
@@ -58,6 +62,8 @@ async function cargarComponentes(lector: Lector, recetaIds: string[]): Promise<M
         nombre: f.nombre,
         unidadCosto: f.unidadCosto,
         costo: f.costo,
+        anchoUtilM: f.anchoUtilM,
+        areaLaminaM2: f.areaLaminaM2,
         requiereRevision: f.requiereRevision,
         archivado: f.archivado,
       },

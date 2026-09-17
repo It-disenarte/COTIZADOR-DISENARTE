@@ -16,6 +16,11 @@ import {
 
 const DIAS_AVISO_GASOLINA = 7;
 
+const vacio = (valor: unknown) => valor === null || valor === undefined || valor === "";
+
+/** Usa el valor capturado; si viene vacío, el de respaldo (parámetro de la casa). */
+const elegir = (valor: unknown, respaldo: unknown): Decimal => d((vacio(valor) ? respaldo : valor) as never);
+
 // ---------------------------------------------------------------------------
 // Levantamiento (6.2)
 // ---------------------------------------------------------------------------
@@ -132,7 +137,7 @@ function calcularFijos(entrada: EntradaCotizacion, snapshot: Snapshot, incluirIn
   const p = snapshot.parametros;
   const op = entrada.operacion;
 
-  const diseno = op.disenoMontoManual != null && op.disenoMontoManual !== "" ? d(op.disenoMontoManual) : d(op.diasDiseno).times(d(p.tarifaDisenoDia));
+  const diseno = vacio(op.disenoMontoManual) ? d(op.diasDiseno).times(d(p.tarifaDisenoDia)) : d(op.disenoMontoManual);
 
   const instalacionEscalaPorPieza = op.instalacion.escalaPorPieza === true;
   const instalacion =
@@ -149,18 +154,18 @@ function calcularFijos(entrada: EntradaCotizacion, snapshot: Snapshot, incluirIn
   let hospedaje = CERO;
 
   if (haySalida) {
-    const montoDia =
-      op.viaticos.montoDiaManual != null && op.viaticos.montoDiaManual !== ""
-        ? d(op.viaticos.montoDiaManual)
-        : d(op.viaticos.tipo === "foraneo" ? p.viaticosForaneoDia : p.viaticosLocalDia);
+    const montoDia = elegir(
+      op.viaticos.montoDiaManual,
+      op.viaticos.tipo === "foraneo" ? p.viaticosForaneoDia : p.viaticosLocalDia,
+    );
     viaticos = d(op.viaticos.personas).times(d(op.viaticos.dias)).times(montoDia);
 
     // Diario: un viaje redondo por día de trabajo. Una vez: se quedan, así que es un viaje redondo.
-    const viajes = op.traslado.modo === "diario" ? d(op.traslado.viajesRedondos ?? op.instalacion.dias) : d(1);
+    const viajes = op.traslado.modo === "diario" ? elegir(op.traslado.viajesRedondos, op.instalacion.dias) : d(1);
     const km = d(op.traslado.kmPorTrayecto).times(2).times(viajes);
 
     if (km.gt(0)) {
-      const rendimiento = d(op.traslado.rendimientoKmL ?? p.rendimientoKmL);
+      const rendimiento = elegir(op.traslado.rendimientoKmL, p.rendimientoKmL);
       if (rendimiento.lte(0)) throw new ErrorMotor("El rendimiento del vehículo debe ser mayor a 0.", "RENDIMIENTO_INVALIDO");
       if (p.precioGasolinaLitro == null || p.precioGasolinaLitro === "") {
         throw new ErrorMotor("Falta capturar el precio de la gasolina en Parámetros.", "SIN_PRECIO_GASOLINA");
@@ -225,7 +230,7 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
   const { piezas, areaM2, resumen } = calcularLevantamiento(entrada);
   if (piezas.lte(0)) throw new ErrorMotor("El levantamiento no tiene piezas.", "SIN_PIEZAS");
 
-  const margen = d(entrada.ajustes.margen ?? p.margen);
+  const margen = elegir(entrada.ajustes.margen, p.margen);
   const pctError = d(p.pctMargenError);
   const iva = d(p.iva);
   const alertasGenerales: Alerta[] = [];
@@ -366,7 +371,7 @@ function calcularVariante(args: {
     });
   }
 
-  const descuento = d(entrada.ajustes.descuentoDecisionRapida?.monto ?? 0);
+  const descuento = elegir(entrada.ajustes.descuentoDecisionRapida?.monto, 0);
   const subtotal = round2(suma(filas.map((f) => d(f.subtotal))).minus(descuento));
   const total = round2(subtotal.times(iva.plus(1)));
   const ivaMonto = total.minus(subtotal);

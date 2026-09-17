@@ -7,7 +7,8 @@ Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: fases 1 y 2 termi
 | 1. Base: proyecto, Postgres, migraciones, auth, roles, configuración inicial del admin, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
 | 2. Catálogo: insumos, recetas con componentes, parámetros, clientes y datos semilla | ✅ Hecha (pruebas pasando) |
 | 3. Motor de cálculo con sus pruebas | ✅ Hecha (pruebas pasando) |
-| 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
+| 4. Asistente de 6 pasos, borradores, precio en vivo y alertas | ✅ Hecha (pruebas pasando) |
+| 5. PDF · 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
 
@@ -130,6 +131,23 @@ Restaurar (probarlo antes de salir a producción):
 ```bash
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
+
+## Decisiones de la fase 4
+
+- **Asistente de 6 pasos** (`/cotizaciones/nueva`): datos y cliente, levantamiento por áreas, materiales, operación,
+  items de reventa y resumen interno. Se puede saltar a cualquier paso.
+- **Precio en vivo en el navegador:** el catálogo se descarga una vez (`GET /api/catalogo/snapshot`) y el mismo motor
+  corre en el cliente, así el precio se actualiza al instante. Al guardar, **el servidor vuelve a calcular** y lo que
+  se guarda es su resultado, no el del navegador.
+- **Autoguardado al cambiar de paso**, en cuanto hay título, contacto y una opción de material. Mientras la
+  cotización es borrador se actualiza la misma versión; el versionado llega en la fase 6.
+- **Folio `COT-DDMMYYYY-NN`** consecutivo por día, con la fecha de Ciudad de México.
+- **Cliente dentro de la cotización:** se guarda solo y al escribir el nombre sugiere los que ya existen con sus
+  kilómetros y su zona; elegir uno también ajusta el tipo de viáticos.
+- **Cada versión guarda su snapshot de precios**, así una cotización vieja conserva sus números aunque cambie el
+  catálogo.
+- **Una cotización ganada o perdida ya no se edita** (409); para rehacerla se duplica, cuando llegue la fase 6.
+- **Pegar desde Excel** en el levantamiento: concepto, ancho, alto y una cantidad por área.
 
 ## Decisiones de la fase 3
 

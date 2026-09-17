@@ -328,6 +328,33 @@ describe("Consumibles, margen de error y descuento", () => {
   });
 });
 
+describe("Campos vacíos del asistente usan los parámetros de la casa", () => {
+  it("margen vacío toma el 30% del parámetro, no cero", () => {
+    const entrada = entradaVersa(1);
+    entrada.ajustes = { aplicaMargenError: false, aplicaConsumibles: false, margen: "" };
+    const v = calcular(entrada, snapshot(RECETA_ROTULACION)).opciones[0].variantes[0];
+    expect(v.unitario).toBe("11000.00"); // 7,700 ÷ 0.70
+  });
+
+  it("rendimiento y viajes vacíos toman el parámetro y los días de instalación", () => {
+    const entrada = entradaVersa(1);
+    entrada.operacion.trabajoEnInstalacionesDisenarte = false;
+    entrada.operacion.instalacion = { incluye: true, personas: 2, dias: 2, escalaPorPieza: false };
+    entrada.operacion.traslado = { kmPorTrayecto: "50", modo: "diario", viajesRedondos: "", rendimientoKmL: "", casetasPorViaje: "0" };
+    const v = calcular(entrada, snapshot(RECETA_ROTULACION)).opciones[0].variantes[0];
+    // 50 km × 2 × 2 viajes ÷ 10 km/L × $24.50
+    expect(v.desglose.gasolina).toBe("490.00");
+  });
+
+  it("monto de diseño vacío usa días × tarifa", () => {
+    const entrada = entradaVersa(1);
+    entrada.operacion.disenoMontoManual = "";
+    entrada.operacion.diasDiseno = 2;
+    const v = calcular(entrada, snapshot(RECETA_ROTULACION)).opciones[0].variantes[0];
+    expect(v.desglose.diseno).toBe("1400.00");
+  });
+});
+
 describe("Reventa y alertas", () => {
   it("aplica 35% al precio de referencia y no le suma margen ni margen de error", () => {
     const entrada = entradaVersa(1);
