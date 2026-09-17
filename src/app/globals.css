@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Tokens estilo shadcn/ui. Ajustar --primary a los colores oficiales de la marca. */
+:root {
+  --background: oklch(0.985 0.002 90);
+  --foreground: oklch(0.2 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.955 0.004 90);
+  --muted-foreground: oklch(0.5 0.01 260);
+  --border: oklch(0.91 0.005 90);
+  --input: oklch(0.88 0.005 90);
+  --ring: oklch(0.55 0.15 35);
+  --primary: oklch(0.25 0.02 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.62 0.17 35);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.55 0.2 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.55 0.12 150);
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+  }
+}

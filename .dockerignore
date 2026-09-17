@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+.pglite
+data
+backups
+.env
+.env.*
+!.env.example
+.claude
+coverage
+*.tsbuildinfo
