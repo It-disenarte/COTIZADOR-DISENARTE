@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus2, FolderClock, History, House, KeyRound, LogOut, Package, Users, UserSquare2 } from "lucide-react";
+import { FilePlus2, FolderClock, History, House, KeyRound, LogOut, Package, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Marca } from "@/components/marca";
@@ -16,7 +16,6 @@ const ELEMENTOS: Elemento[] = [
   { href: "/cotizaciones/nueva", etiqueta: "Nueva cotización", icono: FilePlus2, permiso: "cotizaciones.propias", fase: 4 },
   { href: "/cotizaciones", etiqueta: "Mis cotizaciones", icono: FolderClock, permiso: "cotizaciones.propias", fase: 6 },
   { href: "/catalogo", etiqueta: "Catálogo", icono: Package, permiso: "catalogo.ver" },
-  { href: "/clientes", etiqueta: "Clientes", icono: UserSquare2, permiso: "clientes.gestionar" },
   { href: "/historial", etiqueta: "Historial general", icono: History, permiso: "cotizaciones.ver_todas", fase: 6 },
   { href: "/usuarios", etiqueta: "Usuarios", icono: Users, permiso: "usuarios.gestionar" },
 ];

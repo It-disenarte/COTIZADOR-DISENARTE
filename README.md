@@ -157,8 +157,10 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
   agregar a una receta nueva, pero se conserva en las recetas que ya lo usaban.
 - **Parámetros:** las claves las fija la semilla porque el motor depende de ellas; desde la app solo se edita el
   valor. Los porcentajes se capturan como fracción (0.30 = 30%) y la app lo valida.
-- **Clientes:** los pueden dar de alta y editar los tres roles, porque el asistente de cotización (fase 4) los crea
-  al vuelo.
+- **Clientes sin pantalla propia:** llenar un directorio antes de poder cotizar era fricción. Los datos del cliente
+  se capturan dentro del asistente de cotización (fase 4) y la app los guarda sola; al escribir el nombre sugiere
+  los que ya existen con sus kilómetros y zona, para no recapturarlos. La tabla y su API se conservan; lo único
+  que se quitó es la sección del menú.
 - **Sin bitácora (cambio sobre la especificación):** se quitó a petición del equipo. Solo los roles autorizados
   editan el catálogo y cada versión de cotización guardará su propio snapshot de precios (sección 4), así que la
   trazabilidad de los números no depende de un registro de auditoría.

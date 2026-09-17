@@ -12,7 +12,7 @@ export const PERMISOS = {
   "catalogo.ver": ["admin", "agente_admin", "ventas"],
   /** Agregar, editar y archivar insumos, recetas y parámetros */
   "catalogo.editar": ["admin", "agente_admin"],
-  /** Dar de alta y editar clientes (el asistente de cotización los crea al vuelo) */
+  /** Dar de alta y editar clientes: se capturan dentro del asistente de cotización, sin pantalla propia */
   "clientes.gestionar": ["admin", "agente_admin", "ventas"],
   /** Crear, editar, desactivar cuentas y cambiar roles */
   "usuarios.gestionar": ["admin"],
