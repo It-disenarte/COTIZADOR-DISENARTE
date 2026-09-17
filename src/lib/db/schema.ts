@@ -1,4 +1,4 @@
-import { boolean, date, index, jsonb, numeric, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, numeric, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 // Imports relativos: drizzle-kit lee este archivo fuera de Next y no resuelve el alias "@/".
 import { FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "../catalogo/constantes";
 import { ROLES } from "../roles";
@@ -6,7 +6,6 @@ import { ROLES } from "../roles";
 export { ROLES, type Rol } from "../roles";
 
 export const rolEnum = pgEnum("rol", ROLES);
-export const accionBitacoraEnum = pgEnum("accion_bitacora", ["crear", "editar", "archivar"]);
 
 // Columnas de tiempo. Las tablas de Better Auth exigen las llaves createdAt/updatedAt en TS;
 // en SQL todas las tablas usan creado_en / actualizado_en.
@@ -88,25 +87,6 @@ export const verificaciones = pgTable("verificaciones", {
 });
 
 // ---------------------------------------------------------------------------
-// Bitácora de cambios de catálogo, parámetros y usuarios
-// ---------------------------------------------------------------------------
-
-export const bitacora = pgTable(
-  "bitacora",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    usuarioId: uuid("usuario_id").references(() => usuarios.id),
-    entidad: text("entidad").notNull(),
-    entidadId: uuid("entidad_id"),
-    accion: accionBitacoraEnum("accion").notNull(),
-    antes: jsonb("antes"),
-    despues: jsonb("despues"),
-    ...tiempos,
-  },
-  (t) => [index("bitacora_entidad_idx").on(t.entidad, t.entidadId), index("bitacora_creado_idx").on(t.creadoEn)],
-);
-
-// ---------------------------------------------------------------------------
 // Catálogo (fase 2). Montos en numeric(14,4); Drizzle los devuelve como string
 // para no perder precisión: se convierten con decimal.js en el motor.
 // ---------------------------------------------------------------------------
@@ -168,17 +148,6 @@ export const recetaComponentes = pgTable(
   },
   (t) => [index("receta_componentes_receta_idx").on(t.recetaId)],
 );
-
-export const articulosReventa = pgTable("articulos_reventa", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  nombre: text("nombre").notNull(),
-  /** null = por capturar */
-  precioReferencia: dinero("precio_referencia"),
-  linkReferencia: text("link_referencia"),
-  verificadoEn: date("verificado_en"),
-  archivado: boolean("archivado").notNull().default(false),
-  ...tiempos,
-});
 
 export const parametros = pgTable("parametros", {
   id: uuid("id").primaryKey().defaultRandom(),

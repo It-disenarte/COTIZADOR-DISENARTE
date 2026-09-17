@@ -1,0 +1,1 @@
+DROP TABLE "articulos_reventa" CASCADE;

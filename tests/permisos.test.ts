@@ -31,7 +31,6 @@ const MATRIZ: Record<Permiso, Record<Rol, boolean>> = {
   "catalogo.editar": { admin: true, agente_admin: true, ventas: false },
   "clientes.gestionar": { admin: true, agente_admin: true, ventas: true },
   "usuarios.gestionar": { admin: true, agente_admin: false, ventas: false },
-  "bitacora.ver": { admin: true, agente_admin: true, ventas: false },
 };
 
 describe("requirePermiso — matriz de roles", () => {

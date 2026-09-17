@@ -1,14 +1,12 @@
 import { asc, eq } from "drizzle-orm";
-import { registrarBitacora } from "@/lib/bitacora";
 import { db } from "@/lib/db";
 import { insumos } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { ActualizarInsumo, CrearInsumo } from "@/lib/validacion/catalogo";
-import { exigirUuid, noEncontrado, paraBitacora, soloDefinidos } from "./comun";
+import { exigirUuid, noEncontrado, soloDefinidos } from "./comun";
 
 export type Insumo = typeof insumos.$inferSelect;
-const ENTIDAD = "insumos";
 
 export async function listarInsumos(actor: UsuarioSesion | null): Promise<Insumo[]> {
   requirePermiso(actor, "catalogo.ver");
@@ -19,13 +17,6 @@ export async function crearInsumo(actor: UsuarioSesion | null, datos: CrearInsum
   requirePermiso(actor, "catalogo.editar");
   return db.transaction(async (tx) => {
     const [nuevo] = await tx.insert(insumos).values(datos).returning();
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: nuevo.id,
-      accion: "crear",
-      despues: paraBitacora(nuevo),
-    });
     return nuevo;
   });
 }
@@ -44,14 +35,6 @@ export async function actualizarInsumo(actor: UsuarioSesion | null, id: string, 
       throw new ErrorHttp(400, "Indica la unidad del costo.", "VALIDACION");
     }
     const [despues] = await tx.update(insumos).set(valores).where(eq(insumos.id, id)).returning();
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: id,
-      accion: cambios.archivado === true && !antes.archivado ? "archivar" : "editar",
-      antes: paraBitacora(antes),
-      despues: paraBitacora(despues),
-    });
     return despues;
   });
 }

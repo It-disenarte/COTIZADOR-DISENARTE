@@ -8,7 +8,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { articulosReventa, bitacora, insumos, parametros, recetas } = await import("@/lib/db/schema");
+const { insumos, parametros, recetas } = await import("@/lib/db/schema");
 const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial");
 const rutaUsuarios = await import("@/app/api/usuarios/route");
 const rutaCuentaPassword = await import("@/app/api/cuenta/password/route");
@@ -16,13 +16,10 @@ const rutaInsumos = await import("@/app/api/insumos/route");
 const rutaInsumo = await import("@/app/api/insumos/[id]/route");
 const rutaRecetas = await import("@/app/api/recetas/route");
 const rutaReceta = await import("@/app/api/recetas/[id]/route");
-const rutaReventa = await import("@/app/api/reventa/route");
-const rutaReventaId = await import("@/app/api/reventa/[id]/route");
 const rutaParametros = await import("@/app/api/parametros/route");
 const rutaParametro = await import("@/app/api/parametros/[clave]/route");
 const rutaClientes = await import("@/app/api/clientes/route");
 const rutaCliente = await import("@/app/api/clientes/[id]/route");
-const rutaBitacora = await import("@/app/api/bitacora/route");
 
 const ADMIN = { nombre: "Admin", email: "admin@disenartemx.com", password: "Admin-Definitiva-2026" };
 
@@ -70,19 +67,56 @@ beforeAll(async () => {
 });
 
 describe("Datos semilla de la especificación", () => {
-  it("carga insumos, recetas, reventa y parámetros en la migración", async () => {
-    expect(await db.select().from(insumos)).toHaveLength(26);
-    expect(await db.select().from(recetas)).toHaveLength(7);
-    expect(await db.select().from(articulosReventa)).toHaveLength(5);
+  it("carga insumos, recetas y parámetros en la migración", async () => {
+    expect(await db.select().from(insumos)).toHaveLength(39);
+    expect(await db.select().from(recetas)).toHaveLength(11);
     expect(await db.select().from(parametros)).toHaveLength(16);
   });
 
-  it("los costos son los del Excel, sin IVA ni utilidad", async () => {
+  it("carga los precios de operación de la ficha de desarrollo", async () => {
+    const filas = await db.select().from(insumos);
+    const precio = (nombre: string) => filas.find((i) => i.nombre === nombre);
+
+    expect(precio("Corte de vinil")).toMatchObject({ unidadCosto: "m2", costo: "400.0000" });
+    expect(precio("Trovicel 3 mm con impresión")).toMatchObject({ unidadCosto: "m2", costo: "1200.0000" });
+    expect(precio("Impresión en vinil UV")?.costo).toBe("1700.0000");
+    expect(precio("Fotomural Wall Xtreme")?.costo).toBe("580.8000");
+    expect(precio("Corte en acrílico 6 mm")?.costo).toBe("2299.0000");
+    expect(precio("Chapetón")).toMatchObject({ unidadCosto: "pieza", costo: "65.0000" });
+    expect(precio("Contador digital")?.costo).toBe("3000.0000");
+    expect(precio("Enmarcado / caja de 15 cm")?.costo).toBe("4500.0000");
+    expect(precio("Tablero dinámico 120 × 244 cm")?.costo).toBe("22044.0000");
+    expect(precio("Insumos de aplicación en rotulación")).toMatchObject({ costo: "200.0000", requiereRevision: true });
+  });
+
+  it("conserva los costos del Excel como referencia interna, separados por categoría", async () => {
     const [trovicel] = await db.select().from(insumos).where(eq(insumos.nombre, "Trovicel 3 mm"));
-    expect(trovicel).toMatchObject({ unidadCosto: "lamina", costo: "228.7900", areaLaminaM2: "2.9768", requiereRevision: false });
+    expect(trovicel).toMatchObject({ unidadCosto: "lamina", costo: "228.7900", areaLaminaM2: "2.9768" });
+    expect(trovicel.categoria.startsWith("Costo primo · ")).toBe(true);
 
     const [vinil] = await db.select().from(insumos).where(eq(insumos.nombre, "Vinil de corte 1.22"));
     expect(vinil).toMatchObject({ unidadCosto: "ml", costo: "106.1500", anchoUtilM: "1.2200" });
+  });
+
+  it("la receta de rotulación reproduce el caso del Versa: $400 por m² más insumos por unidad", async () => {
+    const res = await rutaRecetas.GET(peticion("/api/recetas", { cookie: cookieAdmin }), undefined);
+    const { recetas: lista } = await res.json();
+    const rotulacion = lista.find((r: { nombre: string }) => r.nombre === "Corte de vinil (rotulación)");
+
+    expect(rotulacion.pctMerma).toBe("0.0000");
+    const porM2 = rotulacion.componentes.find((c: { modo: string }) => c.modo === "por_m2");
+    const porPieza = rotulacion.componentes.find((c: { modo: string }) => c.modo === "por_pieza");
+    expect(porM2.insumo).toMatchObject({ nombre: "Corte de vinil", costo: "400.0000" });
+    expect(porPieza.insumo).toMatchObject({ nombre: "Insumos de aplicación en rotulación", costo: "200.0000" });
+
+    // 12 m² × $400 + $200 = $5,000 de materiales para una unidad.
+    const materiales = 12 * Number(porM2.insumo.costo) + Number(porPieza.insumo.costo);
+    expect(materiales).toBe(5000);
+  });
+
+  it("ninguna receta lleva merma explícita", async () => {
+    const todas = await db.select().from(recetas);
+    expect(todas.every((r) => Number(r.pctMerma) === 0)).toBe(true);
   });
 
   it("los pendientes quedan marcados para revisión y sin costo inventado", async () => {
@@ -110,11 +144,10 @@ describe("Datos semilla de la especificación", () => {
     expect(valor("iva")).toBe("0.1600");
   });
 
-  it("la receta de trovicel trae sus tres componentes y la merma del Excel", async () => {
+  it("la receta de trovicel del Excel trae sus tres componentes", async () => {
     const res = await rutaRecetas.GET(peticion("/api/recetas", { cookie: cookieAdmin }), undefined);
     const { recetas: lista } = await res.json();
     const trovicel = lista.find((r: { nombre: string }) => r.nombre === "Trovicel 3 mm + vinil de corte + transfer");
-    expect(trovicel.pctMerma).toBe("0.1500");
     expect(trovicel.componentes.map((c: { insumo: { nombre: string } }) => c.insumo.nombre).sort()).toEqual([
       "Papel transfer",
       "Trovicel 3 mm",
@@ -125,11 +158,10 @@ describe("Datos semilla de la especificación", () => {
 });
 
 describe("Criterio de la fase 2: ventas ve todo sin poder editar", () => {
-  it("ventas puede consultar las cuatro pestañas del catálogo", async () => {
+  it("ventas puede consultar las tres pestañas del catálogo", async () => {
     for (const [ruta, nombre] of [
       [rutaInsumos, "insumos"],
       [rutaRecetas, "recetas"],
-      [rutaReventa, "articulos"],
       [rutaParametros, "parametros"],
     ] as const) {
       const res = await ruta.GET(peticion("/api", { cookie: cookieVentas }), undefined);
@@ -138,10 +170,9 @@ describe("Criterio de la fase 2: ventas ve todo sin poder editar", () => {
     }
   });
 
-  it("ventas recibe 403 al crear o editar insumos, recetas, reventa y parámetros", async () => {
+  it("ventas recibe 403 al crear o editar insumos, recetas y parámetros", async () => {
     const [{ id: insumoId }] = await db.select({ id: insumos.id }).from(insumos).limit(1);
     const [{ id: recetaId }] = await db.select({ id: recetas.id }).from(recetas).limit(1);
-    const [{ id: articuloId }] = await db.select({ id: articulosReventa.id }).from(articulosReventa).limit(1);
 
     const respuestas = await Promise.all([
       rutaInsumos.POST(peticion("/api/insumos", { metodo: "POST", cookie: cookieVentas, cuerpo: insumoValido }), undefined),
@@ -153,31 +184,27 @@ describe("Criterio de la fase 2: ventas ve todo sin poder editar", () => {
         peticion(`/api/recetas/${recetaId}`, { metodo: "PATCH", cookie: cookieVentas, cuerpo: { nombre: "Hackeada" } }),
         ctxId(recetaId),
       ),
-      rutaReventaId.PATCH(
-        peticion(`/api/reventa/${articuloId}`, { metodo: "PATCH", cookie: cookieVentas, cuerpo: { precioReferencia: "1" } }),
-        ctxId(articuloId),
-      ),
       rutaParametro.PATCH(
         peticion("/api/parametros/margen", { metodo: "PATCH", cookie: cookieVentas, cuerpo: { valor: "0.9" } }),
         { params: Promise.resolve({ clave: "margen" }) },
       ),
     ]);
-    expect(respuestas.map((r) => r.status)).toEqual([403, 403, 403, 403, 403]);
+    expect(respuestas.map((r) => r.status)).toEqual([403, 403, 403, 403]);
 
     const [margen] = await db.select().from(parametros).where(eq(parametros.clave, "margen"));
     expect(margen.valor).toBe("0.3000");
   });
 
-  it("ventas recibe 403 en la bitácora", async () => {
-    const res = await rutaBitacora.GET(peticion("/api/bitacora", { cookie: cookieVentas }), undefined);
-    expect(res.status).toBe(403);
+  it("ventas sí puede consultar clientes (no es parte del catálogo)", async () => {
+    const res = await rutaClientes.GET(peticion("/api/clientes", { cookie: cookieVentas }), undefined);
+    expect(res.status).toBe(200);
   });
 });
 
 describe("Edición del catálogo por agente_admin", () => {
   let insumoId = "";
 
-  it("crea un insumo y lo registra en la bitácora", async () => {
+  it("crea un insumo", async () => {
     const res = await rutaInsumos.POST(
       peticion("/api/insumos", { metodo: "POST", cookie: cookieAgente, cuerpo: insumoValido }),
       undefined,
@@ -186,29 +213,23 @@ describe("Edición del catálogo por agente_admin", () => {
     const { insumo } = await res.json();
     insumoId = insumo.id;
     expect(insumo).toMatchObject({ costo: "123.4567", unidadCosto: "m2", archivado: false });
-
-    const registros = await db.select().from(bitacora).where(eq(bitacora.entidadId, insumoId));
-    expect(registros).toHaveLength(1);
-    expect(registros[0].accion).toBe("crear");
   });
 
-  it("edita y archiva, y la bitácora guarda antes y después", async () => {
-    await rutaInsumo.PATCH(
+  it("edita el costo y archiva el insumo", async () => {
+    const edicion = await rutaInsumo.PATCH(
       peticion(`/api/insumos/${insumoId}`, { metodo: "PATCH", cookie: cookieAgente, cuerpo: { costo: "200" } }),
       ctxId(insumoId),
     );
+    expect((await edicion.json()).insumo.costo).toBe("200.0000");
+
     const res = await rutaInsumo.PATCH(
       peticion(`/api/insumos/${insumoId}`, { metodo: "PATCH", cookie: cookieAgente, cuerpo: { archivado: true } }),
       ctxId(insumoId),
     );
     expect(res.status).toBe(200);
 
-    const registros = await db.select().from(bitacora).where(eq(bitacora.entidadId, insumoId));
-    expect(registros.map((r) => r.accion)).toEqual(["crear", "editar", "archivar"]);
-    const edicion = registros[1].antes as { costo: string };
-    const despues = registros[1].despues as { costo: string };
-    expect(edicion.costo).toBe("123.4567");
-    expect(despues.costo).toBe("200.0000");
+    const [fila] = await db.select().from(insumos).where(eq(insumos.id, insumoId));
+    expect(fila).toMatchObject({ costo: "200.0000", archivado: true });
   });
 
   it("rechaza un costo sin unidad y un parámetro de fracción mayor o igual a 1", async () => {
@@ -233,20 +254,6 @@ describe("Edición del catálogo por agente_admin", () => {
     expect(res.status).toBe(200);
     const [gasolina] = await db.select().from(parametros).where(eq(parametros.clave, "precio_gasolina_litro"));
     expect(gasolina.valor).toBe("24.5000");
-  });
-
-  it("verifica un artículo de reventa con su link y fecha", async () => {
-    const [articulo] = await db.select().from(articulosReventa).where(eq(articulosReventa.nombre, "Extintor PQS"));
-    const res = await rutaReventaId.PATCH(
-      peticion(`/api/reventa/${articulo.id}`, {
-        metodo: "PATCH",
-        cookie: cookieAgente,
-        cuerpo: { precioReferencia: "890.50", linkReferencia: "https://ejemplo.mx/extintor", verificadoEn: "2026-09-17" },
-      }),
-      ctxId(articulo.id),
-    );
-    expect(res.status).toBe(200);
-    expect((await res.json()).articulo).toMatchObject({ precioReferencia: "890.5000", verificadoEn: "2026-09-17" });
   });
 });
 
@@ -309,7 +316,7 @@ describe("Recetas", () => {
     expect((await conArchivado.json()).codigo).toBe("INSUMO_ARCHIVADO");
   });
 
-  it("reemplaza los componentes al editar y lo deja en la bitácora", async () => {
+  it("reemplaza los componentes al editar", async () => {
     const [vinil] = await db.select().from(insumos).where(eq(insumos.nombre, "Vinil de corte 1.22"));
     const res = await rutaReceta.PATCH(
       peticion(`/api/recetas/${recetaId}`, {
@@ -323,11 +330,7 @@ describe("Recetas", () => {
     const { receta } = await res.json();
     expect(receta.pctMerma).toBe("0.2000");
     expect(receta.componentes).toHaveLength(1);
-
-    const registros = await db.select().from(bitacora).where(eq(bitacora.entidadId, recetaId));
-    expect(registros.map((r) => r.accion)).toEqual(["crear", "editar"]);
-    const antes = registros[1].antes as { componentes: unknown[] };
-    expect(antes.componentes).toHaveLength(2);
+    expect(receta.componentes[0].insumo.nombre).toBe("Vinil de corte 1.22");
   });
 });
 
@@ -374,26 +377,3 @@ describe("Clientes", () => {
   });
 });
 
-describe("Bitácora", () => {
-  it("agente_admin la consulta y puede filtrar por entidad", async () => {
-    const todas = await rutaBitacora.GET(peticion("/api/bitacora", { cookie: cookieAgente }), undefined);
-    expect(todas.status).toBe(200);
-    const { registros, total } = await todas.json();
-    expect(total).toBeGreaterThan(0);
-    expect(registros[0].usuarioNombre).toBeTruthy();
-
-    const soloClientes = await rutaBitacora.GET(
-      peticion("/api/bitacora?entidad=clientes", { cookie: cookieAgente }),
-      undefined,
-    );
-    const datos = await soloClientes.json();
-    expect(datos.registros.every((r: { entidad: string }) => r.entidad === "clientes")).toBe(true);
-    expect(datos.registros.length).toBeGreaterThan(0);
-  });
-
-  it("nunca guarda contraseñas ni hashes", async () => {
-    const todo = JSON.stringify(await db.select().from(bitacora));
-    expect(todo).not.toContain("$argon2");
-    expect(todo).not.toContain("Temporal-1234567");
-  });
-});

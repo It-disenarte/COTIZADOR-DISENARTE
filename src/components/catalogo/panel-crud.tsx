@@ -34,7 +34,7 @@ type Props<T extends { id: string }> = {
 };
 
 /**
- * Tabla + formulario para las entidades simples del catálogo (insumos, reventa, clientes).
+ * Tabla + formulario para las entidades simples del catálogo (insumos y clientes).
  * Toda la validación real ocurre en el servidor; aquí solo se muestran sus mensajes.
  */
 export function PanelCrud<T extends { id: string }>({

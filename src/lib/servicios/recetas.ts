@@ -1,11 +1,10 @@
 import { asc, eq, inArray } from "drizzle-orm";
-import { registrarBitacora } from "@/lib/bitacora";
 import { db } from "@/lib/db";
 import { insumos, recetaComponentes, recetas } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { ActualizarReceta, CrearReceta } from "@/lib/validacion/catalogo";
-import { exigirUuid, noEncontrado, paraBitacora, soloDefinidos } from "./comun";
+import { exigirUuid, noEncontrado, soloDefinidos } from "./comun";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Lector = Pick<typeof db, "select">;
@@ -26,7 +25,6 @@ export type ComponenteDetalle = {
 };
 export type RecetaDetalle = Receta & { componentes: ComponenteDetalle[] };
 
-const ENTIDAD = "recetas";
 
 async function cargarComponentes(lector: Lector, recetaIds: string[]): Promise<Map<string, ComponenteDetalle[]>> {
   const mapa = new Map<string, ComponenteDetalle[]>();
@@ -76,14 +74,6 @@ async function detalle(lector: Lector, id: string): Promise<RecetaDetalle | unde
   return { ...receta, componentes };
 }
 
-/** Snapshot legible para la bitácora: datos de la receta + componentes con nombre de insumo. */
-function snapshot(r: RecetaDetalle) {
-  return {
-    ...paraBitacora(r),
-    componentes: r.componentes.map((c) => ({ insumo: c.insumo.nombre, insumoId: c.insumoId, modo: c.modo, cantidad: c.cantidad })),
-  };
-}
-
 export async function listarRecetas(actor: UsuarioSesion | null): Promise<RecetaDetalle[]> {
   requirePermiso(actor, "catalogo.ver");
   const lista = await db.select().from(recetas).orderBy(asc(recetas.familia), asc(recetas.nombre));
@@ -124,13 +114,6 @@ export async function crearReceta(actor: UsuarioSesion | null, datos: CrearRecet
     const [nueva] = await tx.insert(recetas).values(campos).returning();
     await tx.insert(recetaComponentes).values(componentes.map((c) => ({ ...c, recetaId: nueva.id })));
     const resultado = (await detalle(tx, nueva.id))!;
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: nueva.id,
-      accion: "crear",
-      despues: snapshot(resultado),
-    });
     return resultado;
   });
 }
@@ -157,14 +140,6 @@ export async function actualizarReceta(actor: UsuarioSesion | null, id: string, 
     }
 
     const despues = (await detalle(tx, id))!;
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: id,
-      accion: cambios.archivado === true && !antes.archivado ? "archivar" : "editar",
-      antes: snapshot(antes),
-      despues: snapshot(despues),
-    });
     return despues;
   });
 }

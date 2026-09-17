@@ -1,5 +1,4 @@
 import { and, count, eq, sql } from "drizzle-orm";
-import { registrarBitacora } from "@/lib/bitacora";
 import { db } from "@/lib/db";
 import { cuentas, sesiones, usuarios } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
@@ -27,13 +26,6 @@ export async function crearPrimerAdmin(entrada: PrimerAdmin): Promise<string> {
     }
 
     const id = await insertarUsuarioConPassword(tx, { ...datos, rol: "admin", debeCambiarPassword: false });
-    await registrarBitacora(tx, {
-      usuarioId: id,
-      entidad: "usuarios",
-      entidadId: id,
-      accion: "crear",
-      despues: { nombre: datos.nombre, email: datos.email, rol: "admin", activo: true, origen: "configuracion_inicial" },
-    });
     return id;
   });
 }
@@ -53,14 +45,7 @@ export async function crearORecuperarAdmin(entrada: PrimerAdmin): Promise<Result
       .where(eq(usuarios.email, datos.email));
 
     if (!existente) {
-      const id = await insertarUsuarioConPassword(tx, { ...datos, rol: "admin", debeCambiarPassword: false });
-      await registrarBitacora(tx, {
-        usuarioId: null,
-        entidad: "usuarios",
-        entidadId: id,
-        accion: "crear",
-        despues: { nombre: datos.nombre, email: datos.email, rol: "admin", activo: true, origen: "comando_crear_admin" },
-      });
+      await insertarUsuarioConPassword(tx, { ...datos, rol: "admin", debeCambiarPassword: false });
       return "creado";
     }
 
@@ -78,14 +63,6 @@ export async function crearORecuperarAdmin(entrada: PrimerAdmin): Promise<Result
       .set({ rol: "admin", activo: true, debeCambiarPassword: false })
       .where(eq(usuarios.id, existente.id));
     await tx.delete(sesiones).where(eq(sesiones.userId, existente.id));
-    await registrarBitacora(tx, {
-      usuarioId: null,
-      entidad: "usuarios",
-      entidadId: existente.id,
-      accion: "editar",
-      antes: { rol: existente.rol, activo: existente.activo },
-      despues: { rol: "admin", activo: true, password: "restablecida con comando crear-admin", origen: "comando_crear_admin" },
-    });
     return "recuperado";
   });
 }

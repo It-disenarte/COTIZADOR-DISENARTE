@@ -1,11 +1,11 @@
 # Cotizador Diseñarte México
 
-Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: Fase 1 (Base)**.
+Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: fases 1 y 2 terminadas**.
 
 | Fase | Estado |
 |---|---|
 | 1. Base: proyecto, Postgres, migraciones, auth, roles, configuración inicial del admin, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
-| 2. Catálogo: insumos, recetas con componentes, reventa, parámetros, clientes, bitácora y datos semilla | ✅ Hecha (pruebas pasando) |
+| 2. Catálogo: insumos, recetas con componentes, parámetros, clientes y datos semilla | ✅ Hecha (pruebas pasando) |
 | 3. Motor · 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
@@ -19,15 +19,14 @@ App en **Vercel**; PostgreSQL en el VPS de Hostinger administrado con **Easypane
 ```text
 src/
   app/
-    (app)/            pantallas con sesión: inicio, catálogo, clientes, bitácora, usuarios
+    (app)/            pantallas con sesión: inicio, catálogo, clientes, usuarios
     login/            inicio de sesión
     cambiar-password/ cambio de contraseña (obligatorio si es temporal)
     api/auth/         Better Auth
     api/usuarios/     alta, edición, desactivación, restablecer contraseña (solo admin)
-    api/insumos/ api/recetas/ api/reventa/ api/parametros/
+    api/insumos/ api/recetas/ api/parametros/
                       catálogo: lectura para todos, edición para admin y agente_admin
     api/clientes/     clientes: todos los roles
-    api/bitacora/     consulta de la bitácora con filtros
     api/cuenta/       cambio de contraseña propia
     api/salud/        healthcheck (app + conexión a Postgres)
   lib/
@@ -117,7 +116,7 @@ npm run crear-admin
 ```
 
 Pide el correo y la contraseña (oculta). Si el correo no existe crea un admin; si existe, le pone la contraseña
-nueva, lo deja activo con rol Admin total y cierra sus sesiones. Queda registrado en la bitácora.
+nueva, lo deja activo con rol Admin total y cierra sus sesiones.
 
 ### Respaldos
 
@@ -132,23 +131,40 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
 
 ## Decisiones de la fase 2
 
-- **Datos semilla como migración** (`drizzle/0002_semilla_catalogo.sql`): se cargan solas en el primer despliegue
-  y después todo se edita desde la app. Los costos son las columnas "Sub total" del Excel (sin IVA, sin utilidad,
-  con la inflación de 5% ya incluida).
+- **Dos capas de números en el catálogo** (`drizzle/0005_precios_operacion.sql`):
+  - **Precios de operación**, de la lista PLANEACIÓN DE TRABAJO – PRECIOS (ficha de desarrollo, sep 2026). Son con
+    los que se cotiza de verdad y los que reproducen el caso del Versa: corte de vinil $400/m², trovicel 3 mm con
+    impresión $1,200/m² (ya incluye dos caras), vinil UV $1,700/m², fotomural $580.80/m², acrílico 6 mm $2,299/m²,
+    MDF $800, chapetón $65, contador $3,000, enmarcado $4,500, amarre $75, cinta doble cara $800, insumos de
+    aplicación $200 y tablero dinámico $22,044.
+  - **Costos primos del Excel** de agosto 2026 (`drizzle/0002_semilla_catalogo.sql`), como referencia interna. Se
+    distinguen con la categoría `Costo primo · …`.
+  Todo es editable desde la app; la semilla solo es el punto de partida.
+- **Sin merma explícita:** todas las recetas quedan en 0%. Hoy se cotiza sobre el área de la pieza y los precios de
+  operación ya absorben el desperdicio (pregunta abierta 2 de la ficha).
+- **Costos administrativos e indirectos:** siguen absorbidos dentro del margen del 30%, sin línea propia
+  (pregunta abierta 1 de la ficha).
 - **Nada inventado:** lo que la especificación deja pendiente (estireno cal. 20 y 40, vinil fotoluminiscente y el
   precio de la gasolina) queda **sin costo**, marcado como "Por revisar", y las recetas que los usan avisan que no
   se pueden cotizar hasta capturarlos.
 - **Recetas de estireno:** la propuesta de Gandhi dice "impresión en vinil eco-solvente", así que se arman con la
-  impresión Mimaki JV33 (no UV). La merma queda en 0 salvo las de trovicel, que llevan el 15% del Excel.
+  impresión Mimaki JV33 (no UV). Siguen sin costo hasta capturar el del estireno.
+- **Receta de rotulación:** corte de vinil por m² más insumos de aplicación por unidad, tal como el ejemplo del
+  Nissan Versa de la ficha (12 m² × $400 + $200).
 - **Decimales:** se guardan en `numeric(14,4)` y viajan como texto entre servidor y navegador, para que el motor
   (fase 3) haga las cuentas con decimales exactos.
-- **Archivar, no borrar:** insumos, recetas y artículos de reventa se archivan. Un insumo archivado no se puede
+- **Archivar, no borrar:** insumos y recetas se archivan. Un insumo archivado no se puede
   agregar a una receta nueva, pero se conserva en las recetas que ya lo usaban.
 - **Parámetros:** las claves las fija la semilla porque el motor depende de ellas; desde la app solo se edita el
   valor. Los porcentajes se capturan como fracción (0.30 = 30%) y la app lo valida.
 - **Clientes:** los pueden dar de alta y editar los tres roles, porque el asistente de cotización (fase 4) los crea
-  al vuelo. Sus cambios también quedan en la bitácora.
-- **Bitácora:** guarda antes y después de cada cambio de catálogo, parámetros, clientes y usuarios, sin contraseñas.
+  al vuelo.
+- **Sin bitácora (cambio sobre la especificación):** se quitó a petición del equipo. Solo los roles autorizados
+  editan el catálogo y cada versión de cotización guardará su propio snapshot de precios (sección 4), así que la
+  trazabilidad de los números no depende de un registro de auditoría.
+- **Sin catálogo de reventa (cambio sobre la especificación):** la reventa es esporádica, así que no tiene pestaña
+  propia. En la fase 4 los artículos se capturan como **items de reventa** dentro de la cotización: nombre, precio
+  de referencia, cantidad y link opcional, escritos al momento. El parámetro `pct_reventa` (35%) se conserva.
 
 ## Decisiones de la fase 1
 
@@ -163,7 +179,7 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
 - **Contraseña temporal:** mientras `debe_cambiar_password = true`, toda la API responde 403 salvo
   `POST /api/cuenta/password`, y las pantallas redirigen a `/cambiar-password`.
 - **Registro público deshabilitado** y rutas de Better Auth de perfil/contraseña deshabilitadas: esos cambios pasan
-  por la API propia para validar permisos y escribir en `bitacora` (sin guardar contraseñas ni hashes).
+  por la API propia, que valida permisos y nunca devuelve contraseñas ni hashes.
 - **Protección contra auto-bloqueo:** el admin no puede desactivarse ni quitarse el rol a sí mismo.
 - **Contraseñas:** mínimo 10 caracteres; argon2id (19 MiB, 2 pasadas).
 - **Migraciones:** `scripts/migrate.ts` usa el migrador de `drizzle-orm`, que aplica la misma carpeta `drizzle/` y

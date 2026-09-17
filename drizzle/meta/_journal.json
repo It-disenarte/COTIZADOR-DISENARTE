@@ -22,6 +22,27 @@
       "when": 1789666827978,
       "tag": "0002_semilla_catalogo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789669749353,
+      "tag": "0003_quitar_bitacora",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789670582617,
+      "tag": "0004_quitar_reventa",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789671061148,
+      "tag": "0005_precios_operacion",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "@/lib/catalogo/constantes";
-import { decimal, decimalOpcional, fechaOpcional, textoOpcional, textoRequerido, urlOpcional, Uuid } from "./comunes";
+import { decimal, decimalOpcional, textoOpcional, textoRequerido, Uuid } from "./comunes";
 
 // Insumos ------------------------------------------------------------------------------------
 
@@ -52,21 +52,6 @@ export type CrearReceta = z.infer<typeof CrearReceta>;
 
 export const ActualizarReceta = z.object({ ...camposReceta, archivado: z.boolean() }).partial();
 export type ActualizarReceta = z.infer<typeof ActualizarReceta>;
-
-// Reventa ------------------------------------------------------------------------------------
-
-const camposReventa = {
-  nombre: textoRequerido(200, "Escribe el nombre."),
-  precioReferencia: decimalOpcional({ min: 0 }),
-  linkReferencia: urlOpcional,
-  verificadoEn: fechaOpcional,
-};
-
-export const CrearArticuloReventa = z.object(camposReventa);
-export type CrearArticuloReventa = z.infer<typeof CrearArticuloReventa>;
-
-export const ActualizarArticuloReventa = z.object({ ...camposReventa, archivado: z.boolean() }).partial();
-export type ActualizarArticuloReventa = z.infer<typeof ActualizarArticuloReventa>;
 
 // Parámetros ---------------------------------------------------------------------------------
 

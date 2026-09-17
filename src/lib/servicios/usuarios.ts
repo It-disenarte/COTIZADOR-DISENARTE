@@ -1,13 +1,10 @@
 import { and, asc, eq, ne } from "drizzle-orm";
-import { registrarBitacora } from "@/lib/bitacora";
 import { db } from "@/lib/db";
 import { cuentas, sesiones, usuarios } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { ActualizarUsuario, CrearUsuario } from "@/lib/validacion/usuarios";
-
-const ENTIDAD = "usuarios";
 
 /** Proyección pública: nunca incluye la contraseña. */
 const columnasPublicas = {
@@ -42,12 +39,6 @@ async function buscarOFallar(id: string): Promise<UsuarioPublico> {
   if (!usuario) throw new ErrorHttp(404, "Usuario no encontrado.", "NO_ENCONTRADO");
   return usuario;
 }
-
-const sinFecha = (usuario: UsuarioPublico) => {
-  const resto: Partial<UsuarioPublico> = { ...usuario };
-  delete resto.creadoEn;
-  return resto;
-};
 
 export async function listarUsuarios(actor: UsuarioSesion | null): Promise<UsuarioPublico[]> {
   requirePermiso(actor, "usuarios.gestionar");
@@ -95,13 +86,6 @@ export async function crearUsuario(actor: UsuarioSesion | null, datos: CrearUsua
       rol: datos.rol,
       password: datos.passwordTemporal,
     });
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: id,
-      accion: "crear",
-      despues: { nombre: datos.nombre, email: datos.email, rol: datos.rol, activo: true },
-    });
     return id;
   });
 
@@ -136,16 +120,6 @@ export async function actualizarUsuario(
 
     // Una cuenta desactivada pierde sus sesiones abiertas de inmediato.
     if (cambios.activo === false) await tx.delete(sesiones).where(eq(sesiones.userId, id));
-
-    const despues = { ...sinFecha(antes), ...cambios };
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: id,
-      accion: "editar",
-      antes: sinFecha(antes),
-      despues,
-    });
   });
 
   return buscarOFallar(id);
@@ -153,7 +127,7 @@ export async function actualizarUsuario(
 
 export async function restablecerPassword(actor: UsuarioSesion | null, id: string, passwordTemporal: string) {
   requirePermiso(actor, "usuarios.gestionar");
-  const objetivo = await buscarOFallar(id);
+  await buscarOFallar(id);
   const nuevoHash = await hashPassword(passwordTemporal);
 
   await db.transaction(async (tx) => {
@@ -167,14 +141,6 @@ export async function restablecerPassword(actor: UsuarioSesion | null, id: strin
     }
     await tx.update(usuarios).set({ debeCambiarPassword: true }).where(eq(usuarios.id, id));
     await tx.delete(sesiones).where(eq(sesiones.userId, id));
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: ENTIDAD,
-      entidadId: id,
-      accion: "editar",
-      antes: { debeCambiarPassword: objetivo.debeCambiarPassword },
-      despues: { debeCambiarPassword: true, password: "restablecida por admin" },
-    });
   });
 }
 
@@ -198,13 +164,5 @@ export async function cambiarPasswordPropia(
     await tx.update(cuentas).set({ password: nuevoHash }).where(eq(cuentas.id, cuenta.id));
     await tx.update(usuarios).set({ debeCambiarPassword: false }).where(eq(usuarios.id, usuario.id));
     await tx.delete(sesiones).where(and(eq(sesiones.userId, usuario.id), ne(sesiones.token, token)));
-    await registrarBitacora(tx, {
-      usuarioId: usuario.id,
-      entidad: ENTIDAD,
-      entidadId: usuario.id,
-      accion: "editar",
-      antes: { debeCambiarPassword: usuario.debeCambiarPassword },
-      despues: { debeCambiarPassword: false, password: "cambiada por el usuario" },
-    });
   });
 }

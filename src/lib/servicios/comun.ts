@@ -11,14 +11,6 @@ export function noEncontrado(entidad: string): never {
   throw new ErrorHttp(404, `${entidad} no encontrado.`, "NO_ENCONTRADO");
 }
 
-/** Copia sin columnas de tiempo, para guardar antes/después legibles en la bitácora. */
-export function paraBitacora<T extends Record<string, unknown>>(fila: T) {
-  const copia: Record<string, unknown> = { ...fila };
-  delete copia.creadoEn;
-  delete copia.actualizadoEn;
-  return copia;
-}
-
 /** Quita llaves con valor undefined (campos que no vienen en un PATCH). */
 export function soloDefinidos<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;

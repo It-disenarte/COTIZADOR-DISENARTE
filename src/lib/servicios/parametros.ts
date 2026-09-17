@@ -1,10 +1,9 @@
 import { asc, eq } from "drizzle-orm";
-import { registrarBitacora } from "@/lib/bitacora";
 import { db } from "@/lib/db";
 import { parametros } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
-import { noEncontrado, paraBitacora } from "./comun";
+import { noEncontrado } from "./comun";
 
 export type Parametro = typeof parametros.$inferSelect;
 
@@ -24,14 +23,6 @@ export async function actualizarParametro(actor: UsuarioSesion | null, clave: st
       throw new ErrorHttp(400, "Este parámetro es una fracción: escribe 0.30 para 30%.", "VALIDACION");
     }
     const [despues] = await tx.update(parametros).set({ valor }).where(eq(parametros.clave, clave)).returning();
-    await registrarBitacora(tx, {
-      usuarioId: actor.id,
-      entidad: "parametros",
-      entidadId: antes.id,
-      accion: "editar",
-      antes: paraBitacora(antes),
-      despues: paraBitacora(despues),
-    });
     return despues;
   });
 }

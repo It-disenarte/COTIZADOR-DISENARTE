@@ -32,16 +32,3 @@ export const ZONAS = ["local", "foraneo"] as const;
 export type Zona = (typeof ZONAS)[number];
 export const ETIQUETA_ZONA: Record<Zona, string> = { local: "Local", foraneo: "Foráneo" };
 
-/** Entidades que registran cambios en la bitácora. */
-export const ENTIDADES_BITACORA = {
-  usuarios: "Usuarios",
-  insumos: "Insumos",
-  recetas: "Recetas",
-  articulos_reventa: "Reventa",
-  parametros: "Parámetros",
-  clientes: "Clientes",
-} as const;
-export type EntidadBitacora = keyof typeof ENTIDADES_BITACORA;
-
-/** Parámetros de la casa: tipo de valor para validar y mostrar. */
-export type TipoParametro = "fraccion" | "moneda" | "numero";

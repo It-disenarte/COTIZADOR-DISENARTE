@@ -9,7 +9,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { bitacora, cuentas, sesiones, usuarios } = await import("@/lib/db/schema");
+const { cuentas, sesiones, usuarios } = await import("@/lib/db/schema");
 const { crearORecuperarAdmin, requiereConfiguracionInicial } = await import("@/lib/servicios/configuracion-inicial");
 const rutaConfiguracion = await import("@/app/api/configuracion-inicial/route");
 const rutaUsuarios = await import("@/app/api/usuarios/route");
@@ -266,13 +266,11 @@ describe("Caso 5 — permisos por rol en la API", () => {
     expect((await intentarIniciarSesion("ventas@disenartemx.com", ventas.password)).ok).toBe(true);
   });
 
-  it("la bitácora registra los cambios de usuarios sin guardar contraseñas", async () => {
-    const filas = await db.select().from(bitacora).where(eq(bitacora.entidad, "usuarios"));
-    expect(filas.some((f) => f.accion === "crear" && f.entidadId === ventas.id)).toBe(true);
-    expect(filas.some((f) => f.accion === "editar" && f.entidadId === ventas.id)).toBe(true);
-    const texto = JSON.stringify(filas);
+  it("la API nunca devuelve contraseñas ni hashes", async () => {
+    const res = await rutaUsuarios.GET(peticion("/api/usuarios", { cookie: cookieAdmin }), undefined);
+    const texto = JSON.stringify(await res.json());
     expect(texto).not.toContain("$argon2");
-    expect(texto).not.toContain("Temporal-1234567");
+    expect(texto).not.toContain("password");
   });
 
   describe("Comando crear-admin (recuperación de acceso)", () => {
@@ -303,9 +301,6 @@ describe("Caso 5 — permisos por rol en la API", () => {
 
       expect((await intentarIniciarSesion("ventas@disenartemx.com", ventas.password)).ok).toBe(false);
       expect((await intentarIniciarSesion("ventas@disenartemx.com", "Recuperada-2026")).ok).toBe(true);
-
-      const registros = await db.select().from(bitacora).where(eq(bitacora.entidadId, ventas.id));
-      expect(registros.some((r) => r.usuarioId === null && JSON.stringify(r.despues).includes("comando_crear_admin"))).toBe(true);
     });
 
     it("valida la contraseña", async () => {

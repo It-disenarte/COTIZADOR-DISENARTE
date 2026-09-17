@@ -8,16 +8,14 @@ export const PERMISOS = {
   "cotizaciones.propias": ["admin", "agente_admin", "ventas"],
   /** Ver historial y cotizaciones de todas las cuentas */
   "cotizaciones.ver_todas": ["admin", "agente_admin"],
-  /** Ver catálogo, recetas, reventa, parámetros y costos */
+  /** Ver insumos, recetas, parámetros y costos */
   "catalogo.ver": ["admin", "agente_admin", "ventas"],
-  /** Agregar, editar y eliminar catálogo, recetas, reventa y parámetros */
+  /** Agregar, editar y archivar insumos, recetas y parámetros */
   "catalogo.editar": ["admin", "agente_admin"],
   /** Dar de alta y editar clientes (el asistente de cotización los crea al vuelo) */
   "clientes.gestionar": ["admin", "agente_admin", "ventas"],
   /** Crear, editar, desactivar cuentas y cambiar roles */
   "usuarios.gestionar": ["admin"],
-  /** Ver bitácora de cambios */
-  "bitacora.ver": ["admin", "agente_admin"],
 } as const satisfies Record<string, readonly Rol[]>;
 
 export type Permiso = keyof typeof PERMISOS;

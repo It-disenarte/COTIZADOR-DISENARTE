@@ -6,11 +6,10 @@ import { requireSesion } from "@/lib/sesion";
 const DESCRIPCION_PERMISO: Record<Permiso, string> = {
   "cotizaciones.propias": "Crear, editar y descargar tus cotizaciones",
   "cotizaciones.ver_todas": "Ver cotizaciones de todas las cuentas",
-  "catalogo.ver": "Consultar catálogo, recetas, reventa y parámetros",
-  "catalogo.editar": "Editar catálogo, recetas, reventa y parámetros",
+  "catalogo.ver": "Consultar insumos, recetas y parámetros",
+  "catalogo.editar": "Editar insumos, recetas y parámetros",
   "clientes.gestionar": "Dar de alta y editar clientes",
   "usuarios.gestionar": "Crear, editar y desactivar cuentas",
-  "bitacora.ver": "Ver la bitácora de cambios",
 };
 
 export default async function PaginaInicio() {
@@ -42,7 +41,8 @@ export default async function PaginaInicio() {
       </Card>
 
       <p className="text-sm text-muted-foreground">
-        Versión de prueba · Fase 1 (base, cuentas y roles). Cotizaciones, catálogo y PDF llegan en las siguientes fases.
+        Versión de prueba · Fases 1 y 2 (cuentas, roles y catálogo). El cotizador y el PDF llegan en las siguientes
+        fases.
       </p>
     </div>
   );
