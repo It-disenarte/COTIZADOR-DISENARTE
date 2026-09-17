@@ -197,6 +197,9 @@ export function PasoDatos({
 export function PasoLevantamiento({ borrador, cambiar }: Props) {
   const { areas, filas } = borrador.entrada.levantamiento;
   const [pegado, setPegado] = useState<string | null>(null);
+  // Texto tal cual se escribe. Separado del array de áreas: si no, la coma que abre
+  // el siguiente nombre crea de inmediato una columna vacía ("Área 2") antes de escribirlo.
+  const [areasTexto, setAreasTexto] = useState(() => areas.join(", "));
 
   const editarLevantamiento = (cambios: Partial<BorradorCotizacion["entrada"]["levantamiento"]>) =>
     cambiar((b) => ({ ...b, entrada: { ...b.entrada, levantamiento: { ...b.entrada.levantamiento, ...cambios } } }));
@@ -219,9 +222,13 @@ export function PasoLevantamiento({ borrador, cambiar }: Props) {
               <Label htmlFor="areas">Áreas</Label>
               <Input
                 id="areas"
-                value={areas.join(", ")}
+                value={areasTexto}
                 onChange={(e) => {
-                  const nuevas = e.target.value.split(",").map((a) => a.trim());
+                  const texto = e.target.value;
+                  setAreasTexto(texto);
+                  // Un nombre vacío (p. ej. justo después de escribir la coma) no crea columna todavía.
+                  const nuevas = texto.split(",").map((a) => a.trim()).filter((a) => a !== "");
+                  if (nuevas.length === 0) return;
                   editarLevantamiento({
                     areas: nuevas,
                     filas: filas.map((f) => ({
@@ -232,7 +239,10 @@ export function PasoLevantamiento({ borrador, cambiar }: Props) {
                 }}
                 placeholder="CENDI, Primaria, Secundaria"
               />
-              <p className="text-xs text-muted-foreground">Sepáralas con coma. Cada área es una columna de cantidades.</p>
+              <p className="text-xs text-muted-foreground">
+                Sepáralas con coma. Cada área es una columna de cantidades. Si el material se cobra por pieza y no
+                por m², deja ancho y alto en 0: solo importa la cantidad.
+              </p>
             </div>
             <Button type="button" variant="outline" onClick={() => setPegado(pegado === null ? "" : null)}>
               <ClipboardPaste /> Pegar de Excel
@@ -365,7 +375,7 @@ export function PasoLevantamiento({ borrador, cambiar }: Props) {
         variant="outline"
         onClick={() =>
           editarLevantamiento({
-            filas: [...filas, { concepto: "", anchoM: "", altoM: "", cantidades: areas.map(() => "") }],
+            filas: [...filas, { concepto: "", anchoM: "0", altoM: "0", cantidades: areas.map(() => "") }],
           })
         }
       >

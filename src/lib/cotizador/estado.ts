@@ -47,7 +47,7 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
     entrada: {
       levantamiento: {
         areas: ["General"],
-        filas: [{ concepto: "", anchoM: "", altoM: "", cantidades: [""] }],
+        filas: [{ concepto: "", anchoM: "0", altoM: "0", cantidades: [""] }],
       },
       opciones: [],
       incluyeEnvio: true,
