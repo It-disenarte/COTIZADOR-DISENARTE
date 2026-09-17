@@ -67,7 +67,15 @@ export function PasoDatos({
         zona: c.zona,
         notas: c.notas ?? "",
       },
-      entrada: { ...b.entrada, operacion: { ...b.entrada.operacion, viaticos: { ...b.entrada.operacion.viaticos, tipo: c.zona } } },
+      entrada: {
+        ...b.entrada,
+        operacion: {
+          ...b.entrada.operacion,
+          viaticos: { ...b.entrada.operacion.viaticos, tipo: c.zona },
+          // El km se guarda por cliente para no volver a capturarlo; pasa directo al traslado de Operación.
+          traslado: { ...b.entrada.operacion.traslado, kmPorTrayecto: c.kmDesdeSjr ?? b.entrada.operacion.traslado.kmPorTrayecto },
+        },
+      },
     }));
 
   return (
@@ -146,9 +154,26 @@ export function PasoDatos({
                 id="km"
                 inputMode="decimal"
                 value={cliente.kmDesdeSjr}
-                onChange={(e) => editarCliente({ kmDesdeSjr: e.target.value })}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  editarCliente({ kmDesdeSjr: valor });
+                  cambiar((b) => ({
+                    ...b,
+                    entrada: {
+                      ...b.entrada,
+                      operacion: {
+                        ...b.entrada.operacion,
+                        traslado: { ...b.entrada.operacion.traslado, kmPorTrayecto: valor },
+                      },
+                    },
+                  }));
+                }}
                 placeholder="58.6"
               />
+              <p className="text-xs text-muted-foreground">
+                Un solo trayecto (no ida y vuelta). Se guarda con el cliente y pasa solo al campo “Km por trayecto”
+                del paso de Operación, donde se usa para calcular la gasolina.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="zona">Zona</Label>
@@ -170,6 +195,10 @@ export function PasoDatos({
                   </option>
                 ))}
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Fija el tipo de viáticos ($250 local o $500 foráneo) en Operación. Puedes cambiarlo ahí si este
+                proyecto es distinto.
+              </p>
             </div>
           </div>
 
@@ -444,14 +473,24 @@ export function PasoMateriales({ borrador, cambiar, recetas }: Props & { recetas
               onChange={(e) => cambiar((b) => ({ ...b, tiempoEstimado: e.target.value }))}
               placeholder="5-7 días"
             />
+            <p className="text-xs text-muted-foreground">
+              Un solo texto para todo el proyecto (diseño, producción e instalación juntos). Tú lo escribes; no se
+              calcula de los días que captures en Operación. Se repite igual en cada página del PDF.
+            </p>
           </div>
-          <label className="flex items-center gap-2 pt-8 text-sm">
-            <Checkbox
-              checked={borrador.entrada.incluyeEnvio}
-              onChange={(e) => cambiar((b) => ({ ...b, entrada: { ...b.entrada, incluyeEnvio: e.target.checked } }))}
-            />
-            Incluye envío
-          </label>
+          <div className="pt-8">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={borrador.entrada.incluyeEnvio}
+                onChange={(e) => cambiar((b) => ({ ...b, entrada: { ...b.entrada, incluyeEnvio: e.target.checked } }))}
+              />
+              Incluye envío
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Márcalo si se manda el material aunque no haya instalación: así se calculan viáticos, gasolina y
+              casetas del viaje de entrega en el paso de Operación.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

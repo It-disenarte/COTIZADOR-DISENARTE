@@ -38,21 +38,28 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
 
       <Card>
         <CardContent className="grid gap-4 pt-6 sm:grid-cols-3">
-          <Campo etiqueta="Días de diseño" valor={txt(op.diasDiseno)} alCambiar={(v) => editarOperacion({ diasDiseno: v })} />
+          <Campo
+            etiqueta="Días de diseño"
+            ayuda="Se multiplica por la tarifa de diseño del día. Si llenas el monto manual, ese lo reemplaza."
+            valor={txt(op.diasDiseno)}
+            alCambiar={(v) => editarOperacion({ diasDiseno: v })}
+          />
           <Campo
             etiqueta="Monto de diseño manual"
-            ayuda="Si lo llenas, reemplaza días × tarifa."
+            ayuda="Si lo llenas, reemplaza días × tarifa. Úsalo cuando el diseño lleva mucho reacomodo y quieres un monto fijo."
             valor={txt(op.disenoMontoManual ?? "")}
             alCambiar={(v) => editarOperacion({ disenoMontoManual: v })}
           />
           <div />
           <Campo
-            etiqueta="Producción: personas"
+            etiqueta="Personas en taller"
+            ayuda="Mano de obra armando o preparando el material antes de salir. No es la cuadrilla que instala."
             valor={txt(op.produccion.personas)}
             alCambiar={(v) => editarOperacion({ produccion: { ...op.produccion, personas: v } })}
           />
           <Campo
-            etiqueta="Producción: días"
+            etiqueta="Días en taller"
+            ayuda="Días que se lleva preparar el material, antes de la instalación."
             valor={txt(op.produccion.dias)}
             alCambiar={(v) => editarOperacion({ produccion: { ...op.produccion, dias: v } })}
           />
@@ -69,25 +76,37 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
             />
             Incluye instalación
           </label>
+          <p className="text-sm text-muted-foreground">
+            La cuadrilla que va al sitio del cliente a instalar, distinta de las “Personas en taller” que preparan
+            el material antes de salir.
+          </p>
           {op.instalacion.incluye && (
             <div className="grid gap-4 sm:grid-cols-3">
               <Campo
-                etiqueta="Personas"
+                etiqueta="Personas en el sitio"
+                ayuda="Cuántos van a instalar en las instalaciones del cliente."
                 valor={txt(op.instalacion.personas)}
                 alCambiar={(v) => editarOperacion({ instalacion: { ...op.instalacion, personas: v } })}
               />
               <Campo
-                etiqueta="Días"
+                etiqueta="Días de instalación"
+                ayuda="Días que la cuadrilla pasa instalando en el sitio del cliente."
                 valor={txt(op.instalacion.dias)}
                 alCambiar={(v) => editarOperacion({ instalacion: { ...op.instalacion, dias: v } })}
               />
-              <label className="flex items-center gap-2 pt-8 text-sm">
-                <Checkbox
-                  checked={op.instalacion.escalaPorPieza === true}
-                  onChange={(e) => editarOperacion({ instalacion: { ...op.instalacion, escalaPorPieza: e.target.checked } })}
-                />
-                Se repite en cada pieza (rotulación)
-              </label>
+              <div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={op.instalacion.escalaPorPieza === true}
+                    onChange={(e) => editarOperacion({ instalacion: { ...op.instalacion, escalaPorPieza: e.target.checked } })}
+                  />
+                  Se repite en cada pieza (rotulación)
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Actívalo cuando cada unidad necesita su propia instalación (p. ej. rotular una flotilla): el costo
+                  se multiplica por el número de piezas, en vez de cobrarse una sola vez para todo el proyecto.
+                </p>
+              </div>
             </div>
           )}
         </CardContent>
@@ -106,6 +125,10 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
                 <option value="local">Zona Querétaro</option>
                 <option value="foraneo">Foráneo</option>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Se llena solo según la zona del cliente (paso 1). Cámbialo aquí si este proyecto en particular es
+                distinto.
+              </p>
             </div>
             <Campo
               etiqueta="Personas"
@@ -114,16 +137,19 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
             />
             <Campo
               etiqueta="Días"
+              ayuda="Normalmente coincide con los días de instalación, pero captúralo aparte si hay un día que es solo de traslado."
               valor={txt(op.viaticos.dias)}
               alCambiar={(v) => editarOperacion({ viaticos: { ...op.viaticos, dias: v } })}
             />
             <Campo
               etiqueta="Monto por día manual"
+              ayuda="Si lo llenas, reemplaza el monto por día del parámetro ($250 local o $500 foráneo)."
               valor={txt(op.viaticos.montoDiaManual ?? "")}
               alCambiar={(v) => editarOperacion({ viaticos: { ...op.viaticos, montoDiaManual: v } })}
             />
             <Campo
               etiqueta="Km por trayecto"
+              ayuda="Un solo sentido. Se llena solo con el km del cliente (paso 1); ajústalo aquí si este viaje es distinto."
               valor={txt(op.traslado.kmPorTrayecto)}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, kmPorTrayecto: v } })}
             />
@@ -137,6 +163,10 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
                 <option value="diario">Van y vienen diario</option>
                 <option value="una_vez">Se quedan (un viaje redondo)</option>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Diario: se cuenta un viaje redondo por cada día de instalación (más gasolina y casetas). Se quedan:
+                un solo viaje redondo para todo el proyecto.
+              </p>
             </div>
             <Campo
               etiqueta="Viajes redondos"
@@ -146,6 +176,7 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
             />
             <Campo
               etiqueta="Casetas por viaje"
+              ayuda="El costo en pesos de las casetas de un viaje redondo, no la cantidad de casetas."
               valor={txt(op.traslado.casetasPorViaje)}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, casetasPorViaje: v } })}
             />
@@ -193,6 +224,10 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
               <Plus /> Agregar
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            “Una vez” se cobra una sola vez para todo el proyecto; “Por pieza” se multiplica por el total de piezas
+            del levantamiento.
+          </p>
           {op.extras.length === 0 && <p className="text-sm text-muted-foreground">Fletes, maniobras, andamio, lo que aplique.</p>}
           {op.extras.map((extra, i) => (
             <div key={i} className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto]">
@@ -254,6 +289,10 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
               <option value="prorrateada">Dentro del precio por pieza</option>
               <option value="aparte">Como fila aparte</option>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Dentro del precio por pieza: diseño, envío e instalación se reparten en el unitario (compras lo ve
+              como costo negociable). Fila aparte: el PDF muestra una línea extra con ese monto.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="modalidades">Modalidades</Label>
@@ -273,6 +312,10 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
               <option value="solo_una">Una sola</option>
               <option value="A_y_B">A) Suministro y B) Suministro e instalación</option>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              A y B muestra dos precios en el PDF para que el cliente elija: solo comprar el material, o comprarlo
+              con instalación incluida.
+            </p>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
@@ -315,8 +358,8 @@ export function PasoReventa({ borrador, cambiar }: Props) {
       <div>
         <h3 className="font-medium">Items de reventa</h3>
         <p className="text-sm text-muted-foreground">
-          Producto que no fabricamos: extintores, botiquines, detectores. Captura el precio al que lo compras; la app le suma
-          el 35% de utilidad.
+          Producto que no fabricamos: extintores, botiquines, detectores. En “Precio de referencia” pones lo que te
+          cuesta comprarlo (no lo que le vas a cobrar al cliente); la app le suma el 35% de utilidad sola.
         </p>
       </div>
 
@@ -359,13 +402,19 @@ export function PasoReventa({ borrador, cambiar }: Props) {
               placeholder="Link de la fuente (Mercado Libre, proveedor…)"
               aria-label={`Link del artículo ${i + 1}`}
             />
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={item.verificado}
-                onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, verificado: e.target.checked } : x)))}
-              />
-              Precio verificado
-            </label>
+            <div>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={item.verificado}
+                  onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, verificado: e.target.checked } : x)))}
+                />
+                Precio verificado
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Márcalo cuando confirmaste el precio hoy en la fuente. Si lo dejas sin marcar, sale una alerta antes
+                de generar el PDF.
+              </p>
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -526,6 +575,7 @@ export function PasoResumen({
         <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">
           <Campo
             etiqueta="Descuento por decisión rápida"
+            ayuda="Se resta del subtotal antes del IVA. Bórralo (déjalo vacío) para quitarlo."
             valor={txt(descuento?.monto)}
             alCambiar={(valor) =>
               cambiar((b) => ({
