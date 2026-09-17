@@ -8,6 +8,20 @@
       "when": 1789496765771,
       "tag": "0000_inicial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789666825740,
+      "tag": "0001_catalogo",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789666827978,
+      "tag": "0002_semilla_catalogo",
+      "breakpoints": true
     }
   ]
 }

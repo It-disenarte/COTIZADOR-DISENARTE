@@ -12,6 +12,8 @@ export const PERMISOS = {
   "catalogo.ver": ["admin", "agente_admin", "ventas"],
   /** Agregar, editar y eliminar catálogo, recetas, reventa y parámetros */
   "catalogo.editar": ["admin", "agente_admin"],
+  /** Dar de alta y editar clientes (el asistente de cotización los crea al vuelo) */
+  "clientes.gestionar": ["admin", "agente_admin", "ventas"],
   /** Crear, editar, desactivar cuentas y cambiar roles */
   "usuarios.gestionar": ["admin"],
   /** Ver bitácora de cambios */

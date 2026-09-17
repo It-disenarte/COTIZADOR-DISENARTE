@@ -46,6 +46,20 @@ export function Select({ className, ...props }: React.ComponentProps<"select">) 
   return <select className={cn(claseCampo, "pr-8", className)} {...props} />;
 }
 
+export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return <textarea className={cn(claseCampo, "h-auto min-h-20 py-2", className)} {...props} />;
+}
+
+export function Checkbox({ className, ...props }: React.ComponentProps<"input">) {
+  return (
+    <input
+      type="checkbox"
+      className={cn("size-4 rounded border-input accent-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-ring", className)}
+      {...props}
+    />
+  );
+}
+
 export function Label({ className, ...props }: React.ComponentProps<"label">) {
   return <label className={cn("text-sm font-medium leading-none", className)} {...props} />;
 }

@@ -15,10 +15,10 @@ const ELEMENTOS: Elemento[] = [
   { href: "/inicio", etiqueta: "Inicio", icono: House },
   { href: "/cotizaciones/nueva", etiqueta: "Nueva cotización", icono: FilePlus2, permiso: "cotizaciones.propias", fase: 4 },
   { href: "/cotizaciones", etiqueta: "Mis cotizaciones", icono: FolderClock, permiso: "cotizaciones.propias", fase: 6 },
-  { href: "/catalogo", etiqueta: "Catálogo", icono: Package, permiso: "catalogo.ver", fase: 2 },
-  { href: "/clientes", etiqueta: "Clientes", icono: UserSquare2, permiso: "cotizaciones.propias", fase: 2 },
+  { href: "/catalogo", etiqueta: "Catálogo", icono: Package, permiso: "catalogo.ver" },
+  { href: "/clientes", etiqueta: "Clientes", icono: UserSquare2, permiso: "clientes.gestionar" },
   { href: "/historial", etiqueta: "Historial general", icono: History, permiso: "cotizaciones.ver_todas", fase: 6 },
-  { href: "/bitacora", etiqueta: "Bitácora", icono: ScrollText, permiso: "bitacora.ver", fase: 2 },
+  { href: "/bitacora", etiqueta: "Bitácora", icono: ScrollText, permiso: "bitacora.ver" },
   { href: "/usuarios", etiqueta: "Usuarios", icono: Users, permiso: "usuarios.gestionar" },
 ];
 

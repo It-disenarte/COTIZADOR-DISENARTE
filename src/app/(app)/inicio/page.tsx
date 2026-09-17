@@ -8,6 +8,7 @@ const DESCRIPCION_PERMISO: Record<Permiso, string> = {
   "cotizaciones.ver_todas": "Ver cotizaciones de todas las cuentas",
   "catalogo.ver": "Consultar catálogo, recetas, reventa y parámetros",
   "catalogo.editar": "Editar catálogo, recetas, reventa y parámetros",
+  "clientes.gestionar": "Dar de alta y editar clientes",
   "usuarios.gestionar": "Crear, editar y desactivar cuentas",
   "bitacora.ver": "Ver la bitácora de cambios",
 };

@@ -5,7 +5,8 @@ Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: Fase 1 (Base)**.
 | Fase | Estado |
 |---|---|
 | 1. Base: proyecto, Postgres, migraciones, auth, roles, configuración inicial del admin, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
-| 2. Catálogo · 3. Motor · 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
+| 2. Catálogo: insumos, recetas con componentes, reventa, parámetros, clientes, bitácora y datos semilla | ✅ Hecha (pruebas pasando) |
+| 3. Motor · 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
 
@@ -18,19 +19,24 @@ App en **Vercel**; PostgreSQL en el VPS de Hostinger administrado con **Easypane
 ```text
 src/
   app/
-    (app)/            pantallas con sesión: inicio, usuarios
+    (app)/            pantallas con sesión: inicio, catálogo, clientes, bitácora, usuarios
     login/            inicio de sesión
     cambiar-password/ cambio de contraseña (obligatorio si es temporal)
     api/auth/         Better Auth
     api/usuarios/     alta, edición, desactivación, restablecer contraseña (solo admin)
+    api/insumos/ api/recetas/ api/reventa/ api/parametros/
+                      catálogo: lectura para todos, edición para admin y agente_admin
+    api/clientes/     clientes: todos los roles
+    api/bitacora/     consulta de la bitácora con filtros
     api/cuenta/       cambio de contraseña propia
     api/salud/        healthcheck (app + conexión a Postgres)
   lib/
     permisos.ts       matriz de roles + requirePermiso / requireVerCotizacion
     sesion.ts         lectura de sesión desde BD y bloqueo por contraseña temporal
     servicios/        lógica de negocio (validan permisos en servidor)
+    validacion/       esquemas Zod (los decimales viajan como string)
     db/schema.ts      esquema Drizzle
-drizzle/              migraciones SQL versionadas
+drizzle/              migraciones SQL versionadas (0002 carga los datos semilla del catálogo)
 scripts/              migrate (corre en el build de Vercel), crear-admin, db-local
 tests/                Vitest (permisos por rol + API contra Postgres en memoria)
 deploy/respaldo.sh    pg_dump diario con retención de 14 días (alternativa a respaldos de Easypanel)
@@ -123,6 +129,26 @@ Restaurar (probarlo antes de salir a producción):
 ```bash
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
+
+## Decisiones de la fase 2
+
+- **Datos semilla como migración** (`drizzle/0002_semilla_catalogo.sql`): se cargan solas en el primer despliegue
+  y después todo se edita desde la app. Los costos son las columnas "Sub total" del Excel (sin IVA, sin utilidad,
+  con la inflación de 5% ya incluida).
+- **Nada inventado:** lo que la especificación deja pendiente (estireno cal. 20 y 40, vinil fotoluminiscente y el
+  precio de la gasolina) queda **sin costo**, marcado como "Por revisar", y las recetas que los usan avisan que no
+  se pueden cotizar hasta capturarlos.
+- **Recetas de estireno:** la propuesta de Gandhi dice "impresión en vinil eco-solvente", así que se arman con la
+  impresión Mimaki JV33 (no UV). La merma queda en 0 salvo las de trovicel, que llevan el 15% del Excel.
+- **Decimales:** se guardan en `numeric(14,4)` y viajan como texto entre servidor y navegador, para que el motor
+  (fase 3) haga las cuentas con decimales exactos.
+- **Archivar, no borrar:** insumos, recetas y artículos de reventa se archivan. Un insumo archivado no se puede
+  agregar a una receta nueva, pero se conserva en las recetas que ya lo usaban.
+- **Parámetros:** las claves las fija la semilla porque el motor depende de ellas; desde la app solo se edita el
+  valor. Los porcentajes se capturan como fracción (0.30 = 30%) y la app lo valida.
+- **Clientes:** los pueden dar de alta y editar los tres roles, porque el asistente de cotización (fase 4) los crea
+  al vuelo. Sus cambios también quedan en la bitácora.
+- **Bitácora:** guarda antes y después de cada cambio de catálogo, parámetros, clientes y usuarios, sin contraseñas.
 
 ## Decisiones de la fase 1
 

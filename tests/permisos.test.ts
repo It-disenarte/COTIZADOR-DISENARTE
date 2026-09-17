@@ -29,6 +29,7 @@ const MATRIZ: Record<Permiso, Record<Rol, boolean>> = {
   "cotizaciones.ver_todas": { admin: true, agente_admin: true, ventas: false },
   "catalogo.ver": { admin: true, agente_admin: true, ventas: true },
   "catalogo.editar": { admin: true, agente_admin: true, ventas: false },
+  "clientes.gestionar": { admin: true, agente_admin: true, ventas: true },
   "usuarios.gestionar": { admin: true, agente_admin: false, ventas: false },
   "bitacora.ver": { admin: true, agente_admin: true, ventas: false },
 };
