@@ -8,7 +8,6 @@ export type BorradorCotizacion = {
   titulo: string;
   solicitante: string;
   vendedorId: string;
-  tiempoEstimado: string;
   cliente: {
     id: string | null;
     nombreContacto: string;
@@ -42,7 +41,6 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
     titulo: "",
     solicitante: "",
     vendedorId,
-    tiempoEstimado: "5-7 días",
     cliente: clienteVacio(),
     entrada: {
       levantamiento: {
@@ -50,6 +48,7 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
         filas: [{ concepto: "", anchoM: "0", altoM: "0", cantidades: [""] }],
       },
       opciones: [],
+      tiempoEstimado: "5-7 días",
       incluyeEnvio: true,
       operacion: {
         trabajoEnInstalacionesDisenarte: false,
@@ -75,7 +74,6 @@ export function cuerpoParaGuardar(borrador: BorradorCotizacion) {
     titulo: borrador.titulo,
     solicitante: borrador.solicitante,
     vendedorId: borrador.vendedorId,
-    tiempoEstimado: borrador.tiempoEstimado,
     cliente: { ...borrador.cliente, id: borrador.cliente.id ?? undefined },
     entrada: borrador.entrada,
   };

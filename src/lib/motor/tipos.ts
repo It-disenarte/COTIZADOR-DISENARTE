@@ -98,6 +98,8 @@ export type Operacion = {
 export type EntradaCotizacion = {
   levantamiento: Levantamiento;
   opciones: { recetaId: string; precioUnitarioManual?: Numerico | null }[];
+  /** Texto libre que sale en el PDF ("5-7 días"). No entra en el cálculo. */
+  tiempoEstimado?: string | null;
   incluyeEnvio: boolean;
   operacion: Operacion;
   presentacion: {

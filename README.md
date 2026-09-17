@@ -8,7 +8,8 @@ Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: fases 1 y 2 termi
 | 2. Catálogo: insumos, recetas con componentes, parámetros, clientes y datos semilla | ✅ Hecha (pruebas pasando) |
 | 3. Motor de cálculo con sus pruebas | ✅ Hecha (pruebas pasando) |
 | 4. Asistente de 6 pasos, borradores, precio en vivo y alertas | ✅ Hecha (pruebas pasando) |
-| 5. PDF · 6. Historial · 7. Gemini | Pendientes |
+| 5. PDF de la propuesta, con vista previa y descarga | ✅ Hecha (pruebas pasando) |
+| 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
 
@@ -131,6 +132,26 @@ Restaurar (probarlo antes de salir a producción):
 ```bash
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
+
+## Decisiones de la fase 5
+
+- **PDF con `pdf-lib`, sin Chromium (cambio sobre la sección 10.2).** La especificación planteaba Playwright, que
+  asumía el VPS; en Vercel serverless Chromium pesa ~50 MB y arranca lento. Con `pdf-lib` el PDF se arma en
+  milisegundos, pesa ~26 KB y no depende de binarios. Las fuentes Poppins van incrustadas en
+  `src/lib/pdf/fuentes/` (se incluyen en la función vía `outputFileTracingIncludes`).
+- **Página de 21 × 28 cm (595.5 × 793.5 pt)**, medida del PDF actual de Canva, para que las páginas fijas encajen
+  sin saltos si más adelante se pegan las exportaciones de Canva.
+- **Se genera al momento y no se guarda** (cambio sobre la sección 10.2, a petición del equipo): cada descarga
+  arma el PDF con la versión vigente de la cotización. No hay carpeta de PDFs ni rutas en disco.
+- **Contenido**: portada, Bienvenidos, ¿Por qué Diseñarte México?, Proceso de trabajo, consolidado del
+  levantamiento por áreas, una página por opción de material (y por modalidad A/B), materiales adicionales cuando
+  hay reventa, y condiciones comerciales. Los textos fijos y los datos de contacto y bancarios viven en
+  `src/lib/pdf/marca.ts`, listos para editarse sin tocar el código del documento.
+- **La leyenda del diseño** va impresa en cada página de cotización, como exige la sección 10.1.
+- **Las alertas piden confirmación**: el botón "Generar PDF" avisa cuántas alertas hay y exige presionarlo otra
+  vez para continuar.
+- **Nomenclatura**: `COT-DDMMYYYY-NN_Titulo_-_Solicitante.pdf`, sin acentos ni caracteres especiales.
+- `GET /api/cotizaciones/[id]/pdf` descarga; con `?ver=1` se muestra en el navegador como vista previa.
 
 ## Decisiones de la fase 4
 

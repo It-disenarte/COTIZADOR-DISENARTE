@@ -24,7 +24,6 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
     titulo: cotizacion.titulo,
     solicitante: cotizacion.solicitante ?? "",
     vendedorId: cotizacion.vendedorId,
-    tiempoEstimado: "",
     cliente: cotizacion.cliente
       ? {
           id: cotizacion.cliente.id,

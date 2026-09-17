@@ -15,7 +15,6 @@ export const GuardarCotizacion = z.object({
   solicitante: textoOpcional(200),
   /** Quién cotiza. Solo admin y agente_admin pueden elegir a alguien más. */
   vendedorId: Uuid.optional(),
-  tiempoEstimado: textoOpcional(100),
   cliente: ClienteCotizacion,
   entrada: EntradaCotizacion,
 });

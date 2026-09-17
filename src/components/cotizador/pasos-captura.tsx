@@ -469,8 +469,10 @@ export function PasoMateriales({ borrador, cambiar, recetas }: Props & { recetas
             <Label htmlFor="tiempo">Tiempo estimado</Label>
             <Input
               id="tiempo"
-              value={borrador.tiempoEstimado}
-              onChange={(e) => cambiar((b) => ({ ...b, tiempoEstimado: e.target.value }))}
+              value={txt(borrador.entrada.tiempoEstimado)}
+              onChange={(e) =>
+                cambiar((b) => ({ ...b, entrada: { ...b.entrada, tiempoEstimado: e.target.value } }))
+              }
               placeholder="5-7 días"
             />
             <p className="text-xs text-muted-foreground">

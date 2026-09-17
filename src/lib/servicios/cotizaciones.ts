@@ -32,6 +32,7 @@ export type CotizacionDetalle = {
   estado: EstadoCotizacion;
   version: number;
   vendedorId: string;
+  vendedor: string | null;
   cliente: typeof clientes.$inferSelect | null;
   entrada: unknown;
   resultado: ResultadoCotizacion;
@@ -129,9 +130,10 @@ export async function obtenerCotizacion(actor: UsuarioSesion | null, id: string)
   exigirUuid(id, "Cotización");
 
   const [fila] = await db
-    .select({ cotizacion: cotizaciones, cliente: clientes })
+    .select({ cotizacion: cotizaciones, cliente: clientes, vendedor: usuarios.name })
     .from(cotizaciones)
     .leftJoin(clientes, eq(cotizaciones.clienteId, clientes.id))
+    .leftJoin(usuarios, eq(cotizaciones.vendedorId, usuarios.id))
     .where(eq(cotizaciones.id, id));
   if (!fila) noEncontrado("Cotización");
   requireVerCotizacion(actor, { vendedorId: fila.cotizacion.vendedorId });
@@ -150,6 +152,7 @@ export async function obtenerCotizacion(actor: UsuarioSesion | null, id: string)
     estado: fila.cotizacion.estado,
     version: version.version,
     vendedorId: fila.cotizacion.vendedorId,
+    vendedor: fila.vendedor,
     cliente: fila.cliente,
     entrada: version.entrada,
     resultado: version.resultado as ResultadoCotizacion,

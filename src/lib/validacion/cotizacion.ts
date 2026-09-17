@@ -26,6 +26,8 @@ export const EntradaCotizacion = z.object({
     .array(z.object({ recetaId: Uuid, precioUnitarioManual: decimalOpcional({ min: 0 }) }))
     .min(1, { error: "Elige al menos una opción de material." })
     .max(10),
+  // Opcional: las cotizaciones guardadas antes de la fase 5 no lo traen.
+  tiempoEstimado: textoOpcional(100).optional(),
   incluyeEnvio: z.boolean(),
   operacion: z.object({
     trabajoEnInstalacionesDisenarte: z.boolean(),

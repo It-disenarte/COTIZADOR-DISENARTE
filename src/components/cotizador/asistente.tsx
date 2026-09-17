@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Loader2, Save, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
@@ -30,6 +30,7 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
+  const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
 
   // El catálogo se descarga una vez y el precio se recalcula aquí mismo, sin ir al servidor.
   useEffect(() => {
@@ -73,6 +74,26 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
     } finally {
       setGuardando(false);
     }
+  }
+
+  /** Guarda (para que el PDF salga de lo último capturado) y descarga. Las alertas piden confirmar. */
+  async function generarPdf() {
+    const guardado = await guardar({ avisar: false });
+    if (!guardado) return;
+
+    const alertas = resultado?.alertas.length ?? 0;
+    if (alertas > 0 && !alertasConfirmadas) {
+      setAlertasConfirmadas(true);
+      setMensaje({
+        tipo: "error",
+        texto: `Hay ${alertas} alerta${alertas === 1 ? "" : "s"} sin revisar. Vuelve a presionar "Generar PDF" si quieres continuar de todos modos.`,
+      });
+      return;
+    }
+
+    setMensaje({ tipo: "ok", texto: "Abriendo la vista previa en otra pestaña…" });
+    // Vista previa en pestaña nueva; desde ahí se guarda o se imprime.
+    window.open(`/api/cotizaciones/${borrador.id}/pdf?ver=1`, "_blank", "noopener");
   }
 
   async function irAlPaso(destino: number) {
@@ -133,6 +154,11 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
             <Button type="button" variant="outline" onClick={() => guardar()} disabled={guardando}>
               {guardando ? <Loader2 className="animate-spin" /> : <Save />} Guardar borrador
             </Button>
+            {paso === PASOS.length - 1 && (
+              <Button type="button" variant="accent" onClick={generarPdf} disabled={guardando || !resultado}>
+                <FileDown /> Generar PDF
+              </Button>
+            )}
             {paso < PASOS.length - 1 && (
               <Button type="button" onClick={() => irAlPaso(paso + 1)}>
                 Siguiente <ChevronRight />

@@ -1,4 +1,4 @@
-import { FilePlus2 } from "lucide-react";
+import { FileDown, FilePlus2 } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
@@ -38,6 +38,7 @@ export default async function PaginaCotizaciones() {
                   <th className="px-4 py-3 font-medium">Proyecto</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 text-right font-medium">Total</th>
+                  <th className="px-4 py-3 text-right font-medium">PDF</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -61,6 +62,15 @@ export default async function PaginaCotizaciones() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right align-top">{c.total ? formatoMoneda(c.total) : "—"}</td>
+                    <td className="px-4 py-3 text-right align-top">
+                      <a
+                        href={`/api/cotizaciones/${c.id}/pdf`}
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                        title="Descargar la propuesta"
+                      >
+                        <FileDown className="size-3.5" /> Descargar
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
