@@ -6,7 +6,8 @@ Implementación de `SPEC_COTIZADOR_DISENARTE.md` v1. **Estado: fases 1 y 2 termi
 |---|---|
 | 1. Base: proyecto, Postgres, migraciones, auth, roles, configuración inicial del admin, cambio obligatorio de contraseña, usuarios | ✅ Hecha (pruebas pasando) |
 | 2. Catálogo: insumos, recetas con componentes, parámetros, clientes y datos semilla | ✅ Hecha (pruebas pasando) |
-| 3. Motor · 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
+| 3. Motor de cálculo con sus pruebas | ✅ Hecha (pruebas pasando) |
+| 4. Asistente · 5. PDF · 6. Historial · 7. Gemini | Pendientes |
 
 ## Stack
 
@@ -30,6 +31,7 @@ src/
     api/cuenta/       cambio de contraseña propia
     api/salud/        healthcheck (app + conexión a Postgres)
   lib/
+    motor/            motor de cálculo: módulo puro, sin base de datos ni red (decimal.js)
     permisos.ts       matriz de roles + requirePermiso / requireVerCotizacion
     sesion.ts         lectura de sesión desde BD y bloqueo por contraseña temporal
     servicios/        lógica de negocio (validan permisos en servidor)
@@ -128,6 +130,24 @@ Restaurar (probarlo antes de salir a producción):
 ```bash
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
+
+## Decisiones de la fase 3
+
+- **Motor puro** en `src/lib/motor/`: recibe la entrada de la cotización y un snapshot del catálogo, y devuelve
+  precios, desglose, escenarios y alertas. No toca base de datos ni red, así que se prueba y se reusa en el
+  navegador para el precio en vivo.
+- **Decimales exactos con decimal.js.** Los parciales nunca se redondean.
+- **Redondeo final para que la tabla cuadre:** el unitario se redondea a 2 decimales y todo lo demás sale de ahí,
+  así el cliente multiplica unitario × cantidad y le da igual. Efecto: el caso del Versa da $13,741.53, un centavo
+  menos que los $13,741.54 de la ficha, que calcula el IVA sobre el precio sin redondear.
+- **Instalación que escala por unidad:** en rotulación la instalación se repite en cada unidad, así que es una
+  casilla de la cotización (`escalaPorPieza`). Con ella, 25 Versas dan el unitario documentado de $9,926.15.
+- **Datos incompletos bloquean, no se inventan:** si un insumo no tiene costo, un rollo no tiene ancho útil o falta
+  el precio de la gasolina en un trabajo con traslado, la API responde 400 diciendo qué falta.
+- **Alertas que no bloquean** (margen bajo, desvío del precio manual, traslado en cero, foráneo sin hospedaje,
+  insumo por revisar, reventa sin verificar, gasolina con más de 7 días) viajan en el resultado para mostrarse
+  antes de generar el PDF.
+- **`POST /api/cotizaciones/calcular`** calcula sin guardar nada; la fase 4 lo usa para el precio en vivo.
 
 ## Decisiones de la fase 2
 
