@@ -133,6 +133,26 @@ Restaurar (probarlo antes de salir a producción):
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
 
+## Importar costos al catálogo (Catálogo → Importar costos)
+
+- Solo para quien puede editar el catálogo. Acepta el Excel de costos de Diseñarte ("Actualización de costos"),
+  listas de proveedores en Excel, PDF o foto (máx. 4 MB por el límite de Vercel).
+- **Excel**: se lee con `read-excel-file` (mantenida, MIT; la librería `xlsx` de npm está abandonada y tiene
+  vulnerabilidades). La IA recibe las hojas como texto con fila y columna y decide qué renglones son insumos, qué
+  columna es el costo sin IVA ni utilidad (en el formato de Diseñarte, "Sub total") y la unidad. **Cada número se
+  comprueba contra la celda real**: si no está en la fila indicada, el renglón se descarta; el costo que se guarda es
+  el valor exacto de la celda. PDF y fotos no se pueden comprobar así y se marcan para revisar.
+- **Coincidencias** (`src/lib/importacion/coincidencias.ts`), en este orden: 1) memoria de importaciones anteriores
+  (columna `insumos.claves_importacion`, migración `0009`, con la clave "sección|nombre"); 2) sugerencia de la IA si el
+  nombre existe en el catálogo; 3) nombre parecido, pero solo si todas las palabras distintivas del archivo (materiales
+  y números) están en el nombre del catálogo, para no confundir "Vinil holográfico" con "Vinil de corte" ni
+  "Acrílico 3 mm" con "6 mm".
+- **Nada se guarda hasta "Aplicar"**. La revisión muestra origen (hoja, fila, columna), costo actual → nuevo y % de
+  cambio, y la unidad; se puede cambiar el insumo relacionado o crearlo como nuevo. No se preseleccionan renglones con
+  unidad distinta a la del catálogo, cambios de más de 60%, baja confianza o sin cambios. Se aplica todo o nada, y
+  cada insumo actualizado recuerda su clave para reconocerse directo la próxima vez.
+- Solo toca insumos: las recetas y los parámetros se siguen editando a mano.
+
 ## Identidad de marca (Manual de Marca de Diseñarte México)
 
 - **Colores** (`src/app/globals.css`): magenta `#A53692`, turquesa `#5CC6D0` y gris `#96989A` (corporativos) y

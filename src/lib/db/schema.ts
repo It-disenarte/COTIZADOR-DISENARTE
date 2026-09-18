@@ -1,5 +1,6 @@
 import { boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 // Imports relativos: drizzle-kit lee este archivo fuera de Next y no resuelve el alias "@/".
+import { sql } from "drizzle-orm";
 import { ESTADOS_COTIZACION, FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "../catalogo/constantes";
 import { ROLES } from "../roles";
 
@@ -116,6 +117,11 @@ export const insumos = pgTable(
     fuente: text("fuente"),
     requiereRevision: boolean("requiere_revision").notNull().default(false),
     archivado: boolean("archivado").notNull().default(false),
+    /**
+     * Cómo aparece este insumo en los archivos de costos ya importados ("sección|nombre",
+     * normalizado). La siguiente importación lo reconoce directo, sin adivinar.
+     */
+    clavesImportacion: text("claves_importacion").array().notNull().default(sql`'{}'::text[]`),
     ...tiempos,
   },
   (t) => [index("insumos_nombre_idx").on(t.nombre)],

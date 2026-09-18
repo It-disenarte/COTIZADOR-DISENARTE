@@ -1,0 +1,1 @@
+ALTER TABLE "insumos" ADD COLUMN "claves_importacion" text[] DEFAULT '{}'::text[] NOT NULL;

@@ -25,7 +25,7 @@ export type Fuente = { titulo: string; url: string };
 type Consulta<T> = {
   actor: UsuarioSesion;
   /** Nombre corto de la tarea, para el registro y el límite. */
-  tarea: "levantamiento" | "reventa" | "alcance";
+  tarea: "levantamiento" | "reventa" | "alcance" | "catalogo";
   instrucciones: string;
   partes: Part[];
   /** Esquema JSON que se le pide a Gemini. */

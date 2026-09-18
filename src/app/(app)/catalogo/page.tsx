@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
+import { ImportarCatalogo } from "@/components/catalogo/importar-catalogo";
 import { ListaRecetas } from "@/components/catalogo/lista-recetas";
 import { TablaInsumos } from "@/components/catalogo/tabla-insumos";
 import { TablaParametros } from "@/components/catalogo/tabla-parametros";
@@ -15,6 +16,7 @@ const PESTANAS = [
   { clave: "insumos", etiqueta: "Insumos" },
   { clave: "recetas", etiqueta: "Recetas" },
   { clave: "parametros", etiqueta: "Parámetros" },
+  { clave: "importar", etiqueta: "Importar costos", soloEditores: true },
 ] as const;
 
 type Pestana = (typeof PESTANAS)[number]["clave"];
@@ -22,8 +24,9 @@ type Pestana = (typeof PESTANAS)[number]["clave"];
 export default async function PaginaCatalogo({ searchParams }: PageProps<"/catalogo">) {
   const { usuario } = await requireSesion(await headers());
   const { tab } = await searchParams;
-  const activa: Pestana = PESTANAS.some((p) => p.clave === tab) ? (tab as Pestana) : "insumos";
   const puedeEditar = tienePermiso(usuario, "catalogo.editar");
+  const visibles = PESTANAS.filter((p) => !("soloEditores" in p) || puedeEditar);
+  const activa: Pestana = visibles.some((p) => p.clave === tab) ? (tab as Pestana) : "insumos";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -37,7 +40,7 @@ export default async function PaginaCatalogo({ searchParams }: PageProps<"/catal
       </header>
 
       <nav className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
-        {PESTANAS.map((p) => (
+        {visibles.map((p) => (
           <Link
             key={p.clave}
             href={`/catalogo?tab=${p.clave}`}
@@ -57,6 +60,13 @@ export default async function PaginaCatalogo({ searchParams }: PageProps<"/catal
       {activa === "insumos" && <TablaInsumos insumos={await listarInsumos(usuario)} puedeEditar={puedeEditar} />}
       {activa === "recetas" && <ListaRecetas recetas={await listarRecetas(usuario)} puedeEditar={puedeEditar} />}
       {activa === "parametros" && <TablaParametros parametros={await listarParametros(usuario)} puedeEditar={puedeEditar} />}
+      {activa === "importar" && puedeEditar && (
+        <ImportarCatalogo
+          insumos={(await listarInsumos(usuario))
+            .filter((i) => !i.archivado)
+            .map((i) => ({ id: i.id, nombre: i.nombre, categoria: i.categoria }))}
+        />
+      )}
     </div>
   );
 }
