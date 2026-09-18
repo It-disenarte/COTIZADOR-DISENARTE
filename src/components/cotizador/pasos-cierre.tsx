@@ -5,6 +5,7 @@ import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Texta
 import { type BorradorCotizacion, txt } from "@/lib/cotizador/estado";
 import { formatoFraccion, formatoMoneda } from "@/lib/formato";
 import type { ResultadoCotizacion } from "@/lib/motor";
+import { BuscarPrecio, RedactarAlcance } from "./ia";
 
 type Props = {
   borrador: BorradorCotizacion;
@@ -415,6 +416,12 @@ export function PasoReventa({ borrador, cambiar }: Props) {
                 de generar el PDF.
               </p>
             </div>
+            <BuscarPrecio
+              nombre={item.nombre}
+              alAplicar={({ precioReferencia, link }) =>
+                editar(items.map((x, k) => (k === i ? { ...x, precioReferencia, link, verificado: false } : x)))
+              }
+            />
           </CardContent>
         </Card>
       ))}
@@ -442,9 +449,25 @@ export function PasoResumen({
   }
 
   const descuento = borrador.entrada.ajustes.descuentoDecisionRapida;
+  const { entrada } = borrador;
 
   return (
     <div className="space-y-6">
+      <RedactarAlcance
+        concepto={txt(entrada.alcance?.concepto)}
+        resumen={txt(entrada.alcance?.resumen)}
+        peticion={{
+          titulo: borrador.titulo,
+          areas: entrada.levantamiento.areas,
+          piezas: resultado.levantamiento.piezas,
+          recetas: resultado.opciones.map((o) => ({ nombre: o.nombre, descripcion: o.descripcionPdf })),
+          tiempoEstimado: entrada.tiempoEstimado ?? null,
+          incluyeEnvio: entrada.incluyeEnvio,
+          incluyeInstalacion: entrada.operacion.instalacion.incluye,
+        }}
+        alCambiar={(alcance) => cambiar((b) => ({ ...b, entrada: { ...b.entrada, alcance } }))}
+      />
+
       {resultado.alertas.length > 0 && (
         <Card className="border-accent">
           <CardContent className="space-y-2 pt-6">

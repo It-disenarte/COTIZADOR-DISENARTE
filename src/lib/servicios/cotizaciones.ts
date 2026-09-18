@@ -1,7 +1,7 @@
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
 import type { EstadoCotizacion } from "@/lib/catalogo/constantes";
 import { db } from "@/lib/db";
-import { clientes, cotizaciones, cotizacionVersiones, usuarios } from "@/lib/db/schema";
+import { clientes, cotizaciones, cotizacionVersiones, imagenesCotizacion, usuarios } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { calcular, type EntradaCotizacion as EntradaMotor, ErrorMotor, type ResultadoCotizacion, type Snapshot } from "@/lib/motor";
 import { requirePermiso, requireVerCotizacion, tienePermiso, type UsuarioSesion } from "@/lib/permisos";
@@ -205,6 +205,96 @@ function totalDe(resultado: unknown): string | null {
   const r = resultado as ResultadoCotizacion | null;
   const variante = r?.opciones?.[0]?.variantes?.at(-1);
   return variante?.total ?? null;
+}
+
+/**
+ * Copia una cotización como borrador nuevo: folio nuevo, a nombre de quien la duplica,
+ * con el mismo cliente, levantamiento, materiales, operación, reventa y fotos.
+ * Se recalcula con los precios de hoy; si ya no se puede (p. ej. una receta dejó de
+ * ser cotizable), se conserva el cálculo original y el asistente mostrará el aviso.
+ */
+export async function duplicarCotizacion(actor: UsuarioSesion | null, id: string): Promise<{ id: string; folio: string }> {
+  requirePermiso(actor, "cotizaciones.propias");
+  exigirUuid(id, "Cotización");
+
+  const [original] = await db.select().from(cotizaciones).where(eq(cotizaciones.id, id));
+  if (!original) noEncontrado("Cotización");
+  requireVerCotizacion(actor, { vendedorId: original.vendedorId });
+
+  const [version] = await db
+    .select()
+    .from(cotizacionVersiones)
+    .where(and(eq(cotizacionVersiones.cotizacionId, id), eq(cotizacionVersiones.version, original.versionActual)));
+  if (!version) noEncontrado("Versión de la cotización");
+
+  const entrada = version.entrada as EntradaMotor;
+  const snapshot = await obtenerSnapshot(actor);
+  let resultado: unknown = version.resultado;
+  let precios: unknown = version.precios;
+  try {
+    resultado = calcular(entrada, snapshot);
+    precios = snapshot;
+  } catch (error) {
+    if (!(error instanceof ErrorMotor)) throw error;
+  }
+
+  const sufijo = " (copia)";
+  const titulo = `${original.titulo.slice(0, 200 - sufijo.length)}${sufijo}`;
+
+  return db.transaction(async (tx) => {
+    const folio = await generarFolio(tx);
+    const [nueva] = await tx
+      .insert(cotizaciones)
+      .values({
+        folio,
+        titulo,
+        solicitante: original.solicitante,
+        clienteId: original.clienteId,
+        vendedorId: actor.id,
+        estado: "borrador",
+        versionActual: 1,
+      })
+      .returning({ id: cotizaciones.id, folio: cotizaciones.folio });
+
+    // Las fotos se copian: así borrar la original no deja a la copia sin ellas.
+    const idsImagenes = (entrada.opciones ?? []).map((o) => o.imagenId).filter((i): i is string => !!i);
+    const mapaImagenes = new Map<string, string>();
+    if (idsImagenes.length) {
+      const imagenes = await tx
+        .select()
+        .from(imagenesCotizacion)
+        .where(and(eq(imagenesCotizacion.cotizacionId, id), inArray(imagenesCotizacion.id, idsImagenes)));
+      for (const imagen of imagenes) {
+        const [copia] = await tx
+          .insert(imagenesCotizacion)
+          .values({
+            cotizacionId: nueva.id,
+            nombre: imagen.nombre,
+            tipo: imagen.tipo,
+            tamano: imagen.tamano,
+            datos: imagen.datos,
+            subidaPor: actor.id,
+          })
+          .returning({ id: imagenesCotizacion.id });
+        mapaImagenes.set(imagen.id, copia.id);
+      }
+    }
+
+    const entradaCopia = {
+      ...entrada,
+      opciones: entrada.opciones.map((o) => ({ ...o, imagenId: o.imagenId ? (mapaImagenes.get(o.imagenId) ?? null) : null })),
+    };
+    await tx.insert(cotizacionVersiones).values({
+      cotizacionId: nueva.id,
+      version: 1,
+      creadaPor: actor.id,
+      entrada: entradaCopia,
+      precios,
+      resultado,
+    });
+
+    return nueva;
+  });
 }
 
 export async function cambiarEstadoCotizacion(actor: UsuarioSesion | null, id: string, estado: EstadoCotizacion) {

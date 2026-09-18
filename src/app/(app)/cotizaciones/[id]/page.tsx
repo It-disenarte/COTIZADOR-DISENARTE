@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AsistenteCotizacion } from "@/components/cotizador/asistente";
+import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge } from "@/components/ui";
 import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
 import { clienteVacio, type BorradorCotizacion } from "@/lib/cotizador/estado";
@@ -51,10 +52,11 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
           <Badge variant={cotizacion.estado === "ganada" ? "success" : cotizacion.estado === "perdida" ? "destructive" : "default"}>
             {ETIQUETA_ESTADO[cotizacion.estado]}
           </Badge>
+          <div className="ml-auto">
+            <BotonDuplicar id={cotizacion.id} folio={cotizacion.folio} />
+          </div>
         </div>
-        <p className="font-mono text-xs text-muted-foreground">
-          {cotizacion.folio} · versión {cotizacion.version}
-        </p>
+        <p className="font-mono text-xs text-muted-foreground">{cotizacion.folio}</p>
       </header>
 
       <AsistenteCotizacion

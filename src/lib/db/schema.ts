@@ -229,6 +229,31 @@ export const imagenesCotizacion = pgTable(
   (t) => [index("imagenes_cotizacion_cotizacion_idx").on(t.cotizacionId)],
 );
 
+/**
+ * Una fila por llamada a Gemini: sirve para el límite por usuario y por hora, y como
+ * trazabilidad (qué se pidió, qué respondió, con qué modelo). No guarda los archivos,
+ * solo su nombre y tamaño. Son pocas filas: cada llamada es un botón que alguien presiona.
+ */
+export const llamadasIa = pgTable(
+  "llamadas_ia",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    usuarioId: uuid("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    tarea: text("tarea").notNull(),
+    modelo: text("modelo").notNull(),
+    exito: boolean("exito").notNull(),
+    /** Entrada resumida (sin archivos) */
+    entrada: jsonb("entrada").notNull(),
+    /** Respuesta ya validada, o el motivo del error */
+    salida: jsonb("salida"),
+    duracionMs: integer("duracion_ms").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("llamadas_ia_usuario_fecha_idx").on(t.usuarioId, t.creadoEn)],
+);
+
 export const clientes = pgTable(
   "clientes",
   {

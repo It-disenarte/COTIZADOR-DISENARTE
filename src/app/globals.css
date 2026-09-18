@@ -1,23 +1,36 @@
 @import "tailwindcss";
 
-/* Tokens estilo shadcn/ui. Ajustar --primary a los colores oficiales de la marca. */
+/*
+ * Colores del Manual de Marca de Diseñarte México (sección 2 y 5):
+ *   Magenta   #A53692  C40 M100 Y0 K0   — color corporativo
+ *   Turquesa  #5CC6D0  C60 M0 Y20 K0    — color corporativo
+ *   Gris      #96989A  K50              — color corporativo
+ *   Morado    #7C07A6  C69 M100 Y0 K0   — color secundario (bloques, botones, títulos)
+ * El turquesa y el gris no pasan contraste de lectura sobre blanco: se usan en detalles
+ * y fondos, nunca para texto pequeño.
+ */
 :root {
-  --background: oklch(0.985 0.002 90);
-  --foreground: oklch(0.2 0.01 260);
-  --card: oklch(1 0 0);
+  --marca-magenta: #a53692;
+  --marca-turquesa: #5cc6d0;
+  --marca-gris: #96989a;
+  --marca-morado: #7c07a6;
+
+  --background: #fafafb;
+  --foreground: #1d1b22;
+  --card: #ffffff;
   --card-foreground: var(--foreground);
-  --muted: oklch(0.955 0.004 90);
-  --muted-foreground: oklch(0.5 0.01 260);
-  --border: oklch(0.91 0.005 90);
-  --input: oklch(0.88 0.005 90);
-  --ring: oklch(0.55 0.15 35);
-  --primary: oklch(0.25 0.02 260);
-  --primary-foreground: oklch(0.985 0 0);
-  --accent: oklch(0.62 0.17 35);
-  --accent-foreground: oklch(0.99 0 0);
-  --destructive: oklch(0.55 0.2 27);
-  --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.55 0.12 150);
+  --muted: #f3f1f5;
+  --muted-foreground: #62606a;
+  --border: #e4e1e8;
+  --input: #d6d2dc;
+  --ring: var(--marca-morado);
+  --primary: var(--marca-morado);
+  --primary-foreground: #ffffff;
+  --accent: var(--marca-magenta);
+  --accent-foreground: #ffffff;
+  --destructive: #c62828;
+  --destructive-foreground: #ffffff;
+  --success: #2e7d4f;
   --radius: 0.625rem;
 }
 
@@ -38,6 +51,10 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
+  --color-magenta: var(--marca-magenta);
+  --color-turquesa: var(--marca-turquesa);
+  --color-gris-marca: var(--marca-gris);
+  --color-morado: var(--marca-morado);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -53,5 +70,31 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
+  }
+  /* Títulos en morado, como en el manual y en las propuestas. */
+  h1 {
+    color: var(--marca-morado);
+  }
+}
+
+@layer components {
+  /* Textura gráfica del manual (sección 5), muy tenue para no afectar la lectura. */
+  .fondo-textura {
+    position: relative;
+    isolation: isolate;
+  }
+  .fondo-textura::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: var(--textura);
+    background-size: 640px;
+    opacity: 0.07;
+    pointer-events: none;
+  }
+  /* Degradado turquesa → magenta del logotipo, para filetes decorativos. */
+  .filete-marca {
+    background-image: linear-gradient(90deg, var(--marca-turquesa), var(--marca-magenta));
   }
 }

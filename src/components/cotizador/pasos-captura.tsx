@@ -4,8 +4,9 @@ import { ClipboardPaste, ImagePlus, Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { ETIQUETA_FAMILIA, ETIQUETA_ZONA, ZONAS } from "@/lib/catalogo/constantes";
-import { type BorradorCotizacion, filasDesdeTsv, num, txt } from "@/lib/cotizador/estado";
+import { type BorradorCotizacion, filasDesdeTsv, fusionarLevantamiento, num, txt } from "@/lib/cotizador/estado";
 import { subirImagenCotizacion } from "@/lib/cotizador/imagen";
+import { ImportarLevantamiento } from "./ia";
 import { cn } from "@/lib/utils";
 
 export type RecetaOpcion = {
@@ -277,6 +278,20 @@ export function PasoLevantamiento({ borrador, cambiar }: Props) {
             <Button type="button" variant="outline" onClick={() => setPegado(pegado === null ? "" : null)}>
               <ClipboardPaste /> Pegar de Excel
             </Button>
+            <ImportarLevantamiento
+              alAplicar={(leido, modo) => {
+                const filas = leido.filas.map((f) => ({
+                  concepto: f.concepto,
+                  anchoM: f.anchoM,
+                  altoM: f.altoM,
+                  cantidades: f.cantidades,
+                }));
+                const nuevo = { areas: leido.areas, filas };
+                const final = modo === "reemplazar" ? nuevo : fusionarLevantamiento(borrador.entrada.levantamiento, nuevo);
+                editarLevantamiento(final);
+                setAreasTexto(final.areas.join(", "));
+              }}
+            />
           </div>
 
           {pegado !== null && (

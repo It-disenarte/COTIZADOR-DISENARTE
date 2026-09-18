@@ -45,6 +45,7 @@ function cotizacionGandhi(recetaId: string) {
       },
       opciones: [{ recetaId, precioUnitarioManual: "" }],
       tiempoEstimado: "5-7 días",
+      alcance: { concepto: "Señalética para protección civil", resumen: "Señalética completa para las 3 áreas." },
       incluyeEnvio: true,
       operacion: {
         trabajoEnInstalacionesDisenarte: false,
@@ -138,6 +139,9 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     expect(texto).toContain("CENDI");
     expect(texto).toContain("Estireno cal. 40 + impresión");
     expect(texto).toContain("5-7 días");
+    // Resumen de alcance capturado (o redactado con la IA)
+    expect(texto.replace(/\s+/g, " ")).toContain("Concepto: Señalética para protección civil");
+    expect(texto.replace(/\s+/g, " ")).toContain("Señalética completa para las 3 áreas.");
     expect(texto).toContain("Precios sin IVA");
     expect(texto).toContain("Materiales adicionales");
     // Dentro de la celda el nombre puede partirse en dos renglones.

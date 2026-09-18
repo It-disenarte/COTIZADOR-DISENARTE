@@ -17,6 +17,8 @@ export type DatosPdf = {
   cliente: { empresa: string | null; nombreContacto: string } | null;
   fecha: Date;
   tiempoEstimado: string | null;
+  /** Concepto y resumen del alcance; si faltan, se usa el título. */
+  alcance?: { concepto: string | null; resumen: string | null } | null;
   incluyeEnvio: boolean;
   resultado: ResultadoCotizacion;
   /** Foto de referencia de cada opción, por id de receta. */
@@ -287,7 +289,9 @@ function paginaDeOpcion(
   lienzo.espacio(14);
 
   const tiempo = datos.tiempoEstimado ?? "Por definir";
-  const alcance: { texto: string; negrita?: boolean }[] = [{ texto: `Concepto: ${datos.titulo}`, negrita: true }];
+  const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
+  const alcance: { texto: string; negrita?: boolean }[] = [{ texto: `Concepto: ${concepto}`, negrita: true }];
+  if (datos.alcance?.resumen?.trim()) alcance.push({ texto: datos.alcance.resumen.trim() });
   if (descripcion) alcance.push({ texto: `Descripción: ${descripcion}`, negrita: true });
   if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
 

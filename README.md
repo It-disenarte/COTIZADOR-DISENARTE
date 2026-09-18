@@ -133,6 +133,48 @@ Restaurar (probarlo antes de salir a producción):
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
 
+## Identidad de marca (Manual de Marca de Diseñarte México)
+
+- **Colores** (`src/app/globals.css`): magenta `#A53692`, turquesa `#5CC6D0` y gris `#96989A` (corporativos) y
+  morado `#7C07A6` (secundario). El morado es el color principal de la interfaz (barra lateral, botones, títulos);
+  el magenta, el de las acciones destacadas ("Nueva cotización", "Generar PDF"). Turquesa y gris solo en detalles,
+  porque no pasan contraste para texto sobre blanco.
+- **Logo**: las versiones oficiales se extrajeron tal cual del manual (sin redibujar) a `src/assets/marca/`: a
+  color, positivo (blanco), e isotipo solo. La barra lateral usa el positivo sobre morado; las pantallas de acceso,
+  el positivo en el bloque morado y el de color en celular. `src/app/icon.png` y `apple-icon.png` son el isotipo.
+- **Textura gráfica** del manual como fondo muy tenue (7%), la misma de las propuestas; los tres puntos morados y
+  el filete en degradado turquesa → magenta del logotipo como detalles.
+- **Tipografía**: el manual recomienda Creato Display y Walkway, que no están en Google Fonts. Se usa Poppins, la
+  de las propuestas y el texto del manual. Si se consiguen los archivos de Creato Display (.otf/.woff2) se pueden
+  cargar con `next/font/local` en `src/app/layout.tsx` para los títulos.
+- Se quitó "Historial general" (deshabilitado) de la navegación; quien tiene permiso de ver todas las cotizaciones
+  elige "Mías / Todas" en la lista.
+
+## Duplicar y Gemini (fases 6 y 7, alcance ajustado)
+
+- **Sin versiones (cambio sobre la fase 6, a petición del equipo).** Una cotización se sigue guardando sobre sí
+  misma mientras es borrador. No hay historial de versiones ni pantalla de historial.
+- **Duplicar**: botón en "Mis cotizaciones" y en el encabezado de cada cotización. Crea un borrador nuevo con
+  folio propio, a nombre de quien duplica, con cliente, levantamiento, materiales, operación, reventa, alcance y
+  fotos (las fotos se copian, no se comparten). Se recalcula con los precios de hoy; si ya no se puede calcular
+  (p. ej. una receta dejó de ser cotizable) conserva el cálculo original. Es la forma de rehacer una cotización
+  ganada o perdida, que ya no se editan. `POST /api/cotizaciones/[id]/duplicar` con cuerpo `{}`.
+- **Gemini** (`@google/genai`, siempre desde el servidor y siempre por un botón):
+  - **Importar con IA** (paso Levantamiento): PDF o foto del levantamiento → tabla propuesta con medidas en
+    metros, filas dudosas (confianza < 0.7) resaltadas y notas. El vendedor elige "Usar esta tabla" o "Agregar a
+    la tabla actual" (junta áreas por nombre). **Tope 4 MB** (cambio sobre los 10 MB de la sección 9.1): Vercel
+    rechaza peticiones de más de 4.5 MB. Las fotos se reducen en el navegador antes de subirse. Excel sigue
+    entrando por "Pegar de Excel".
+  - **Buscar precio con IA** (paso Reventa): búsqueda de Google (grounding) → precio en MXN, fuentes con link y
+    notas. Siempre entra como "sin verificar".
+  - **Redactar con IA** (paso Resumen): concepto y resumen (≤ 40 palabras) solo con los datos capturados. El
+    texto queda editable y sale en la columna "Resumen de alcance" del PDF (`entrada.alcance`).
+- Cada respuesta se pide como JSON con esquema y se valida con Zod; si no cumple, se muestra el error y se captura
+  a mano. Cada llamada (éxito o error) queda en la tabla `llamadas_ia` (tarea, modelo, entrada resumida sin
+  archivos, salida, duración), que también sirve para el límite de `GEMINI_LIMITE_HORA` (30) por usuario.
+- Variables: `GEMINI_API_KEY` (sin ella los botones avisan "IA no configurada"), `GEMINI_MODEL` (por defecto
+  `gemini-3.8-flash`), `GEMINI_LIMITE_HORA`. Las rutas de IA tienen `maxDuration = 60`.
+
 ## PDF sobre el diseño de Canva + fotos por opción
 
 - **El marco sale del PDF real de Canva.** `scripts/extraer-plantillas.mts` toma la propuesta exportada de Canva y

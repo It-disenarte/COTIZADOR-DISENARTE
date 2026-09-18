@@ -1,22 +1,44 @@
 import { FileDown, FilePlus2 } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge, Card } from "@/components/ui";
 import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
 import { formatoFechaHora, formatoMoneda } from "@/lib/formato";
+import { tienePermiso } from "@/lib/permisos";
 import { requireSesion } from "@/lib/sesion";
 import { listarCotizaciones } from "@/lib/servicios/cotizaciones";
+import { cn } from "@/lib/utils";
 
-export default async function PaginaCotizaciones() {
+export default async function PaginaCotizaciones({ searchParams }: PageProps<"/cotizaciones">) {
   const { usuario } = await requireSesion(await headers());
-  const cotizaciones = await listarCotizaciones(usuario);
+  // Quien puede ver todas (admin) elige entre las suyas y las de todo el equipo.
+  const puedeVerTodas = tienePermiso(usuario, "cotizaciones.ver_todas");
+  const todas = puedeVerTodas && (await searchParams).ver === "todas";
+  const cotizaciones = await listarCotizaciones(usuario, { todas });
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Mis cotizaciones</h1>
-          <p className="text-sm text-muted-foreground">Abre un borrador para seguir donde lo dejaste.</p>
+          <h1 className="text-2xl font-semibold">{todas ? "Cotizaciones del equipo" : "Mis cotizaciones"}</h1>
+          <p className="text-sm text-muted-foreground">Abre un borrador para seguir donde lo dejaste, o duplica una para partir de ella.</p>
+          {puedeVerTodas && (
+            <div className="mt-3 inline-flex rounded-md border bg-card p-0.5 text-sm">
+              <Link
+                href="/cotizaciones"
+                className={cn("rounded px-3 py-1", !todas ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+              >
+                Mías
+              </Link>
+              <Link
+                href="/cotizaciones?ver=todas"
+                className={cn("rounded px-3 py-1", todas ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+              >
+                Todas
+              </Link>
+            </div>
+          )}
         </div>
         <Link
           href="/cotizaciones/nueva"
@@ -38,7 +60,7 @@ export default async function PaginaCotizaciones() {
                   <th className="px-4 py-3 font-medium">Proyecto</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 text-right font-medium">Total</th>
-                  <th className="px-4 py-3 text-right font-medium">PDF</th>
+                  <th className="px-4 py-3 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -55,6 +77,7 @@ export default async function PaginaCotizaciones() {
                         {c.titulo}
                       </Link>
                       {c.cliente && <p className="text-xs text-muted-foreground">{c.cliente}</p>}
+                      {todas && c.vendedor && <p className="text-xs text-morado">Vendedor: {c.vendedor}</p>}
                     </td>
                     <td className="px-4 py-3 align-top">
                       <Badge variant={c.estado === "ganada" ? "success" : c.estado === "perdida" ? "destructive" : "default"}>
@@ -63,13 +86,16 @@ export default async function PaginaCotizaciones() {
                     </td>
                     <td className="px-4 py-3 text-right align-top">{c.total ? formatoMoneda(c.total) : "—"}</td>
                     <td className="px-4 py-3 text-right align-top">
+                      <div className="flex flex-wrap justify-end gap-2">
+                      <BotonDuplicar id={c.id} folio={c.folio} />
                       <a
                         href={`/api/cotizaciones/${c.id}/pdf`}
                         className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
                         title="Descargar la propuesta"
                       >
-                        <FileDown className="size-3.5" /> Descargar
+                        <FileDown className="size-3.5" /> PDF
                       </a>
+                      </div>
                     </td>
                   </tr>
                 ))}

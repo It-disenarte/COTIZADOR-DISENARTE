@@ -35,6 +35,11 @@ export const EntradaCotizacion = z.object({
     .max(10),
   // Opcional: las cotizaciones guardadas antes de la fase 5 no lo traen.
   tiempoEstimado: textoOpcional(100).optional(),
+  // Texto del "Resumen de alcance" del PDF. Opcional: si falta, el PDF usa el título.
+  alcance: z
+    .object({ concepto: textoOpcional(150), resumen: textoOpcional(600) })
+    .nullable()
+    .optional(),
   incluyeEnvio: z.boolean(),
   operacion: z.object({
     trabajoEnInstalacionesDisenarte: z.boolean(),

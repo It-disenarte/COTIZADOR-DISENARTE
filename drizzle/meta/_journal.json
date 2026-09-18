@@ -57,6 +57,13 @@
       "when": 1789753558478,
       "tag": "0007_imagenes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789759684446,
+      "tag": "0008_llamadas_ia",
+      "breakpoints": true
     }
   ]
 }

@@ -97,6 +97,40 @@ export function filasDesdeTsv(texto: string, areas: number): EntradaCotizacion["
     });
 }
 
+type Levantamiento = EntradaCotizacion["levantamiento"];
+
+/**
+ * Agrega a la tabla actual lo que leyó la IA. Las áreas se juntan por nombre (sin
+ * importar mayúsculas); un área nueva agrega columna. Las filas vacías se descartan.
+ */
+export function fusionarLevantamiento(actual: Levantamiento, nuevo: Levantamiento): Levantamiento {
+  const areas = [...actual.areas];
+  const columnaDe = (nombre: string) => {
+    const existente = areas.findIndex((a) => a.trim().toLowerCase() === nombre.trim().toLowerCase());
+    if (existente !== -1) return existente;
+    areas.push(nombre.trim());
+    return areas.length - 1;
+  };
+  const destinos = nuevo.areas.map(columnaDe);
+
+  const conCantidad = (f: Levantamiento["filas"][number]) =>
+    txt(f.concepto).trim() !== "" || f.cantidades.some((c) => num(c) > 0);
+
+  const filasActuales = actual.filas.filter(conCantidad).map((f) => ({
+    ...f,
+    cantidades: areas.map((_, i) => txt(f.cantidades[i])),
+  }));
+  const filasNuevas = nuevo.filas.map((f) => {
+    const cantidades = areas.map(() => "");
+    destinos.forEach((columna, j) => {
+      cantidades[columna] = txt(f.cantidades[j]);
+    });
+    return { concepto: f.concepto, anchoM: f.anchoM, altoM: f.altoM, cantidades };
+  });
+
+  return { areas, filas: [...filasActuales, ...filasNuevas] };
+}
+
 // Los valores del formulario viajan como texto; estas dos ayudan a leerlos.
 export const txt = (valor: unknown): string => (valor === null || valor === undefined ? "" : String(valor));
 export const num = (valor: unknown): number => Number(txt(valor)) || 0;

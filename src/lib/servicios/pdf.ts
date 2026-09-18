@@ -25,6 +25,9 @@ export async function pdfDeCotizacion(
       : null,
     fecha: cotizacion.actualizadoEn,
     tiempoEstimado: entrada?.tiempoEstimado ?? null,
+    alcance: entrada?.alcance
+      ? { concepto: entrada.alcance.concepto ?? null, resumen: entrada.alcance.resumen ?? null }
+      : null,
     incluyeEnvio: entrada?.incluyeEnvio ?? false,
     resultado: cotizacion.resultado,
     imagenes: await imagenesParaPdf(cotizacion.id, entrada?.opciones ?? []),
