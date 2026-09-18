@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@node-rs/argon2"],
   // Las fuentes del PDF se leen del disco en runtime: hay que incluirlas en la función.
   outputFileTracingIncludes: {
-    "/api/cotizaciones/[id]/pdf": ["./src/lib/pdf/fuentes/**"],
+    "/api/cotizaciones/[id]/pdf": ["./src/lib/pdf/fuentes/**", "./src/lib/pdf/plantillas/**"],
   },
   poweredByHeader: false,
 };

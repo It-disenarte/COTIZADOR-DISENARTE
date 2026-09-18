@@ -70,7 +70,7 @@ async function guardarCliente(tx: Tx, datos: GuardarCotizacion["cliente"]): Prom
   return nuevo.id;
 }
 
-function exigirEditable(cotizacion: { estado: EstadoCotizacion }) {
+export function exigirEditable(cotizacion: { estado: EstadoCotizacion }) {
   if (cotizacion.estado === "ganada" || cotizacion.estado === "perdida") {
     throw new ErrorHttp(409, "Una cotización cerrada ya no se edita; duplícala para hacer otra.", "COTIZACION_CERRADA");
   }

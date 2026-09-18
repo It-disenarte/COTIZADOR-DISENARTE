@@ -133,6 +133,30 @@ Restaurar (probarlo antes de salir a producción):
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
 
+## PDF sobre el diseño de Canva + fotos por opción
+
+- **El marco sale del PDF real de Canva.** `scripts/extraer-plantillas.mts` toma la propuesta exportada de Canva y
+  genera `src/lib/pdf/plantillas/marco.pdf` (6 páginas): portada y página interior **sin texto** (fondos, logo,
+  onda, barra del pie, QR, íconos) y las páginas fijas **tal cual** (Bienvenidos, ¿Por qué Diseñarte?, Proceso,
+  Condiciones). El motor escribe encima portada, encabezado "COTIZACIÓN", pie de contacto y bancos, tablas y totales.
+  Se corre una vez por rediseño; si cambia el diseño en Canva:
+
+  ```bash
+  npx tsx scripts/extraer-plantillas.mts "ruta/al/PDF de Canva.pdf"
+  ```
+
+  y revisar el listado de imágenes que imprime (`IMAGENES_A_QUITAR`: la tabla de la cotización de ejemplo venía
+  pegada como imagen y se quita del marco).
+- **Detalle técnico importante:** Canva exporta con la MediaBox corrida (origen en y = 8.58 por el sangrado). Al usar
+  la página de fondo se le pasa esa caja a `embedPages`; sin eso todo el diseño sube 8.58 pt.
+- **Peso**: las texturas de fondo se reducen de 2400 a 1400 px al extraer el marco. La propuesta completa pesa
+  ~2 MB (la de Canva pesaba 3.6 MB). El marco se copia una sola vez por documento para no duplicar la textura.
+- **Fotos por opción**: en el paso Materiales, cada opción elegida puede llevar una foto que sale centrada debajo
+  de su tabla de precios. El navegador la reduce a 1600 px en JPG antes de subirla (~200-400 KB); se guarda en la
+  tabla `imagenes_cotizacion` (bytea, migración `0007`), se borra en cascada con la cotización y solo acepta
+  JPG/PNG verificados por su firma real. La subida exige la cabecera `x-cotizador` (protección CSRF equivalente a
+  exigir JSON).
+
 ## Decisiones de la fase 5
 
 - **PDF con `pdf-lib`, sin Chromium (cambio sobre la sección 10.2).** La especificación planteaba Playwright, que

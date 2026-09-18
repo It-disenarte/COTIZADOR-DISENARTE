@@ -49,10 +49,11 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
     }
   }, [borrador.entrada, snapshot]);
 
-  async function guardar({ avisar = true } = {}) {
+  /** Guarda el borrador y devuelve su id (null si faltan datos o falló). */
+  async function guardar({ avisar = true } = {}): Promise<string | null> {
     if (!borrador.titulo.trim() || !borrador.cliente.nombreContacto.trim()) {
       if (avisar) setMensaje({ tipo: "error", texto: "El título y el contacto del cliente son obligatorios." });
-      return false;
+      return null;
     }
     setGuardando(true);
     setMensaje(null);
@@ -67,10 +68,10 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
       if (avisar) setMensaje({ tipo: "ok", texto: `Borrador guardado con folio ${respuesta.folio}.` });
       if (!borrador.id) window.history.replaceState(null, "", `/cotizaciones/${respuesta.id}`);
       router.refresh();
-      return true;
+      return respuesta.id;
     } catch (error) {
       setMensaje({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo guardar." });
-      return false;
+      return null;
     } finally {
       setGuardando(false);
     }
@@ -78,8 +79,8 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
 
   /** Guarda (para que el PDF salga de lo último capturado) y descarga. Las alertas piden confirmar. */
   async function generarPdf() {
-    const guardado = await guardar({ avisar: false });
-    if (!guardado) return;
+    const id = await guardar({ avisar: false });
+    if (!id) return;
 
     const alertas = resultado?.alertas.length ?? 0;
     if (alertas > 0 && !alertasConfirmadas) {
@@ -93,7 +94,7 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
 
     setMensaje({ tipo: "ok", texto: "Abriendo la vista previa en otra pestaña…" });
     // Vista previa en pestaña nueva; desde ahí se guarda o se imprime.
-    window.open(`/api/cotizaciones/${borrador.id}/pdf?ver=1`, "_blank", "noopener");
+    window.open(`/api/cotizaciones/${id}/pdf?ver=1`, "_blank", "noopener");
   }
 
   async function irAlPaso(destino: number) {
@@ -141,7 +142,14 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
           />
         )}
         {paso === 1 && <PasoLevantamiento borrador={borrador} cambiar={cambiar} />}
-        {paso === 2 && <PasoMateriales borrador={borrador} cambiar={cambiar} recetas={recetas} />}
+        {paso === 2 && (
+          <PasoMateriales
+            borrador={borrador}
+            cambiar={cambiar}
+            recetas={recetas}
+            asegurarGuardado={() => guardar({ avisar: true })}
+          />
+        )}
         {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} />}
         {paso === 4 && <PasoReventa borrador={borrador} cambiar={cambiar} />}
         {paso === 5 && <PasoResumen borrador={borrador} cambiar={cambiar} resultado={resultado} />}

@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 // Imports relativos: drizzle-kit lee este archivo fuera de Next y no resuelve el alias "@/".
 import { ESTADOS_COTIZACION, FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "../catalogo/constantes";
 import { ROLES } from "../roles";
@@ -203,6 +203,30 @@ export const cotizacionVersiones = pgTable(
     index("cotizacion_versiones_cotizacion_idx").on(t.cotizacionId),
     uniqueIndex("cotizacion_versiones_unica").on(t.cotizacionId, t.version),
   ],
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * Fotos de referencia que salen en la página de cada opción del PDF.
+ * Se guardan en la propia base (ya reducidas en el navegador, ~200 KB) para no
+ * depender de otro servicio de archivos; se borran junto con la cotización.
+ */
+export const imagenesCotizacion = pgTable(
+  "imagenes_cotizacion",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cotizacionId: uuid("cotizacion_id")
+      .notNull()
+      .references(() => cotizaciones.id, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    tipo: text("tipo").notNull(),
+    tamano: integer("tamano").notNull(),
+    datos: bytea("datos").notNull(),
+    subidaPor: uuid("subida_por").references(() => usuarios.id),
+    ...tiempos,
+  },
+  (t) => [index("imagenes_cotizacion_cotizacion_idx").on(t.cotizacionId)],
 );
 
 export const clientes = pgTable(

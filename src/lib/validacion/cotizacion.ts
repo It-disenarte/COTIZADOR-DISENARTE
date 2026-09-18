@@ -23,7 +23,14 @@ export const EntradaCotizacion = z.object({
     filas: z.array(FilaLevantamiento).min(1, { error: "El levantamiento necesita al menos una fila." }).max(500),
   }),
   opciones: z
-    .array(z.object({ recetaId: Uuid, precioUnitarioManual: decimalOpcional({ min: 0 }) }))
+    .array(
+      z.object({
+        recetaId: Uuid,
+        precioUnitarioManual: decimalOpcional({ min: 0 }),
+        // Foto de referencia para la página de esta opción en el PDF.
+        imagenId: Uuid.nullable().optional(),
+      }),
+    )
     .min(1, { error: "Elige al menos una opción de material." })
     .max(10),
   // Opcional: las cotizaciones guardadas antes de la fase 5 no lo traen.

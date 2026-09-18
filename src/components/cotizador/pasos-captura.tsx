@@ -1,10 +1,11 @@
 "use client";
 
-import { ClipboardPaste, Plus, Trash2 } from "lucide-react";
+import { ClipboardPaste, ImagePlus, Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { ETIQUETA_FAMILIA, ETIQUETA_ZONA, ZONAS } from "@/lib/catalogo/constantes";
 import { type BorradorCotizacion, filasDesdeTsv, num, txt } from "@/lib/cotizador/estado";
+import { subirImagenCotizacion } from "@/lib/cotizador/imagen";
 import { cn } from "@/lib/utils";
 
 export type RecetaOpcion = {
@@ -416,7 +417,12 @@ export function PasoLevantamiento({ borrador, cambiar }: Props) {
 
 // Paso 3 -------------------------------------------------------------------------------------
 
-export function PasoMateriales({ borrador, cambiar, recetas }: Props & { recetas: RecetaOpcion[] }) {
+export function PasoMateriales({
+  borrador,
+  cambiar,
+  recetas,
+  asegurarGuardado,
+}: Props & { recetas: RecetaOpcion[]; asegurarGuardado: () => Promise<string | null> }) {
   const elegidas = borrador.entrada.opciones.map((o) => o.recetaId);
 
   const alternar = (id: string) =>
@@ -495,6 +501,138 @@ export function PasoMateriales({ borrador, cambiar, recetas }: Props & { recetas
           </div>
         </CardContent>
       </Card>
+
+      {borrador.entrada.opciones.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="font-medium">Fotos para el PDF</h3>
+            <p className="text-sm text-muted-foreground">
+              Opcional. La foto sale debajo de la tabla de precios, en la página de esa opción (por ejemplo, cómo se
+              ve el material terminado). Se reduce sola antes de subirse; puedes usar una foto del celular.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {borrador.entrada.opciones.map((opcion) => (
+              <FotoOpcion
+                key={opcion.recetaId}
+                nombre={recetas.find((r) => r.id === opcion.recetaId)?.nombre ?? "Opción"}
+                cotizacionId={borrador.id ?? null}
+                imagenId={opcion.imagenId ?? null}
+                asegurarGuardado={asegurarGuardado}
+                alCambiar={(imagenId) =>
+                  cambiar((b) => ({
+                    ...b,
+                    entrada: {
+                      ...b.entrada,
+                      opciones: b.entrada.opciones.map((o) => (o.recetaId === opcion.recetaId ? { ...o, imagenId } : o)),
+                    },
+                  }))
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function FotoOpcion({
+  nombre,
+  cotizacionId,
+  imagenId,
+  asegurarGuardado,
+  alCambiar,
+}: {
+  nombre: string;
+  cotizacionId: string | null;
+  imagenId: string | null;
+  asegurarGuardado: () => Promise<string | null>;
+  alCambiar: (imagenId: string | null) => void;
+}) {
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function elegir(archivo: File | undefined) {
+    if (!archivo) return;
+    setError(null);
+    if (!archivo.type.startsWith("image/")) {
+      setError("Elige una imagen (JPG, PNG o foto del celular).");
+      return;
+    }
+    setSubiendo(true);
+    try {
+      // La imagen se liga a la cotización, así que necesita estar guardada.
+      const id = cotizacionId ?? (await asegurarGuardado());
+      if (!id) {
+        setError("Guarda primero el borrador (título y contacto del cliente) para poder subir fotos.");
+        return;
+      }
+      alCambiar(await subirImagenCotizacion(id, archivo));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo subir la imagen.");
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  async function quitar() {
+    if (cotizacionId && imagenId) {
+      // Si falla el borrado en el servidor, igual se quita de la cotización: no sale en el PDF.
+      await fetch(`/api/cotizaciones/${cotizacionId}/imagenes/${imagenId}`, { method: "DELETE" }).catch(() => null);
+    }
+    alCambiar(null);
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 pt-6">
+        <p className="text-sm font-medium">{nombre}</p>
+        {imagenId && cotizacionId ? (
+          <div className="space-y-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- imagen privada servida por la API, sin optimizar */}
+            <img
+              src={`/api/cotizaciones/${cotizacionId}/imagenes/${imagenId}`}
+              alt={`Foto de ${nombre}`}
+              className="max-h-48 w-full rounded-md border object-contain"
+            />
+            <div className="flex gap-2">
+              <Label className="cursor-pointer text-sm text-accent underline-offset-4 hover:underline">
+                <ImagePlus className="mr-1 inline size-4" />
+                Cambiar
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={subiendo}
+                  onChange={(e) => elegir(e.target.files?.[0])}
+                />
+              </Label>
+              <Button type="button" variant="ghost" size="sm" onClick={quitar}>
+                <Trash2 /> Quitar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <label
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed p-6 text-sm text-muted-foreground hover:bg-muted",
+              subiendo && "pointer-events-none opacity-60",
+            )}
+          >
+            {subiendo ? <Loader2 className="size-5 animate-spin" /> : <ImagePlus className="size-5" />}
+            {subiendo ? "Subiendo…" : "Agregar foto"}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={subiendo}
+              onChange={(e) => elegir(e.target.files?.[0])}
+            />
+          </label>
+        )}
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
   );
 }

@@ -18,6 +18,7 @@ const rutaPdf = await import("@/app/api/cotizaciones/[id]/pdf/route");
 const ADMIN = { nombre: "Erick Medina", email: "admin@disenartemx.com", password: "Admin-Definitiva-2026" };
 let cookie = "";
 let cotizacionId = "";
+let recetaId = "";
 
 /** La cotización de Gandhi: 169 piezas en tres áreas, con dos items de reventa. */
 function cotizacionGandhi(recetaId: string) {
@@ -81,6 +82,7 @@ beforeAll(async () => {
   await db.update(insumos).set({ anchoUtilM: "1.52" }).where(eq(insumos.nombre, "Impresión JV33 vinil blanco"));
 
   const [receta] = await db.select().from(recetas).where(eq(recetas.nombre, "Estireno cal. 40 + impresión"));
+  recetaId = receta.id;
   const res = await rutaCotizaciones.POST(
     peticion("/api/cotizaciones", { metodo: "POST", cookie, cuerpo: cotizacionGandhi(receta.id) }),
     undefined,
@@ -102,6 +104,8 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
   it("pesa menos de 5 MB y trae todas las páginas de la propuesta", async () => {
     const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
     const archivo = new Uint8Array(await res.arrayBuffer());
+    // PDF_SALIDA=ruta.pdf guarda la propuesta para revisarla a ojo.
+    if (process.env.PDF_SALIDA) await (await import("node:fs/promises")).writeFile(process.env.PDF_SALIDA, archivo);
 
     expect(archivo.byteLength).toBeLessThan(5 * 1024 * 1024);
     expect(new TextDecoder().decode(archivo.slice(0, 5))).toBe("%PDF-");
@@ -115,18 +119,18 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
     const { texto } = await textoDelPdf(new Uint8Array(await res.arrayBuffer()));
 
-    // Portada
-    expect(texto).toContain("PROPUESTA ECONÓMICA");
-    expect(texto).toContain("SEÑALÉTICA PROTECCIÓN CIVIL");
+    // Portada (dibujada por el motor sobre el marco)
+    expect(texto).toContain("PROPUESTA");
+    expect(texto).toContain("ECONÓMICA");
+    expect(texto.replace(/\s/g, "")).toContain("SEÑALÉTICAPROTECCIÓNCIVIL");
     expect(texto).toContain("Claudia P.");
     expect(texto).toContain("Erick Medina");
-    expect(texto).toMatch(/COT-\d{8}-01/);
+    expect(texto.replace(/\s/g, "")).toMatch(/COT-\d{8}-01/);
 
-    // Páginas fijas
-    expect(texto).toContain("Bienvenidos");
-    expect(texto).toContain("¿Por qué Diseñarte México?");
-    expect(texto).toContain("Proceso de trabajo");
-    expect(texto).toContain("Condiciones comerciales");
+    // Páginas fijas: salen tal cual del diseño de Canva (plantillas/marco.pdf)
+    expect(texto).toMatch(/Bienvenidos/i);
+    expect(texto).toMatch(/proceso de\s+trabajo/i);
+    expect(texto).toMatch(/condiciones\s+comerciales/i);
     expect(texto).toContain("70% de anticipo y 30% al entregar");
 
     // Consolidado y cotización
@@ -136,7 +140,8 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     expect(texto).toContain("5-7 días");
     expect(texto).toContain("Precios sin IVA");
     expect(texto).toContain("Materiales adicionales");
-    expect(texto).toContain("Detector de humo autónomo 9V");
+    // Dentro de la celda el nombre puede partirse en dos renglones.
+    expect(texto.replace(/\s+/g, " ")).toContain("Detector de humo autónomo 9V");
 
     // Datos de contacto y bancarios del pie
     expect(texto).toContain("ventas@disenartemx.com");
@@ -191,6 +196,99 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
 
     const res = await rutaPdf.GET(
       peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie: cookieOtro }),
+      ctxId(cotizacionId),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("Foto de referencia por opción", () => {
+  // PNG de 3 × 2 px: lo justo para reconocerlo dentro del PDF por sus medidas.
+  const PNG = Uint8Array.from(
+    atob("iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEklEQVR4nGP4z8DAwMDAwMAAAB7gAv+pMnULAAAAAElFTkSuQmCC"),
+    (c) => c.charCodeAt(0),
+  );
+  const rutaImagenes = () => import("@/app/api/cotizaciones/[id]/imagenes/route");
+  const rutaImagen = () => import("@/app/api/cotizaciones/[id]/imagenes/[imagenId]/route");
+
+  function subida(bytes: Uint8Array, { cabecera = true, nombre = "foto.png" } = {}) {
+    const formulario = new FormData();
+    formulario.append("archivo", new File([bytes as BlobPart], nombre, { type: "image/png" }));
+    const headers = new Headers({ cookie });
+    if (cabecera) headers.set("x-cotizador", "1");
+    return new Request(`http://localhost:3000/api/cotizaciones/${cotizacionId}/imagenes`, {
+      method: "POST",
+      headers,
+      body: formulario,
+    });
+  }
+
+  /** Imágenes de ciertas medidas dentro del PDF generado. */
+  async function imagenesDe(archivo: Uint8Array, ancho: number, alto: number) {
+    const { PDFDocument, PDFName, PDFRawStream } = await import("pdf-lib");
+    const pdf = await PDFDocument.load(archivo);
+    return pdf.context
+      .enumerateIndirectObjects()
+      .filter(
+        ([, o]) =>
+          o instanceof PDFRawStream &&
+          String(o.dict.get(PDFName.of("Subtype"))) === "/Image" &&
+          String(o.dict.get(PDFName.of("Width"))) === String(ancho) &&
+          String(o.dict.get(PDFName.of("Height"))) === String(alto),
+      ).length;
+  }
+
+  it("exige la cabecera x-cotizador (un formulario de otro sitio no puede subir)", async () => {
+    const res = await (await rutaImagenes()).POST(subida(PNG, { cabecera: false }), ctxId(cotizacionId));
+    expect(res.status).toBe(400);
+  });
+
+  it("rechaza lo que no es JPG o PNG aunque diga que sí", async () => {
+    const falso = new TextEncoder().encode("<script>alert(1)</script>");
+    const res = await (await rutaImagenes()).POST(subida(falso), ctxId(cotizacionId));
+    expect(res.status).toBe(415);
+  });
+
+  it("sube la foto, la sirve de vuelta y sale en la página de la opción", async () => {
+    const res = await (await rutaImagenes()).POST(subida(PNG), ctxId(cotizacionId));
+    expect(res.status).toBe(201);
+    const { id: imagenId } = await res.json();
+
+    const ctxImagen = { params: Promise.resolve({ id: cotizacionId, imagenId }) };
+    const vista = await (await rutaImagen()).GET(
+      peticion(`/api/cotizaciones/${cotizacionId}/imagenes/${imagenId}`, { cookie }),
+      ctxImagen,
+    );
+    expect(vista.status).toBe(200);
+    expect(vista.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await vista.arrayBuffer())).toEqual(PNG);
+
+    const pdfAntes = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
+    expect(await imagenesDe(new Uint8Array(await pdfAntes.arrayBuffer()), 3, 2)).toBe(0);
+
+    // Se liga a la opción al guardar la cotización.
+    const cuerpo = cotizacionGandhi(recetaId);
+    cuerpo.entrada.opciones = [{ recetaId, precioUnitarioManual: "", imagenId } as (typeof cuerpo.entrada.opciones)[number]];
+    const guardado = await (await import("@/app/api/cotizaciones/[id]/route")).PUT(
+      peticion(`/api/cotizaciones/${cotizacionId}`, { metodo: "PUT", cookie, cuerpo }),
+      ctxId(cotizacionId),
+    );
+    expect(guardado.status).toBe(200);
+
+    const pdf = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
+    expect(await imagenesDe(new Uint8Array(await pdf.arrayBuffer()), 3, 2)).toBe(1);
+  });
+
+  it("otro vendedor no puede ver ni subir fotos a una cotización ajena", async () => {
+    const cookieOtro = await iniciarSesion("otro@disenartemx.com", "Definitiva-1234567");
+    const formulario = new FormData();
+    formulario.append("archivo", new File([PNG as BlobPart], "foto.png", { type: "image/png" }));
+    const res = await (await rutaImagenes()).POST(
+      new Request(`http://localhost:3000/api/cotizaciones/${cotizacionId}/imagenes`, {
+        method: "POST",
+        headers: { cookie: cookieOtro, "x-cotizador": "1" },
+        body: formulario,
+      }),
       ctxId(cotizacionId),
     );
     expect(res.status).toBe(403);

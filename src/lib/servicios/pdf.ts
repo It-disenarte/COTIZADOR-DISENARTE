@@ -2,6 +2,7 @@ import type { EntradaCotizacion } from "@/lib/motor";
 import { type DatosPdf, generarPdf, nombreArchivo } from "@/lib/pdf/documento";
 import type { UsuarioSesion } from "@/lib/permisos";
 import { obtenerCotizacion } from "./cotizaciones";
+import { imagenesParaPdf } from "./imagenes";
 
 /**
  * Arma el PDF de una cotización al momento. No se guarda en disco:
@@ -24,7 +25,9 @@ export async function pdfDeCotizacion(
       : null,
     fecha: cotizacion.actualizadoEn,
     tiempoEstimado: entrada?.tiempoEstimado ?? null,
+    incluyeEnvio: entrada?.incluyeEnvio ?? false,
     resultado: cotizacion.resultado,
+    imagenes: await imagenesParaPdf(cotizacion.id, entrada?.opciones ?? []),
   };
 
   return { archivo: await generarPdf(datos), nombre: nombreArchivo(datos) };
