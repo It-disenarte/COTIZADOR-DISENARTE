@@ -6,7 +6,9 @@ import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Texta
 import { ETIQUETA_FAMILIA, ETIQUETA_ZONA, ZONAS } from "@/lib/catalogo/constantes";
 import { type BorradorCotizacion, filasDesdeTsv, fusionarLevantamiento, num, txt } from "@/lib/cotizador/estado";
 import { subirImagenCotizacion } from "@/lib/cotizador/imagen";
+import type { Lugar } from "@/lib/mapas/osm";
 import { CalcularKm } from "./calcular-km";
+import { CampoDireccion } from "./campo-direccion";
 import { ImportarLevantamiento } from "./ia";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +48,8 @@ export function PasoDatos({
   puedeElegirVendedor,
 }: Props & { clientes: ClienteOpcion[]; vendedores: { id: string; nombre: string }[]; puedeElegirVendedor: boolean }) {
   const cliente = borrador.cliente;
+  // Punto exacto elegido en las sugerencias de dirección (si lo hay).
+  const [lugarElegido, setLugarElegido] = useState<Lugar | null>(null);
   const sugerencias = clientes
     .filter((c) => {
       const q = `${cliente.empresa} ${cliente.nombreContacto}`.trim().toLowerCase();
@@ -162,18 +166,12 @@ export function PasoDatos({
               <Label htmlFor="telefono">Teléfono</Label>
               <Input id="telefono" value={cliente.telefono} onChange={(e) => editarCliente({ telefono: e.target.value })} />
             </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="direccion">Dirección de instalación</Label>
-              <Input
-                id="direccion"
-                value={cliente.direccion}
-                onChange={(e) => editarCliente({ direccion: e.target.value })}
-                placeholder="Av. Universidad 123, Col. Centro, Querétaro, Qro."
+            <div className="sm:col-span-2">
+              <CampoDireccion
+                valor={cliente.direccion}
+                alCambiar={(direccion) => editarCliente({ direccion })}
+                alElegirLugar={setLugarElegido}
               />
-              <p className="text-xs text-muted-foreground">
-                Donde se va a instalar o entregar. Con calle, número, colonia, ciudad y estado el cálculo de
-                kilómetros es más preciso.
-              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="km">Km desde San Juan del Río</Label>
@@ -188,7 +186,7 @@ export function PasoDatos({
                 Un solo trayecto (no ida y vuelta). Se guarda con el cliente y pasa solo al campo “Km por trayecto”
                 del paso de Operación, donde se usa para calcular la gasolina.
               </p>
-              <CalcularKm direccion={cliente.direccion} alUsar={ponerKm} />
+              <CalcularKm direccion={cliente.direccion} lugar={lugarElegido} alUsar={ponerKm} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="zona">Zona</Label>

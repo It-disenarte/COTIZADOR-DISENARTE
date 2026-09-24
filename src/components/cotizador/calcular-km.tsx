@@ -3,6 +3,7 @@
 import { Loader2, MapPin, Route, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import type { Lugar } from "@/lib/mapas/osm";
 import type { ResultadoDistancia } from "@/lib/servicios/distancia";
 import { llamarApi } from "@/lib/utils";
 
@@ -13,7 +14,16 @@ const duracion = (minutos: number) =>
  * Calcula los km por carretera desde el taller hasta la dirección del cliente.
  * Muestra qué lugar encontró para que la persona confirme antes de usar el número.
  */
-export function CalcularKm({ direccion, alUsar }: { direccion: string; alUsar: (km: string) => void }) {
+export function CalcularKm({
+  direccion,
+  lugar,
+  alUsar,
+}: {
+  direccion: string;
+  /** Punto elegido en las sugerencias; si existe, se usa tal cual. */
+  lugar: Lugar | null;
+  alUsar: (km: string) => void;
+}) {
   const [calculando, setCalculando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoDistancia | null>(null);
@@ -22,7 +32,8 @@ export function CalcularKm({ direccion, alUsar }: { direccion: string; alUsar: (
     setCalculando(true);
     setError(null);
     try {
-      const cuerpo = destino ? { destino } : { direccion };
+      const elegido = destino ?? (lugar ? { lat: lugar.lat, lon: lugar.lon, etiqueta: lugar.etiqueta } : null);
+      const cuerpo = elegido ? { destino: elegido } : { direccion };
       const nuevo = await llamarApi<ResultadoDistancia>("/api/distancia", "POST", cuerpo);
       // Al elegir una alternativa se conservan las demás opciones de la primera búsqueda.
       setResultado((anterior) =>
@@ -47,7 +58,7 @@ export function CalcularKm({ direccion, alUsar }: { direccion: string; alUsar: (
         variant="outline"
         size="sm"
         onClick={() => calcular()}
-        disabled={calculando || direccion.trim().length < 5}
+        disabled={calculando || (!lugar && direccion.trim().length < 5)}
         title={direccion.trim().length < 5 ? "Escribe primero la dirección de instalación" : undefined}
       >
         {calculando ? <Loader2 className="animate-spin" /> : <Route />} Calcular km desde Diseñarte

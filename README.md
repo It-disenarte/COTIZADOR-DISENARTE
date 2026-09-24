@@ -139,6 +139,11 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
   usa openstreetmap.org: **Nominatim** para buscar la dirección y **OSRM** para trazar la ruta en coche. Son
   servicios donados, así que `src/lib/mapas/osm.ts` respeta su política de uso justo: se identifican con un
   User-Agent propio (`CONTACTO_MAPAS`) y deja al menos un segundo entre consultas.
+- **Sugerencias mientras se escribe**: el campo de dirección propone opciones con **Photon** (`photon.komoot.io`),
+  limitadas a México y con preferencia por lo cercano al taller. Se usa Photon y no Nominatim porque la política de
+  Nominatim prohíbe expresamente el autocompletado. El navegador espera 450 ms tras la última tecla y no consulta
+  con menos de 4 letras; si el servicio falla, simplemente no aparecen sugerencias. Al elegir una, se guarda su
+  ubicación exacta y los km se calculan directo a ese punto, sin volver a buscar.
 - En el paso Datos: campo **Dirección de instalación** y botón **Calcular km desde Diseñarte**. Devuelve los km de
   **un solo trayecto** y el tiempo de manejo, muestra el lugar encontrado y otras coincidencias para elegir, y
   avisa cuando el punto es de una colonia o ciudad y no de una dirección exacta. Nada se usa hasta presionar

@@ -17,9 +17,18 @@ import { ErrorHttp } from "@/lib/errores";
 
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 const OSRM = "https://routing.openstreetmap.de/routed-car/route/v1/driving";
+/**
+ * Photon, para las sugerencias mientras se escribe. Nominatim NO se puede usar para eso:
+ * su política lo prohíbe expresamente ("you must not implement such a service").
+ */
+const PHOTON = "https://photon.komoot.io/api";
+/** México, para no sugerir direcciones de otros países. */
+const CAJA_MEXICO = "-118.6,14.3,-86.5,32.8";
 const TIEMPO_MAXIMO_MS = 15_000;
 /** Política de uso justo: máximo una consulta por segundo. MAPAS_ESPERA_MS solo se baja en pruebas. */
 const esperaEntreLlamadasMs = () => Number(process.env.MAPAS_ESPERA_MS ?? 1_100);
+/** Las sugerencias van tecleando: ritmo más corto, pero igual con freno. */
+const ESPERA_SUGERENCIAS_MS = 300;
 /** La carretera siempre es más larga que la línea recta; factor típico para México. */
 const FACTOR_CARRETERA = 1.3;
 
@@ -37,16 +46,17 @@ export type Lugar = Punto & {
 const agente = () =>
   `CotizadorDisenarte/1.0 (+${process.env.CONTACTO_MAPAS?.trim() || "https://www.disenartemx.com"})`;
 
-let ultimaLlamada = 0;
-/** Deja pasar al menos un segundo entre consultas, como pide la política de uso. */
-async function esperarTurno() {
-  const falta = ultimaLlamada + esperaEntreLlamadasMs() - Date.now();
+const ultimaLlamada = new Map<string, number>();
+/** Deja pasar un tiempo entre consultas al mismo servicio, como pide su política de uso. */
+async function esperarTurno(url: string, esperaMs: number) {
+  const servicio = new URL(url).host;
+  const falta = (ultimaLlamada.get(servicio) ?? 0) + esperaMs - Date.now();
   if (falta > 0) await new Promise((seguir) => setTimeout(seguir, falta));
-  ultimaLlamada = Date.now();
+  ultimaLlamada.set(servicio, Date.now());
 }
 
-async function pedir(url: string, obligatorio: boolean): Promise<unknown> {
-  await esperarTurno();
+async function pedir(url: string, obligatorio: boolean, esperaMs = esperaEntreLlamadasMs()): Promise<unknown> {
+  await esperarTurno(url, esperaMs);
   let respuesta: Response;
   try {
     respuesta = await fetch(url, {
@@ -90,6 +100,50 @@ export async function buscarDireccion(texto: string): Promise<Lugar[]> {
       };
     })
     .filter((l) => Number.isFinite(l.lat) && Number.isFinite(l.lon));
+}
+
+type RespuestaPhoton = {
+  features?: {
+    geometry?: { coordinates?: [number, number] };
+    properties?: Record<string, string | undefined>;
+  }[];
+};
+
+/** Arma "Calle 123, Colonia, Ciudad, Estado" con lo que traiga cada resultado. */
+function etiquetaPhoton(p: Record<string, string | undefined>): string {
+  const calle = [p.street, p.housenumber].filter(Boolean).join(" ");
+  return [p.name, calle && calle !== p.name ? calle : null, p.district, p.city, p.state]
+    .filter((parte, i, todas) => parte && todas.indexOf(parte) === i)
+    .join(", ");
+}
+
+/**
+ * Sugerencias mientras se escribe (Photon). Solo México y dando preferencia a lo cercano
+ * al taller. Si el servicio falla, devuelve vacío: escribir nunca debe mostrar errores.
+ */
+export async function sugerirDirecciones(texto: string, cerca?: Punto): Promise<Lugar[]> {
+  if (texto.trim().length < 4) return [];
+  const parametros = new URLSearchParams({ q: texto, limit: "5", lang: "es", bbox: CAJA_MEXICO });
+  if (cerca) {
+    parametros.set("lat", String(cerca.lat));
+    parametros.set("lon", String(cerca.lon));
+    parametros.set("location_bias_scale", "0.3");
+  }
+
+  const datos = (await pedir(`${PHOTON}?${parametros}`, false, ESPERA_SUGERENCIAS_MS)) as RespuestaPhoton | null;
+  return (datos?.features ?? [])
+    .map((f) => {
+      const p = f.properties ?? {};
+      const [lon, lat] = f.geometry?.coordinates ?? [];
+      return {
+        lat,
+        lon,
+        etiqueta: etiquetaPhoton(p),
+        detalle: p.osm_value ?? p.osm_key ?? "",
+        exacto: Boolean(p.housenumber) || Boolean(p.street),
+      };
+    })
+    .filter((l): l is Lugar => Number.isFinite(l.lat) && Number.isFinite(l.lon) && l.etiqueta !== "");
 }
 
 /** Distancia en línea recta, en kilómetros (fórmula del haversine). */

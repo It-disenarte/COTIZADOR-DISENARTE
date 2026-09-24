@@ -136,6 +136,69 @@ describe("Errores claros", () => {
   });
 });
 
+describe("Sugerencias mientras se escribe", () => {
+  const rutaSugerencias = () => import("@/app/api/distancia/sugerencias/route");
+  const sugerir = async (q: string) => {
+    const ruta = await rutaSugerencias();
+    return ruta.GET(peticion(`/api/distancia/sugerencias?q=${encodeURIComponent(q)}`, { cookie }), undefined);
+  };
+
+  it("usa Photon (Nominatim prohíbe el autocompletado) y arma la dirección legible", async () => {
+    fetchSimulado.mockResolvedValueOnce(
+      json({
+        features: [
+          {
+            geometry: { coordinates: [-100.39, 20.59] },
+            properties: {
+              name: "Parque Industrial Querétaro",
+              street: "Av. Universidad",
+              housenumber: "123",
+              city: "Querétaro",
+              state: "Querétaro",
+              osm_key: "place",
+              osm_value: "industrial",
+            },
+          },
+          {
+            geometry: { coordinates: [-100.4, 20.6] },
+            properties: { name: "Querétaro", city: "Querétaro", state: "Querétaro", osm_value: "city" },
+          },
+        ],
+      }),
+    );
+
+    const { sugerencias } = await (await sugerir("Av. Universidad 123, Quer")).json();
+    expect(sugerencias).toHaveLength(2);
+    expect(sugerencias[0]).toMatchObject({
+      etiqueta: "Parque Industrial Querétaro, Av. Universidad 123, Querétaro",
+      lat: 20.59,
+      lon: -100.39,
+      exacto: true,
+    });
+    // Una ciudad no es una dirección exacta: se marca para que la persona lo note.
+    expect(sugerencias[1].exacto).toBe(false);
+
+    const url = new URL(llamada(0)[0]);
+    expect(url.origin + url.pathname).toBe("https://photon.komoot.io/api");
+    expect(url.searchParams.get("bbox")).toBe("-118.6,14.3,-86.5,32.8");
+    expect(url.searchParams.get("limit")).toBe("5");
+    expect(url.searchParams.get("lat")).toBe("20.3882");
+  });
+
+  it("no consulta nada si aún se escribieron menos de 4 letras", async () => {
+    const { sugerencias } = await (await sugerir("Av")).json();
+    expect(sugerencias).toEqual([]);
+    expect(fetchSimulado).not.toHaveBeenCalled();
+  });
+
+  it("si el servicio falla, devuelve lista vacía en vez de un error", async () => {
+    fetchSimulado.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const res = await sugerir("Av. Universidad");
+    expect(res.status).toBe(200);
+    expect((await res.json()).sugerencias).toEqual([]);
+  });
+});
+
 describe("Distancia en línea recta", () => {
   it("calcula la distancia entre dos puntos conocidos", () => {
     // San Juan del Río → Querétaro, unos 46 km en línea recta.
