@@ -58,7 +58,26 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
     };
   }
 
-  return { insumos: insumosPorId, recetas: recetasPorId, parametros: armarParametros(filasParametros) };
+  return {
+    insumos: insumosPorId,
+    recetas: recetasPorId,
+    parametros: armarParametros(filasParametros),
+    vehiculos: armarVehiculos(filasParametros),
+  };
+}
+
+/** Vehículos de la casa, tomados de los parámetros (editables en Catálogo → Parámetros). */
+const VEHICULOS = [
+  { clave: "hilux", etiqueta: "Toyota Hilux", parametro: "rendimiento_hilux" },
+  { clave: "cx30", etiqueta: "Mazda CX-30", parametro: "rendimiento_cx30" },
+];
+
+function armarVehiculos(filas: FilaParametro[]) {
+  const porClave = new Map(filas.map((p) => [p.clave, p]));
+  return VEHICULOS.flatMap((v) => {
+    const valor = porClave.get(v.parametro)?.valor;
+    return valor ? [{ clave: v.clave, etiqueta: v.etiqueta, rendimientoKmL: valor }] : [];
+  });
 }
 
 type FilaParametro = typeof parametros.$inferSelect;

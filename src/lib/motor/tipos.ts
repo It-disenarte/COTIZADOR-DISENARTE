@@ -50,6 +50,8 @@ export type Snapshot = {
   insumos: Record<string, InsumoSnapshot>;
   recetas: Record<string, RecetaSnapshot>;
   parametros: ParametrosMotor;
+  /** Vehículos de la casa con su rendimiento. Solo para el asistente; el motor no los usa. */
+  vehiculos?: { clave: string; etiqueta: string; rendimientoKmL: string }[];
 };
 
 // ---------------------------------------------------------------------------

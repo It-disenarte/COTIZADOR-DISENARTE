@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Texta
 import { ETIQUETA_FAMILIA, ETIQUETA_ZONA, ZONAS } from "@/lib/catalogo/constantes";
 import { type BorradorCotizacion, filasDesdeTsv, fusionarLevantamiento, num, txt } from "@/lib/cotizador/estado";
 import { subirImagenCotizacion } from "@/lib/cotizador/imagen";
+import { CalcularKm } from "./calcular-km";
 import { ImportarLevantamiento } from "./ia";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,17 @@ export function PasoDatos({
 
   const editarCliente = (cambios: Partial<BorradorCotizacion["cliente"]>) =>
     cambiar((b) => ({ ...b, cliente: { ...b.cliente, ...cambios } }));
+
+  /** Los km se guardan con el cliente y pasan al "Km por trayecto" de Operación. */
+  const ponerKm = (valor: string) =>
+    cambiar((b) => ({
+      ...b,
+      cliente: { ...b.cliente, kmDesdeSjr: valor },
+      entrada: {
+        ...b.entrada,
+        operacion: { ...b.entrada.operacion, traslado: { ...b.entrada.operacion.traslado, kmPorTrayecto: valor } },
+      },
+    }));
 
   const usarCliente = (c: ClienteOpcion) =>
     cambiar((b) => ({
@@ -150,32 +162,33 @@ export function PasoDatos({
               <Label htmlFor="telefono">Teléfono</Label>
               <Input id="telefono" value={cliente.telefono} onChange={(e) => editarCliente({ telefono: e.target.value })} />
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="direccion">Dirección de instalación</Label>
+              <Input
+                id="direccion"
+                value={cliente.direccion}
+                onChange={(e) => editarCliente({ direccion: e.target.value })}
+                placeholder="Av. Universidad 123, Col. Centro, Querétaro, Qro."
+              />
+              <p className="text-xs text-muted-foreground">
+                Donde se va a instalar o entregar. Con calle, número, colonia, ciudad y estado el cálculo de
+                kilómetros es más preciso.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="km">Km desde San Juan del Río</Label>
               <Input
                 id="km"
                 inputMode="decimal"
                 value={cliente.kmDesdeSjr}
-                onChange={(e) => {
-                  const valor = e.target.value;
-                  editarCliente({ kmDesdeSjr: valor });
-                  cambiar((b) => ({
-                    ...b,
-                    entrada: {
-                      ...b.entrada,
-                      operacion: {
-                        ...b.entrada.operacion,
-                        traslado: { ...b.entrada.operacion.traslado, kmPorTrayecto: valor },
-                      },
-                    },
-                  }));
-                }}
+                onChange={(e) => ponerKm(e.target.value)}
                 placeholder="58.6"
               />
               <p className="text-xs text-muted-foreground">
                 Un solo trayecto (no ida y vuelta). Se guarda con el cliente y pasa solo al campo “Km por trayecto”
                 del paso de Operación, donde se usa para calcular la gasolina.
               </p>
+              <CalcularKm direccion={cliente.direccion} alUsar={ponerKm} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="zona">Zona</Label>

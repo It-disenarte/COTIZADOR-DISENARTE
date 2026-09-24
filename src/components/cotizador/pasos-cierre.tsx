@@ -2,9 +2,9 @@
 
 import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
-import { type BorradorCotizacion, txt } from "@/lib/cotizador/estado";
+import { type BorradorCotizacion, num, txt } from "@/lib/cotizador/estado";
 import { formatoFraccion, formatoMoneda } from "@/lib/formato";
-import type { ResultadoCotizacion } from "@/lib/motor";
+import type { ResultadoCotizacion, Snapshot } from "@/lib/motor";
 import { BuscarPrecio, RedactarAlcance } from "./ia";
 
 type Props = {
@@ -14,11 +14,31 @@ type Props = {
 
 // Paso 4 -------------------------------------------------------------------------------------
 
-export function PasoOperacion({ borrador, cambiar }: Props) {
+export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapshot: Snapshot | null }) {
   const op = borrador.entrada.operacion;
   const editarOperacion = (cambios: Partial<typeof op>) =>
     cambiar((b) => ({ ...b, entrada: { ...b.entrada, operacion: { ...b.entrada.operacion, ...cambios } } }));
   const enCasa = op.trabajoEnInstalacionesDisenarte;
+  const vehiculos = snapshot?.vehiculos ?? [];
+
+  // Mismo cálculo que hace el motor, para verlo mientras se captura.
+  const gasolina = (() => {
+    const precioLitro = snapshot?.parametros.precioGasolinaLitro;
+    const rendimiento = num(op.traslado.rendimientoKmL) || num(snapshot?.parametros.rendimientoKmL);
+    const km = num(op.traslado.kmPorTrayecto);
+    if (!precioLitro || rendimiento <= 0 || km <= 0) return null;
+
+    const viajes = op.traslado.modo === "diario" ? num(op.traslado.viajesRedondos) || num(op.instalacion.dias) : 1;
+    if (viajes <= 0) return null;
+    const kmTotales = km * 2 * viajes;
+    return {
+      viajes,
+      kmTotales: Math.round(kmTotales * 10) / 10,
+      rendimiento,
+      precioLitro: String(precioLitro),
+      costo: ((kmTotales / rendimiento) * Number(precioLitro)).toFixed(2),
+    };
+  })();
 
   return (
     <div className="space-y-4">
@@ -181,12 +201,51 @@ export function PasoOperacion({ borrador, cambiar }: Props) {
               valor={txt(op.traslado.casetasPorViaje)}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, casetasPorViaje: v } })}
             />
+            {vehiculos.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="vehiculo">Vehículo</Label>
+                <Select
+                  id="vehiculo"
+                  value={vehiculos.find((v) => v.rendimientoKmL === txt(op.traslado.rendimientoKmL))?.clave ?? ""}
+                  onChange={(e) => {
+                    const elegido = vehiculos.find((v) => v.clave === e.target.value);
+                    editarOperacion({ traslado: { ...op.traslado, rendimientoKmL: elegido?.rendimientoKmL ?? "" } });
+                  }}
+                >
+                  <option value="">Otro (captura el rendimiento)</option>
+                  {vehiculos.map((v) => (
+                    <option key={v.clave} value={v.clave}>
+                      {v.etiqueta} · {v.rendimientoKmL} km/L
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Llena el rendimiento con el del vehículo que va a hacer el viaje. Los rendimientos se editan en
+                  Catálogo → Parámetros.
+                </p>
+              </div>
+            )}
             <Campo
               etiqueta="Rendimiento km/L"
               ayuda="Vacío = el del parámetro."
               valor={txt(op.traslado.rendimientoKmL ?? "")}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, rendimientoKmL: v } })}
             />
+            {gasolina && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm sm:col-span-2">
+                <p>
+                  <span className="font-medium">Gasolina del viaje: {formatoMoneda(gasolina.costo)}</span>{" "}
+                  <span className="text-muted-foreground">
+                    ({gasolina.kmTotales} km totales ÷ {gasolina.rendimiento} km/L ×{" "}
+                    {formatoMoneda(gasolina.precioLitro)} por litro)
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {gasolina.viajes} viaje(s) redondo(s) de {txt(op.traslado.kmPorTrayecto)} km por trayecto. Las
+                  casetas se suman aparte.
+                </p>
+              </div>
+            )}
             <label className="flex items-center gap-2 pt-8 text-sm sm:col-span-1">
               <Checkbox
                 checked={op.hospedaje.incluye}

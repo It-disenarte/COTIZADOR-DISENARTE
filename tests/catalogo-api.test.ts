@@ -70,7 +70,11 @@ describe("Datos semilla de la especificación", () => {
   it("carga insumos, recetas y parámetros en la migración", async () => {
     expect(await db.select().from(insumos)).toHaveLength(39);
     expect(await db.select().from(recetas)).toHaveLength(11);
-    expect(await db.select().from(parametros)).toHaveLength(16);
+    // 16 de la semilla original + el rendimiento de cada vehículo (migración 0010).
+    const todos = await db.select().from(parametros);
+    expect(todos).toHaveLength(18);
+    expect(todos.find((p) => p.clave === "rendimiento_hilux")?.valor).toBe("10.0000");
+    expect(todos.find((p) => p.clave === "rendimiento_cx30")?.valor).toBe("14.0000");
   });
 
   it("carga los precios de operación de la ficha de desarrollo", async () => {

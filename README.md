@@ -133,6 +133,25 @@ Restaurar (probarlo antes de salir a producción):
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
 
+## Km automáticos y gasolina del viaje
+
+- **Sin cuentas ni llaves** (decisión del equipo): se usan los servicios públicos de OpenStreetMap, los mismos que
+  usa openstreetmap.org: **Nominatim** para buscar la dirección y **OSRM** para trazar la ruta en coche. Son
+  servicios donados, así que `src/lib/mapas/osm.ts` respeta su política de uso justo: se identifican con un
+  User-Agent propio (`CONTACTO_MAPAS`) y deja al menos un segundo entre consultas.
+- En el paso Datos: campo **Dirección de instalación** y botón **Calcular km desde Diseñarte**. Devuelve los km de
+  **un solo trayecto** y el tiempo de manejo, muestra el lugar encontrado y otras coincidencias para elegir, y
+  avisa cuando el punto es de una colonia o ciudad y no de una dirección exacta. Nada se usa hasta presionar
+  "Usar X km", y el número sigue siendo editable.
+- Si el servicio de rutas no contesta, **estima con la distancia en línea recta × 1.3** y lo dice claramente, en
+  lugar de fallar.
+- `ORIGEN_COORDENADAS` ("lat,lon" del taller) es opcional pero recomendada; sin ella se busca la dirección del
+  taller una vez y el punto de salida puede quedar aproximado.
+- **Vehículo y gasolina**: en Operación se elige Hilux o Mazda CX-30 y se llena el rendimiento; el paso muestra el
+  costo de gasolina del viaje (km × 2 × viajes ÷ km/L × precio del litro), el mismo cálculo que hace el motor. Los
+  rendimientos son parámetros editables (`rendimiento_hilux` 10 km/L, `rendimiento_cx30` 14 km/L, migración `0010`);
+  el CX-30 es un valor de partida por confirmar con el consumo real.
+
 ## Importar costos al catálogo (Catálogo → Importar costos)
 
 - Solo para quien puede editar el catálogo. Acepta el Excel de costos de Diseñarte ("Actualización de costos"),

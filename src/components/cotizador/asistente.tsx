@@ -150,7 +150,7 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
             asegurarGuardado={() => guardar({ avisar: true })}
           />
         )}
-        {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} />}
+        {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
         {paso === 4 && <PasoReventa borrador={borrador} cambiar={cambiar} />}
         {paso === 5 && <PasoResumen borrador={borrador} cambiar={cambiar} resultado={resultado} />}
 
