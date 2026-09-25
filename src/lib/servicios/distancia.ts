@@ -1,5 +1,5 @@
 import { ErrorHttp } from "@/lib/errores";
-import { buscarDireccion, distanciaEnCoche, type Lugar, origenDisenarte } from "@/lib/mapas/osm";
+import { buscarDireccion, distanciaEnCoche, type FuenteOrigen, type Lugar, origenDisenarte } from "@/lib/mapas/osm";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { PedirDistancia } from "@/lib/validacion/distancia";
 
@@ -17,12 +17,14 @@ export type ResultadoDistancia = {
   alternativas: Lugar[];
   /** true si el punto de salida no está configurado con coordenadas fijas. */
   origenAproximado: boolean;
+  /** De dónde salió el punto de salida, para poder revisar la configuración. */
+  origen: FuenteOrigen;
 };
 
 /** Km por carretera desde el taller de Diseñarte hasta la ubicación del cliente. */
 export async function calcularDistancia(actor: UsuarioSesion | null, pedido: PedirDistancia): Promise<ResultadoDistancia> {
   requirePermiso(actor, "cotizaciones.propias");
-  const origen = await origenDisenarte();
+  const { punto: origen, exacto: origenExacto, fuente } = await origenDisenarte();
 
   let destino: Lugar;
   let alternativas: Lugar[] = [];
@@ -45,6 +47,7 @@ export async function calcularDistancia(actor: UsuarioSesion | null, pedido: Ped
     porCarretera,
     preciso: destino.exacto,
     alternativas: alternativas.slice(0, 4),
-    origenAproximado: !process.env.ORIGEN_COORDENADAS?.trim(),
+    origenAproximado: !origenExacto,
+    origen: fuente,
   };
 }

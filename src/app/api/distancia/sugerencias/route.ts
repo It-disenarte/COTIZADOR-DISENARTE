@@ -15,7 +15,8 @@ export const GET = manejador(async (req: Request) => {
   requirePermiso(usuario, "cotizaciones.propias");
 
   const texto = (new URL(req.url).searchParams.get("q") ?? "").slice(0, 200);
-  const cerca = await origenDisenarte().catch(() => undefined);
-  const { lugares, disponible } = await sugerirDirecciones(texto, cerca);
-  return NextResponse.json({ sugerencias: lugares, disponible });
+  // Siempre hay punto de referencia: así las sugerencias salen primero de la zona del taller.
+  const { punto, fuente } = await origenDisenarte();
+  const { lugares, disponible } = await sugerirDirecciones(texto, punto);
+  return NextResponse.json({ sugerencias: lugares, disponible, origen: fuente });
 });

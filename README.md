@@ -150,8 +150,14 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
   "Usar X km", y el número sigue siendo editable.
 - Si el servicio de rutas no contesta, **estima con la distancia en línea recta × 1.3** y lo dice claramente, en
   lugar de fallar.
-- `ORIGEN_COORDENADAS` ("lat,lon" del taller) es opcional pero recomendada; sin ella se busca la dirección del
-  taller una vez y el punto de salida puede quedar aproximado.
+- **El punto de salida manda en el orden de las sugerencias.** Sin él, Photon devuelve resultados de todo el país
+  (CDMX, Nuevo León…). Por eso `origenDisenarte()` nunca falla: usa `ORIGEN_COORDENADAS` si está bien escrita
+  (acepta grados, punto y coma o el orden invertido), si no busca la dirección del taller, y si eso también falla
+  usa el centro de San Juan del Río. Devuelve de dónde salió (`configurado`, `buscado`, `respaldo`) y la pantalla lo
+  dice, para que una variable mal capturada no vuelva a pasar inadvertida.
+- El sesgo ordena por cercanía pero no limita: escribiendo la ciudad ("Av. Universidad, San Nicolás, Nuevo León")
+  aparecen las de ese estado. Ojo: `location_bias_scale` de Photon funciona al revés de lo que parece: 0.3 sesga
+  fuerte y 1 casi no sesga (comprobado contra el servicio real).
 - **Vehículo y gasolina**: en Operación se elige Hilux o Mazda CX-30 y se llena el rendimiento; el paso muestra el
   costo de gasolina del viaje (km × 2 × viajes ÷ km/L × precio del litro), el mismo cálculo que hace el motor. Los
   rendimientos son parámetros editables (`rendimiento_hilux` 10 km/L, `rendimiento_cx30` 14 km/L, migración `0010`);

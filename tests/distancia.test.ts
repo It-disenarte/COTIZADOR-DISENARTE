@@ -7,7 +7,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial");
-const { lineaRectaKm } = await import("@/lib/mapas/osm");
+const { leerCoordenadas, lineaRectaKm, olvidarOrigen } = await import("@/lib/mapas/osm");
 const rutaDistancia = await import("@/app/api/distancia/route");
 
 let cookie = "";
@@ -40,6 +40,8 @@ beforeEach(() => {
   vi.stubEnv("MAPAS_ESPERA_MS", "0");
   fetchSimulado.mockReset();
   vi.stubGlobal("fetch", fetchSimulado);
+  // Cada prueba parte sin el punto del taller guardado en memoria.
+  olvidarOrigen();
 });
 
 afterEach(() => {
@@ -207,6 +209,44 @@ describe("Sugerencias mientras se escribe", () => {
     const res = await sugerir("Av. Universidad");
     expect(res.status).toBe(200);
     expect((await res.json()).sugerencias).toEqual([]);
+  });
+});
+
+describe("Punto de salida (el taller)", () => {
+  const sugerir = async (q: string) => {
+    const ruta = await import("@/app/api/distancia/sugerencias/route");
+    return ruta.GET(peticion(`/api/distancia/sugerencias?q=${encodeURIComponent(q)}`, { cookie }), undefined);
+  };
+
+  it("lee las coordenadas como se copian de un mapa, aunque traigan grados o vengan al revés", () => {
+    expect(leerCoordenadas("20.3882, -99.9965")).toEqual({ lat: 20.3882, lon: -99.9965 });
+    expect(leerCoordenadas("20.3882,-99.9965")).toEqual({ lat: 20.3882, lon: -99.9965 });
+    expect(leerCoordenadas("20.3882° -99.9965°")).toEqual({ lat: 20.3882, lon: -99.9965 });
+    // Longitud primero: se acomoda sola.
+    expect(leerCoordenadas("-99.9965, 20.3882")).toEqual({ lat: 20.3882, lon: -99.9965 });
+    expect(leerCoordenadas("San Juan del Río")).toBeNull();
+    expect(leerCoordenadas("20.3882")).toBeNull();
+  });
+
+  it("si las coordenadas están mal escritas, no se queda sin referencia: usa el respaldo y lo reporta", async () => {
+    vi.stubEnv("ORIGEN_COORDENADAS", "quién sabe");
+    // Falla también la búsqueda de la dirección del taller.
+    fetchSimulado.mockResolvedValueOnce(json([])).mockResolvedValueOnce(json({ features: [] }));
+
+    const { origen } = await (await sugerir("Av. Universidad")).json();
+    expect(origen).toBe("respaldo");
+    // Lo importante: la consulta de sugerencias SÍ llevó punto de referencia.
+    const url = new URL(llamada(1)[0]);
+    expect(url.searchParams.get("lat")).toBe("20.3882");
+    expect(url.searchParams.get("location_bias_scale")).toBe("0.3");
+  });
+
+  it("con las coordenadas configuradas, las sugerencias se sesgan a esa zona sin consultar nada más", async () => {
+    fetchSimulado.mockResolvedValueOnce(json({ features: [] }));
+    const { origen } = await (await sugerir("Av. Universidad")).json();
+    expect(origen).toBe("configurado");
+    expect(fetchSimulado).toHaveBeenCalledTimes(1);
+    expect(new URL(llamada(0)[0]).searchParams.get("lon")).toBe("-99.9965");
   });
 });
 

@@ -91,7 +91,9 @@ export function CalcularKm({
           )}
           {resultado.origenAproximado && (
             <p className="text-xs text-muted-foreground">
-              El punto de salida es aproximado: pide al administrador configurar las coordenadas del taller.
+              {resultado.origen === "respaldo"
+                ? "No se pudo ubicar el taller: se está midiendo desde el centro de San Juan del Río. Pide al administrador revisar la variable ORIGEN_COORDENADAS."
+                : "El punto de salida se obtuvo buscando la dirección del taller, así que puede estar movido unos metros. Con ORIGEN_COORDENADAS queda exacto."}
             </p>
           )}
           {resultado.alternativas.length > 0 && (

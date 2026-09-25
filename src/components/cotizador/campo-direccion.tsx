@@ -29,6 +29,8 @@ export function CampoDireccion({
   const [resaltada, setResaltada] = useState(-1);
   // El servicio de sugerencias es gratuito y puede fallar: se avisa en vez de quedarse mudo.
   const [sinServicio, setSinServicio] = useState(false);
+  // Sin punto de referencia las sugerencias salen de todo el país: hay que avisarlo.
+  const [sinReferencia, setSinReferencia] = useState(false);
   // Lo último que se eligió: si el texto cambia, deja de valer.
   const elegido = useRef<string | null>(null);
   const contenedor = useRef<HTMLDivElement>(null);
@@ -42,12 +44,14 @@ export function CampoDireccion({
     const temporizador = setTimeout(async () => {
       setBuscando(true);
       try {
-        const { sugerencias: lista, disponible } = await llamarApi<{ sugerencias: Lugar[]; disponible: boolean }>(
-          `/api/distancia/sugerencias?q=${encodeURIComponent(valor)}`,
-          "GET",
-        );
+        const { sugerencias: lista, disponible, origen } = await llamarApi<{
+          sugerencias: Lugar[];
+          disponible: boolean;
+          origen: "configurado" | "buscado" | "respaldo";
+        }>(`/api/distancia/sugerencias?q=${encodeURIComponent(valor)}`, "GET");
         if (!vigente) return;
         setSinServicio(!disponible);
+        setSinReferencia(origen === "respaldo");
         setSugerencias(lista);
         setResaltada(-1);
         if (lista.length > 0) setAbierto(true);
@@ -144,6 +148,12 @@ export function CampoDireccion({
         </ul>
       )}
 
+      {sinReferencia && (
+        <p className="text-xs text-accent">
+          No se pudo ubicar el taller, así que las sugerencias no se están ordenando por cercanía. Pide al
+          administrador revisar la variable ORIGEN_COORDENADAS.
+        </p>
+      )}
       {sinServicio && (
         <p className="text-xs text-accent">
           Las sugerencias no están disponibles en este momento. Escribe la dirección completa y usa “Calcular km”.

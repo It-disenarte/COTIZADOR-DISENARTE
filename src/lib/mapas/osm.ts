@@ -35,6 +35,8 @@ const FACTOR_CARRETERA = 1.3;
 export const DIRECCION_DISENARTE = "Avenida Lomas del Pedregoso 371, San Juan del Río, Querétaro, México";
 
 export type Punto = { lat: number; lon: number };
+/** De dónde salió el punto de salida: la variable de entorno, la búsqueda, o el respaldo. */
+export type FuenteOrigen = "configurado" | "buscado" | "respaldo";
 export type Lugar = Punto & {
   etiqueta: string;
   /** "casa", "calle", "colonia", "ciudad"…: qué tan fino es el punto que encontró. */
@@ -187,25 +189,59 @@ export async function distanciaEnCoche(
   return { km: lineaRectaKm(desde, hasta) * FACTOR_CARRETERA, minutos: null, porCarretera: false };
 }
 
-let origenEnMemoria: Promise<Punto> | null = null;
+/**
+ * Centro de San Juan del Río. Solo es un respaldo: sirve para que las sugerencias siempre
+ * salgan primero de la zona, aunque no haya coordenadas configuradas o falle la búsqueda.
+ */
+const RESPALDO_SAN_JUAN = { lat: 20.3882, lon: -99.9965 };
 
-/** Punto de salida: el taller de Diseñarte. */
-export function origenDisenarte(): Promise<Punto> {
+let origenEnMemoria: Promise<Punto | null> | null = null;
+
+/** Olvida el punto del taller guardado en memoria. Se usa en las pruebas. */
+export function olvidarOrigen() {
+  origenEnMemoria = null;
+}
+
+/**
+ * Punto de salida: el taller de Diseñarte. `exacto` es false cuando se tuvo que recurrir a
+ * la búsqueda o al respaldo, para poder avisar que el resultado es aproximado.
+ * Nunca falla: sin punto de salida no habría sesgo y las sugerencias saldrían de todo el país.
+ */
+export async function origenDisenarte(): Promise<{ punto: Punto; exacto: boolean; fuente: FuenteOrigen }> {
   const fijo = process.env.ORIGEN_COORDENADAS?.trim();
   if (fijo) {
-    const [lat, lon] = fijo.split(",").map((v) => Number(v.trim()));
-    if (Number.isFinite(lat) && Number.isFinite(lon)) return Promise.resolve({ lat, lon });
-    throw new ErrorHttp(503, "ORIGEN_COORDENADAS debe tener el formato 'latitud,longitud'.", "MAPAS_ORIGEN");
+    const punto = leerCoordenadas(fijo);
+    if (punto) return { punto, exacto: true, fuente: "configurado" };
+    console.error(`[mapas] ORIGEN_COORDENADAS no se pudo leer: "${fijo}". Se espera algo como "20.3882, -99.9965".`);
   }
+
   // Sin coordenadas fijas se busca la dirección del taller una vez y se reutiliza.
-  origenEnMemoria ??= buscarDireccion(DIRECCION_DISENARTE).then((lugares) => {
-    if (!lugares[0]) {
-      throw new ErrorHttp(502, "No se encontró la dirección del taller. Captura ORIGEN_COORDENADAS.", "MAPAS_ORIGEN");
-    }
-    return { lat: lugares[0].lat, lon: lugares[0].lon };
-  });
-  origenEnMemoria.catch(() => {
-    origenEnMemoria = null;
-  });
-  return origenEnMemoria;
+  origenEnMemoria ??= buscarDireccion(DIRECCION_DISENARTE)
+    .then((lugares) => (lugares[0] ? { lat: lugares[0].lat, lon: lugares[0].lon } : null))
+    .catch(() => null);
+
+  const encontrado = await origenEnMemoria;
+  if (!encontrado) origenEnMemoria = null; // se vuelve a intentar la próxima vez
+  return encontrado
+    ? { punto: encontrado, exacto: false, fuente: "buscado" }
+    : { punto: RESPALDO_SAN_JUAN, exacto: false, fuente: "respaldo" };
+}
+
+/**
+ * Lee "20.3882, -99.9965" y también lo que suele salir al copiar de un mapa: con grados,
+ * con punto y coma, o con los dos números separados por espacios. Si vienen al revés
+ * (longitud primero), los acomoda: en México la latitud va de 14 a 33 y la longitud es negativa.
+ */
+export function leerCoordenadas(texto: string): Punto | null {
+  const numeros = texto
+    .replace(/[°º]/g, " ")
+    .split(/[;,\s]+/)
+    .map(Number)
+    .filter((n) => Number.isFinite(n));
+  if (numeros.length < 2) return null;
+
+  let [lat, lon] = numeros;
+  if (Math.abs(lat) > 90 || (lat < 0 && lon > 0)) [lat, lon] = [lon, lat];
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
 }
