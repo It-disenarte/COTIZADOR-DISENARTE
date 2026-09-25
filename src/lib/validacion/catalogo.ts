@@ -61,6 +61,9 @@ export const ActualizarParametro = z.object({ valor: decimalOpcional({ min: 0 })
 
 const camposCliente = {
   nombreContacto: textoRequerido(200, "Escribe el nombre del contacto."),
+  // El PNO-COM-01 (7.1.1) pide el puesto. Opcional en el esquema para no romper los
+  // clientes y las cotizaciones que ya existen; el asistente sí lo muestra.
+  puesto: textoOpcional(150).optional(),
   empresa: textoOpcional(200),
   correo: z.preprocess((v) => (v === "" ? null : v), z.email({ error: "Correo inválido." }).trim().toLowerCase().nullable()),
   telefono: textoOpcional(50),

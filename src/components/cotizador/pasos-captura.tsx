@@ -24,6 +24,7 @@ export type RecetaOpcion = {
 export type ClienteOpcion = {
   id: string;
   nombreContacto: string;
+  puesto: string | null;
   empresa: string | null;
   correo: string | null;
   telefono: string | null;
@@ -77,6 +78,7 @@ export function PasoDatos({
       cliente: {
         id: c.id,
         nombreContacto: c.nombreContacto,
+        puesto: c.puesto ?? "",
         empresa: c.empresa ?? "",
         correo: c.correo ?? "",
         telefono: c.telefono ?? "",
@@ -157,6 +159,18 @@ export function PasoDatos({
                 value={cliente.nombreContacto}
                 onChange={(e) => editarCliente({ nombreContacto: e.target.value, id: null })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="puesto">Puesto del contacto</Label>
+              <Input
+                id="puesto"
+                value={cliente.puesto}
+                onChange={(e) => editarCliente({ puesto: e.target.value })}
+                placeholder="Jefa de Compras"
+              />
+              <p className="text-xs text-muted-foreground">
+                El PNO pide dirigirse al contacto por su nombre y su puesto. Sale en la portada del PDF.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="correo">Correo</Label>

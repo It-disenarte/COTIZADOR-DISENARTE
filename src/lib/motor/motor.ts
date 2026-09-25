@@ -1,3 +1,4 @@
+import { PIEZAS_POR_UNIDAD } from "@/lib/catalogo/constantes";
 import { CERO, d, type Decimal, money, round2, suma } from "./numeros";
 import {
   type Alerta,
@@ -88,7 +89,10 @@ function costoPorM2(insumo: InsumoSnapshot): Decimal {
       return costo.div(area);
     }
     default:
-      throw new ErrorMotor(`"${insumo.nombre}" se cobra por pieza: no puede usarse por m².`, "UNIDAD_INCOMPATIBLE");
+      throw new ErrorMotor(
+        `El insumo "${insumo.nombre}" se cobra por ${insumo.unidadCosto ?? "unidad sin definir"} y no se puede usar por m². Cámbialo a por pieza en la receta.`,
+        "UNIDAD_INCOMPATIBLE",
+      );
   }
 }
 
@@ -97,6 +101,17 @@ function exigirCosto(insumo: InsumoSnapshot): Decimal {
     throw new ErrorMotor(`Falta capturar el costo de "${insumo.nombre}".`, "SIN_COSTO");
   }
   return d(insumo.costo);
+}
+
+/**
+ * Costo de una pieza cuando el insumo no se cobra por superficie. Las tarjetas se compran
+ * por ciento o millar (PNO 9), así que el costo se reparte entre las piezas que trae la
+ * presentación; el láser se cobra por minuto y los cursos por persona, uno a uno.
+ */
+function costoPorPieza(insumo: InsumoSnapshot): Decimal {
+  const costo = exigirCosto(insumo);
+  const porPresentacion = insumo.unidadCosto ? PIEZAS_POR_UNIDAD[insumo.unidadCosto] : undefined;
+  return porPresentacion ? costo.div(porPresentacion) : costo;
 }
 
 function materialesDeReceta(receta: RecetaSnapshot, snapshot: Snapshot, areaM2: Decimal, piezas: Decimal): Decimal {
@@ -110,9 +125,9 @@ function materialesDeReceta(receta: RecetaSnapshot, snapshot: Snapshot, areaM2: 
       case "por_m2":
         return areaM2.times(costoPorM2(insumo)).times(cantidad).times(merma.plus(1));
       case "por_pieza":
-        return piezas.times(exigirCosto(insumo)).times(cantidad);
+        return piezas.times(costoPorPieza(insumo)).times(cantidad);
       case "fijo":
-        return exigirCosto(insumo).times(cantidad);
+        return costoPorPieza(insumo).times(cantidad);
     }
   });
   return suma(importes);
@@ -133,11 +148,19 @@ type CostosFijos = {
   total: Decimal;
 };
 
-function calcularFijos(entrada: EntradaCotizacion, snapshot: Snapshot, incluirInstalacion: boolean): CostosFijos {
+function calcularFijos(
+  entrada: EntradaCotizacion,
+  snapshot: Snapshot,
+  incluirInstalacion: boolean,
+  /** Unidades entre las que se reparte el diseño en el escenario por volumen (PNO 7.2.13). */
+  amortizarDisenoEntre?: Decimal,
+): CostosFijos {
   const p = snapshot.parametros;
   const op = entrada.operacion;
 
-  const diseno = vacio(op.disenoMontoManual) ? d(op.diasDiseno).times(d(p.tarifaDisenoDia)) : d(op.disenoMontoManual);
+  const disenoCompleto = vacio(op.disenoMontoManual) ? d(op.diasDiseno).times(d(p.tarifaDisenoDia)) : d(op.disenoMontoManual);
+  const diseno =
+    amortizarDisenoEntre && amortizarDisenoEntre.gt(1) ? disenoCompleto.div(amortizarDisenoEntre) : disenoCompleto;
 
   const instalacionEscalaPorPieza = op.instalacion.escalaPorPieza === true;
   const instalacion =
@@ -256,15 +279,39 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
       .times(d(p.tarifaInstaladorDia));
     const extrasPorPieza = suma(entrada.operacion.extras.filter((e) => e.escala === "por_pieza").map((e) => d(e.monto))).times(piezas);
 
-    const modalidades: { clave: Variante["clave"]; etiqueta: string; incluirInstalacion: boolean }[] =
+    // Unidades del proyecto completo, para amortizar el diseño (PNO-COM-01, 7.2.13 y 8.3).
+    const unidadesVolumen = d(elegir(entrada.presentacion.unidadesVolumen, 0));
+    const modalidades: {
+      clave: Variante["clave"];
+      etiqueta: string;
+      incluirInstalacion: boolean;
+      amortizarDisenoEntre?: Decimal;
+    }[] =
       entrada.presentacion.modalidades === "A_y_B"
         ? [
             { clave: "A", etiqueta: "A) Suministro", incluirInstalacion: false },
             { clave: "B", etiqueta: "B) Suministro e instalación", incluirInstalacion: true },
           ]
-        : [{ clave: "unica", etiqueta: receta.nombre, incluirInstalacion: true }];
+        : entrada.presentacion.modalidades === "piloto_y_volumen"
+          ? [
+              { clave: "A", etiqueta: "A) Unidad piloto", incluirInstalacion: true },
+              {
+                clave: "B",
+                etiqueta: `B) Precio unitario proyectado a ${unidadesVolumen.toString()} unidades`,
+                incluirInstalacion: true,
+                amortizarDisenoEntre: unidadesVolumen,
+              },
+            ]
+          : [{ clave: "unica", etiqueta: receta.nombre, incluirInstalacion: true }];
 
-    const variantes = modalidades.map(({ clave, etiqueta, incluirInstalacion }) => {
+    if (entrada.presentacion.modalidades === "piloto_y_volumen" && unidadesVolumen.lte(1)) {
+      throw new ErrorMotor(
+        "Para el escenario por volumen captura entre cuántas unidades se amortiza el diseño (más de 1).",
+        "SIN_UNIDADES_VOLUMEN",
+      );
+    }
+
+    const variantes = modalidades.map(({ clave, etiqueta, incluirInstalacion, amortizarDisenoEntre }) => {
       const instalacionPorPieza =
         incluirInstalacion && entrada.operacion.instalacion.incluye && entrada.operacion.instalacion.escalaPorPieza === true
           ? d(entrada.operacion.instalacion.personas)
@@ -274,7 +321,7 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
           : CERO;
 
       const variable = suma([materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza]);
-      const fijos = calcularFijos(entrada, snapshot, incluirInstalacion);
+      const fijos = calcularFijos(entrada, snapshot, incluirInstalacion, amortizarDisenoEntre);
       const costos: Costos = {
         variable,
         fijos,

@@ -46,6 +46,7 @@ export async function datosDelAsistente(usuario: UsuarioSesion) {
   const opcionesCliente: ClienteOpcion[] = listaClientes.map((c) => ({
     id: c.id,
     nombreContacto: c.nombreContacto,
+    puesto: c.puesto,
     empresa: c.empresa,
     correo: c.correo,
     telefono: c.telefono,

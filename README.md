@@ -133,6 +133,47 @@ Restaurar (probarlo antes de salir a producción):
 gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name=hub_disenarte_cotizador-db) psql -U cotizador -d cotizador
 ```
 
+## PNO-COM-01 (documento rector de las cotizaciones)
+
+El procedimiento normalizado "Elaboración de cotizaciones" v1.0 (julio 2026) manda sobre la especificación
+original. Lo que la app ya cumplía y lo que se agregó por él:
+
+- **Fórmulas del apartado 6, en orden**: costo directo → ×1.10 (margen de error) → ÷0.70 (margen del 30% sobre
+  venta) → ×1.16 de IVA. El motor ya usaba ese factor; `tests/pno.test.ts` reproduce el caso resuelto del apartado 8
+  (costo $5,786 → venta $9,092.29 → total $10,547.05) y comprueba los valores homologados del apartado 5.
+- **Comprobación de utilidad (6.8)**: (venta − costo) ÷ venta. Se muestra en el Resumen de cada variante y se
+  resalta cuando queda por debajo del 30% autorizado.
+- **Punto de control de la Fase 1 (nuevo)**: sin autorización no se genera la propuesta. `POST
+  /api/cotizaciones/[id]/autorizar` (permiso `cotizaciones.autorizar`: admin y agente administrador), columnas
+  `autorizada_por` / `autorizada_en` (migración `0011`). **Cualquier cambio posterior borra la autorización**,
+  porque los precios ya no son los revisados. El PDF responde 409 mientras no esté autorizada.
+- **Fase 2, contenido obligatorio de la propuesta (nuevo)**: campos "Lo que NO incluye" (7.3.3), "Supuestos"
+  (7.1.10), "Vigencia" y "Petición de acción" con las tres opciones del 7.3.7. Se capturan en el paso Resumen y se
+  imprimen en el PDF.
+- **El desglose de costos nunca viaja al cliente**: el PDF solo lleva precios de venta (probado).
+
+- **Unidades de venta del apartado 9 (nuevo)**: además de m², metro lineal, pieza y lámina, el catálogo acepta
+  **minuto** (láser), **ciento** y **millar** (tarjetas) y **persona** (cursos). El motor reparte el costo entre las
+  piezas de la presentación: 2,000 tarjetas a $1,500 el millar cuestan $3,000 (migración `0012`).
+- **Escenario de volumen (nuevo, 7.2.13 y 8.3)**: modalidad "A) Unidad piloto y B) Precio por volumen". Se captura
+  entre cuántas unidades se amortiza el diseño y la variante B lo reparte; con el caso del manual, $700 de diseño
+  pasan a $28 por unidad. El asistente recuerda que el precio por volumen se confirma hasta ejecutar la pieza piloto.
+- **Fase 0 (nuevo)**: **puesto del contacto** (7.1.1), que sale en la portada del PDF, y registro de **gráficos
+  previos a retirar y condición de la superficie** (7.1.7); cuando aplica, el alcance del PDF anuncia el retiro.
+- **Lista de verificación previa al envío (nuevo, apartado 11)**: en el paso Resumen, se llena sola con lo capturado
+  (unidades confirmadas, margen de error aplicado, utilidad ≥ 30%, reventa verificada, lo que no incluye, supuestos,
+  vigencia, petición de acción y autorización) y marca en rojo lo obligatorio que falte.
+
+- **Correo y WhatsApp (nuevo, Fases 2 y 3)**: en el paso Resumen, "Redactar con IA" genera el correo formal (asunto
+  y cuerpo, con descripción, lo que no incluye, modalidades con sus precios, condiciones y la petición de acción) y
+  el mensaje breve de seguimiento (sin cifras, con una pregunta técnica que obliga a responder). Los textos quedan
+  editables, con botones para copiar y para abrir WhatsApp con el teléfono del cliente.
+  `POST /api/cotizaciones/[id]/mensajes` arma los datos **desde la versión guardada**, no desde el navegador, exige
+  la autorización de la Fase 1 y solo manda a la IA precios de venta: nunca costos, márgenes ni utilidades (probado).
+
+Queda fuera de la app: enviar el correo y el WhatsApp (se copian y se mandan desde las herramientas de siempre) y
+el registro de la fecha del siguiente seguimiento.
+
 ## Km automáticos y gasolina del viaje
 
 - **Sin cuentas ni llaves** (decisión del equipo): se usan los servicios públicos de OpenStreetMap, los mismos que

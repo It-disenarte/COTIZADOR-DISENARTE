@@ -29,6 +29,7 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
       ? {
           id: cotizacion.cliente.id,
           nombreContacto: cotizacion.cliente.nombreContacto,
+          puesto: cotizacion.cliente.puesto ?? "",
           empresa: cotizacion.cliente.empresa ?? "",
           correo: cotizacion.cliente.correo ?? "",
           telefono: cotizacion.cliente.telefono ?? "",
@@ -66,6 +67,8 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
         recetas={recetas}
         clientes={clientes}
         inicial={inicial}
+        puedeAutorizar={tienePermiso(usuario, "cotizaciones.autorizar")}
+        autorizada={cotizacion.autorizadaEn ? cotizacion.autorizadaEn.toISOString() : null}
       />
     </div>
   );

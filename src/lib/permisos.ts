@@ -8,6 +8,8 @@ export const PERMISOS = {
   "cotizaciones.propias": ["admin", "agente_admin", "ventas"],
   /** Ver historial y cotizaciones de todas las cuentas */
   "cotizaciones.ver_todas": ["admin", "agente_admin"],
+  /** Autorizar el análisis de costos antes de comunicar precios (PNO-COM-01, punto de control Fase 1) */
+  "cotizaciones.autorizar": ["admin", "agente_admin"],
   /** Ver insumos, recetas, parámetros y costos */
   "catalogo.ver": ["admin", "agente_admin", "ventas"],
   /** Agregar, editar y archivar insumos, recetas y parámetros */

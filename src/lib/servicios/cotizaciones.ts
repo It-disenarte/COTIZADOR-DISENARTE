@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { EstadoCotizacion } from "@/lib/catalogo/constantes";
 import { db } from "@/lib/db";
 import { clientes, cotizaciones, cotizacionVersiones, imagenesCotizacion, usuarios } from "@/lib/db/schema";
@@ -10,6 +11,9 @@ import { exigirUuid, noEncontrado } from "./comun";
 import { obtenerSnapshot } from "./snapshot";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Segundo alias de usuarios: quien autorizó, distinto del vendedor. */
+const autorizador = alias(usuarios, "autorizador");
 
 export type CotizacionResumen = {
   id: string;
@@ -37,6 +41,9 @@ export type CotizacionDetalle = {
   entrada: unknown;
   resultado: ResultadoCotizacion;
   actualizadoEn: Date;
+  /** Fecha en que se autorizó el análisis de costos (PNO Fase 1). null = sin autorizar. */
+  autorizadaEn: Date | null;
+  autorizadaPor: string | null;
 };
 
 /** Folio consecutivo por día: COT-DDMMYYYY-NN. */
@@ -115,7 +122,11 @@ export async function guardarCotizacion(
     requireVerCotizacion(actor, { vendedorId: existente.vendedorId });
     exigirEditable(existente);
 
-    await tx.update(cotizaciones).set({ ...campos, vendedorId }).where(eq(cotizaciones.id, id));
+    // Cualquier cambio invalida la autorización anterior: los precios ya no son los revisados.
+    await tx
+      .update(cotizaciones)
+      .set({ ...campos, vendedorId, autorizadaPor: null, autorizadaEn: null })
+      .where(eq(cotizaciones.id, id));
     await tx
       .update(cotizacionVersiones)
       .set({ entrada: datos.entrada, precios: snapshot, resultado, creadaPor: actor.id })
@@ -130,10 +141,11 @@ export async function obtenerCotizacion(actor: UsuarioSesion | null, id: string)
   exigirUuid(id, "Cotización");
 
   const [fila] = await db
-    .select({ cotizacion: cotizaciones, cliente: clientes, vendedor: usuarios.name })
+    .select({ cotizacion: cotizaciones, cliente: clientes, vendedor: usuarios.name, autorizadaPor: autorizador.name })
     .from(cotizaciones)
     .leftJoin(clientes, eq(cotizaciones.clienteId, clientes.id))
     .leftJoin(usuarios, eq(cotizaciones.vendedorId, usuarios.id))
+    .leftJoin(autorizador, eq(cotizaciones.autorizadaPor, autorizador.id))
     .where(eq(cotizaciones.id, id));
   if (!fila) noEncontrado("Cotización");
   requireVerCotizacion(actor, { vendedorId: fila.cotizacion.vendedorId });
@@ -157,6 +169,8 @@ export async function obtenerCotizacion(actor: UsuarioSesion | null, id: string)
     entrada: version.entrada,
     resultado: version.resultado as ResultadoCotizacion,
     actualizadoEn: fila.cotizacion.actualizadoEn,
+    autorizadaEn: fila.cotizacion.autorizadaEn,
+    autorizadaPor: fila.autorizadaPor,
   };
 }
 
@@ -295,6 +309,28 @@ export async function duplicarCotizacion(actor: UsuarioSesion | null, id: string
 
     return nueva;
   });
+}
+
+/**
+ * Autoriza el análisis de costos (PNO-COM-01, punto de control de la Fase 1). Hasta aquí
+ * la cotización no se puede comunicar al cliente. Quien autoriza no puede ser quien cotiza:
+ * el PNO lo encarga al responsable inmediato.
+ */
+export async function autorizarCotizacion(actor: UsuarioSesion | null, id: string) {
+  requirePermiso(actor, "cotizaciones.autorizar");
+  exigirUuid(id, "Cotización");
+
+  const [existente] = await db.select().from(cotizaciones).where(eq(cotizaciones.id, id));
+  if (!existente) noEncontrado("Cotización");
+  exigirEditable(existente);
+  if (existente.autorizadaEn) return existente;
+
+  const [autorizada] = await db
+    .update(cotizaciones)
+    .set({ autorizadaPor: actor.id, autorizadaEn: new Date() })
+    .where(eq(cotizaciones.id, id))
+    .returning();
+  return autorizada;
 }
 
 export async function cambiarEstadoCotizacion(actor: UsuarioSesion | null, id: string, estado: EstadoCotizacion) {

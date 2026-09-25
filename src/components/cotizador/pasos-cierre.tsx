@@ -4,8 +4,14 @@ import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { type BorradorCotizacion, num, txt } from "@/lib/cotizador/estado";
 import { formatoFraccion, formatoMoneda } from "@/lib/formato";
-import type { ResultadoCotizacion, Snapshot } from "@/lib/motor";
+import type { EntradaCotizacion, ResultadoCotizacion, Snapshot } from "@/lib/motor";
+
+type PeticionAccion = NonNullable<NonNullable<EntradaCotizacion["propuesta"]>["peticionAccion"]>;
+type Modalidades = EntradaCotizacion["presentacion"]["modalidades"];
+import { cn } from "@/lib/utils";
 import { BuscarPrecio, RedactarAlcance } from "./ia";
+import { ListaVerificacion } from "./lista-verificacion";
+import { MensajesCliente } from "./mensajes-cliente";
 
 type Props = {
   borrador: BorradorCotizacion;
@@ -20,6 +26,12 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
     cambiar((b) => ({ ...b, entrada: { ...b.entrada, operacion: { ...b.entrada.operacion, ...cambios } } }));
   const enCasa = op.trabajoEnInstalacionesDisenarte;
   const vehiculos = snapshot?.vehiculos ?? [];
+
+  const editarSitio = (cambios: Partial<NonNullable<BorradorCotizacion["entrada"]["sitio"]>>) =>
+    cambiar((b) => ({
+      ...b,
+      entrada: { ...b.entrada, sitio: { retiroGraficosPrevios: false, ...b.entrada.sitio, ...cambios } },
+    }));
 
   // Mismo cálculo que hace el motor, para verlo mientras se captura.
   const gasolina = (() => {
@@ -126,6 +138,32 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
                 <p className="mt-1 text-xs text-muted-foreground">
                   Actívalo cuando cada unidad necesita su propia instalación (p. ej. rotular una flotilla): el costo
                   se multiplica por el número de piezas, en vez de cobrarse una sola vez para todo el proyecto.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* PNO-COM-01, 7.1.7: revisar gráficos previos y estado de la superficie. */}
+          {op.instalacion.incluye && (
+            <div className="space-y-3 border-t pt-4">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={borrador.entrada.sitio?.retiroGraficosPrevios === true}
+                  onChange={(e) => editarSitio({ retiroGraficosPrevios: e.target.checked })}
+                />
+                Hay que retirar gráficos o rótulos anteriores
+              </label>
+              <div className="space-y-2">
+                <Label htmlFor="superficie">Condición de la superficie</Label>
+                <Textarea
+                  id="superficie"
+                  value={txt(borrador.entrada.sitio?.notasSuperficie)}
+                  onChange={(e) => editarSitio({ notasSuperficie: e.target.value })}
+                  placeholder="Muro con pintura descarapelada; se requiere limpieza previa."
+                />
+                <p className="text-xs text-muted-foreground">
+                  El PNO pide revisarlo en la Fase 0 porque cambia el tiempo de instalación. Si algo aquí implica
+                  más horas, súbelas en los días de instalación.
                 </p>
               </div>
             </div>
@@ -502,7 +540,8 @@ export function PasoResumen({
   borrador,
   cambiar,
   resultado,
-}: Props & { resultado: ResultadoCotizacion | null }) {
+  autorizada = false,
+}: Props & { resultado: ResultadoCotizacion | null; autorizada?: boolean }) {
   if (!resultado) {
     return <p className="text-sm text-muted-foreground">Completa los pasos anteriores para ver el resumen.</p>;
   }
@@ -510,8 +549,15 @@ export function PasoResumen({
   const descuento = borrador.entrada.ajustes.descuentoDecisionRapida;
   const { entrada } = borrador;
 
+  const editarPropuesta = (cambios: Partial<NonNullable<typeof entrada.propuesta>>) =>
+    cambiar((b) => ({ ...b, entrada: { ...b.entrada, propuesta: { ...b.entrada.propuesta, ...cambios } } }));
+
   return (
     <div className="space-y-6">
+      <ListaVerificacion borrador={borrador} resultado={resultado} autorizada={autorizada} />
+
+      <MensajesCliente cotizacionId={borrador.id} autorizada={autorizada} telefono={borrador.cliente.telefono} />
+
       <RedactarAlcance
         concepto={txt(entrada.alcance?.concepto)}
         resumen={txt(entrada.alcance?.resumen)}
@@ -526,6 +572,135 @@ export function PasoResumen({
         }}
         alCambiar={(alcance) => cambiar((b) => ({ ...b, entrada: { ...b.entrada, alcance } }))}
       />
+
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <div>
+            <h3 className="font-medium">Escenarios que se presentan</h3>
+            <p className="text-sm text-muted-foreground">
+              El PNO (7.2.13) pide un segundo escenario cuando hay volumen: el mismo trabajo con el diseño
+              repartido entre todas las unidades, para que el cliente compare la pieza piloto contra el proyecto
+              completo.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="modalidades">Modalidades</Label>
+              <Select
+                id="modalidades"
+                value={entrada.presentacion.modalidades}
+                onChange={(e) =>
+                  cambiar((b) => ({
+                    ...b,
+                    entrada: {
+                      ...b.entrada,
+                      presentacion: { ...b.entrada.presentacion, modalidades: e.target.value as Modalidades },
+                    },
+                  }))
+                }
+              >
+                <option value="solo_una">Una sola propuesta</option>
+                <option value="A_y_B">A) Suministro y B) Suministro con instalación</option>
+                <option value="piloto_y_volumen">A) Unidad piloto y B) Precio por volumen</option>
+              </Select>
+            </div>
+            {entrada.presentacion.modalidades === "piloto_y_volumen" && (
+              <div className="space-y-2">
+                <Label htmlFor="unidades-volumen">Unidades del proyecto completo</Label>
+                <Input
+                  id="unidades-volumen"
+                  inputMode="numeric"
+                  value={txt(entrada.presentacion.unidadesVolumen)}
+                  onChange={(e) =>
+                    cambiar((b) => ({
+                      ...b,
+                      entrada: {
+                        ...b.entrada,
+                        presentacion: { ...b.entrada.presentacion, unidadesVolumen: e.target.value },
+                      },
+                    }))
+                  }
+                  placeholder="25"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Entre cuántas unidades se reparte el diseño. Recuerda que el PNO prohíbe comprometer el precio
+                  por volumen antes de ejecutar la pieza piloto: es la que confirma el metraje real.
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <div>
+            <h3 className="font-medium">Condiciones de la propuesta</h3>
+            <p className="text-sm text-muted-foreground">
+              El PNO-COM-01 (7.3) pide delimitar por escrito lo que no está incluido, dejar asentados los supuestos
+              y cerrar con una petición de acción. Todo esto sale impreso en el PDF.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="no-incluye">Lo que NO incluye</Label>
+            <Textarea
+              id="no-incluye"
+              value={txt(entrada.propuesta?.noIncluye)}
+              onChange={(e) => editarPropuesta({ noIncluye: e.target.value })}
+              placeholder="No incluye rotulación en cofre, cajuela, medallón ni cristales."
+            />
+            <p className="text-xs text-muted-foreground">
+              Obligatorio según el PNO: es lo que previene reclamaciones después. Escribe lo que el cliente podría
+              dar por hecho y no va incluido.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="supuestos">Supuestos del precio</Label>
+            <Textarea
+              id="supuestos"
+              value={txt(entrada.propuesta?.supuestos)}
+              onChange={(e) => editarPropuesta({ supuestos: e.target.value })}
+              placeholder="Metraje estimado de 12 unidades de venta, sujeto a verificación en la unidad piloto."
+            />
+            <p className="text-xs text-muted-foreground">
+              Todo dato que supusiste porque el cliente no lo confirmó. El PNO lo exige por escrito: un supuesto no
+              documentado se convierte en pérdida al ejecutar.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="vigencia">Vigencia (días)</Label>
+              <Input
+                id="vigencia"
+                inputMode="numeric"
+                value={txt(entrada.propuesta?.vigenciaDias)}
+                onChange={(e) => editarPropuesta({ vigenciaDias: e.target.value })}
+                placeholder="15"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="peticion">Petición de acción</Label>
+              <Select
+                id="peticion"
+                value={txt(entrada.propuesta?.peticionAccion)}
+                onChange={(e) => editarPropuesta({ peticionAccion: e.target.value as PeticionAccion })}
+              >
+                <option value="">Sin petición</option>
+                <option value="visita">Cliente nuevo: solicitar una visita</option>
+                <option value="piloto">Proyecto con piloto: solicitar la unidad piloto</option>
+                <option value="orden_compra">Cliente consolidado: solicitar la orden de compra</option>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                El PNO advierte que pedir la orden de compra a quien todavía no ha visto un trabajo terminado
+                adelanta la negociación y baja la probabilidad de cierre.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {resultado.alertas.length > 0 && (
         <Card className="border-accent">
@@ -554,6 +729,11 @@ export function PasoResumen({
                 <div className="text-right">
                   <p className="text-lg font-semibold">{formatoMoneda(v.total)}</p>
                   <p className="text-xs text-muted-foreground">IVA incluido</p>
+                  {/* Comprobación obligatoria del PNO-COM-01 (6.8): (venta − costo) ÷ venta ≈ 0.30 */}
+                  <p className={cn("text-xs", Number(v.margenReal) < 0.3 ? "text-accent" : "text-muted-foreground")}>
+                    Utilidad real {formatoFraccion(v.margenReal)}
+                    {Number(v.margenReal) < 0.3 && " · por debajo del 30% autorizado"}
+                  </p>
                 </div>
               </div>
 

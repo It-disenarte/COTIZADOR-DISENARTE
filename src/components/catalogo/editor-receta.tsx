@@ -8,6 +8,7 @@ import {
   ETIQUETA_FAMILIA,
   ETIQUETA_MODO,
   ETIQUETA_UNIDAD,
+  type UnidadCosto,
   FAMILIAS_RECETA,
   MODOS_COMPONENTE,
   type ModoComponente,
@@ -21,7 +22,7 @@ export type InsumoOpcion = {
   nombre: string;
   categoria: string;
   costo: string | null;
-  unidadCosto: "m2" | "ml" | "pieza" | "lamina" | null;
+  unidadCosto: UnidadCosto | null;
   requiereRevision: boolean;
   archivado: boolean;
 };

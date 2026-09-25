@@ -27,6 +27,7 @@ function estadoDe(fn: () => void): number | "ok" {
 const MATRIZ: Record<Permiso, Record<Rol, boolean>> = {
   "cotizaciones.propias": { admin: true, agente_admin: true, ventas: true },
   "cotizaciones.ver_todas": { admin: true, agente_admin: true, ventas: false },
+  "cotizaciones.autorizar": { admin: true, agente_admin: true, ventas: false },
   "catalogo.ver": { admin: true, agente_admin: true, ventas: true },
   "catalogo.editar": { admin: true, agente_admin: true, ventas: false },
   "clientes.gestionar": { admin: true, agente_admin: true, ventas: true },

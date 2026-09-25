@@ -40,7 +40,28 @@ export const EntradaCotizacion = z.object({
     .object({ concepto: textoOpcional(150), resumen: textoOpcional(600) })
     .nullable()
     .optional(),
+  /**
+   * Lo que el PNO-COM-01 exige en la comunicación formal (apartado 7.3): delimitar lo que no
+   * está incluido, dejar asentados los supuestos, la vigencia y la petición de acción.
+   * Opcional en el esquema para que las cotizaciones anteriores sigan siendo válidas; el
+   * asistente y el PDF sí las piden.
+   */
+  propuesta: z
+    .object({
+      noIncluye: textoOpcional(1000),
+      supuestos: textoOpcional(1000),
+      vigenciaDias: decimalOpcional({ min: 0, max: 365 }),
+      peticionAccion: z.enum(["visita", "piloto", "orden_compra", ""]).optional(),
+    })
+    .optional(),
   incluyeEnvio: z.boolean(),
+  /**
+   * Condiciones del sitio que pide revisar el PNO-COM-01 (7.1.7): gráficos previos que haya
+   * que retirar y estado de la superficie, porque cambian el tiempo de instalación.
+   */
+  sitio: z
+    .object({ retiroGraficosPrevios: z.boolean().default(false), notasSuperficie: textoOpcional(600) })
+    .optional(),
   operacion: z.object({
     trabajoEnInstalacionesDisenarte: z.boolean(),
     diasDiseno: decimal({ min: 0 }),
@@ -70,7 +91,10 @@ export const EntradaCotizacion = z.object({
   }),
   presentacion: z.object({
     operacionProrrateada: z.boolean(),
-    modalidades: z.enum(["solo_una", "A_y_B"]),
+    modalidades: z.enum(["solo_una", "A_y_B", "piloto_y_volumen"]),
+    // Unidades del proyecto completo: amortizan el diseño en el escenario por volumen (PNO 7.2.13).
+    // Opcional para que sigan siendo válidas las cotizaciones guardadas antes.
+    unidadesVolumen: decimalOpcional({ min: 0, max: 100000 }).optional(),
   }),
   ajustes: z.object({
     aplicaMargenError: z.boolean(),

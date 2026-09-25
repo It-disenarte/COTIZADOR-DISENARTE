@@ -18,6 +18,7 @@ export function cotizacionGandhi(recetaId: string, imagenId: string | null = nul
     solicitante: "Claudia P.",
     cliente: {
       nombreContacto: "Claudia P.",
+      puesto: "",
       empresa: "Gandhi",
       correo: "claudia@ejemplo.mx",
       telefono: "",
@@ -37,7 +38,10 @@ export function cotizacionGandhi(recetaId: string, imagenId: string | null = nul
       opciones: [{ recetaId, precioUnitarioManual: "", imagenId }],
       tiempoEstimado: "5-7 días",
       alcance: { concepto: "Señalética para protección civil", resumen: "Señalética completa para las 3 áreas." },
+      // Condiciones que exige el PNO-COM-01 (7.3); cada prueba las cambia si lo necesita.
+      propuesta: { noIncluye: "", supuestos: "", vigenciaDias: "", peticionAccion: "" as "" | "visita" | "piloto" | "orden_compra" },
       incluyeEnvio: true,
+      sitio: { retiroGraficosPrevios: false, notasSuperficie: "" },
       operacion: {
         trabajoEnInstalacionesDisenarte: false,
         diasDiseno: "2",

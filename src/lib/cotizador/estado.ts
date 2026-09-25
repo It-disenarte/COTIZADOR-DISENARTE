@@ -11,6 +11,7 @@ export type BorradorCotizacion = {
   cliente: {
     id: string | null;
     nombreContacto: string;
+    puesto: string;
     empresa: string;
     correo: string;
     telefono: string;
@@ -25,6 +26,7 @@ export type BorradorCotizacion = {
 export const clienteVacio = (): BorradorCotizacion["cliente"] => ({
   id: null,
   nombreContacto: "",
+  puesto: "",
   empresa: "",
   correo: "",
   telefono: "",
@@ -50,6 +52,7 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
       opciones: [],
       tiempoEstimado: "5-7 días",
       incluyeEnvio: true,
+      sitio: { retiroGraficosPrevios: false, notasSuperficie: "" },
       operacion: {
         trabajoEnInstalacionesDisenarte: false,
         diasDiseno: "1",
@@ -61,7 +64,7 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
         traslado: { kmPorTrayecto: "0", modo: "diario", viajesRedondos: "", rendimientoKmL: "", casetasPorViaje: "0" },
         extras: [],
       },
-      presentacion: { operacionProrrateada: true, modalidades: "solo_una" },
+      presentacion: { operacionProrrateada: true, modalidades: "solo_una", unidadesVolumen: "" },
       ajustes: { aplicaMargenError: true, aplicaConsumibles: true, margen: "", descuentoDecisionRapida: null },
       reventa: [],
     },

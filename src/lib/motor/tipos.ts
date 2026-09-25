@@ -105,12 +105,23 @@ export type EntradaCotizacion = {
   tiempoEstimado?: string | null;
   /** "Resumen de alcance" del PDF (concepto y un párrafo corto). No entra en el cálculo. */
   alcance?: { concepto?: string | null; resumen?: string | null } | null;
+  /** Lo que exige el PNO-COM-01 en la propuesta (7.3). No entra en el cálculo. */
+  propuesta?: {
+    noIncluye?: string | null;
+    supuestos?: string | null;
+    vigenciaDias?: Numerico | null;
+    peticionAccion?: "visita" | "piloto" | "orden_compra" | "";
+  };
   incluyeEnvio: boolean;
+  /** Condiciones del sitio (PNO 7.1.7). No entra en el cálculo, pero sí en el PDF y las alertas. */
+  sitio?: { retiroGraficosPrevios?: boolean; notasSuperficie?: string | null };
   operacion: Operacion;
   presentacion: {
+    /** Unidades del proyecto completo para el escenario por volumen (amortiza el diseño). */
+    unidadesVolumen?: Numerico | null;
     /** true: la operación va dentro del unitario; false: va como fila aparte. */
     operacionProrrateada: boolean;
-    modalidades: "solo_una" | "A_y_B";
+    modalidades: "solo_una" | "A_y_B" | "piloto_y_volumen";
   };
   ajustes: {
     aplicaMargenError: boolean;

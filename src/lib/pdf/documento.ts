@@ -14,11 +14,20 @@ export type DatosPdf = {
   titulo: string;
   solicitante: string | null;
   asesor: string | null;
-  cliente: { empresa: string | null; nombreContacto: string } | null;
+  cliente: { empresa: string | null; nombreContacto: string; puesto?: string | null } | null;
+  /** Condiciones del sitio (PNO 7.1.7) que se anuncian en el alcance. */
+  sitio?: { retiroGraficosPrevios?: boolean; notasSuperficie?: string | null } | null;
   fecha: Date;
   tiempoEstimado: string | null;
   /** Concepto y resumen del alcance; si faltan, se usa el título. */
   alcance?: { concepto: string | null; resumen: string | null } | null;
+  /** Lo que exige el PNO-COM-01 (7.3): alcance delimitado, supuestos, vigencia y petición. */
+  propuesta?: {
+    noIncluye?: string | null;
+    supuestos?: string | null;
+    vigenciaDias?: string | null;
+    peticionAccion?: "visita" | "piloto" | "orden_compra" | "";
+  } | null;
   incluyeEnvio: boolean;
   resultado: ResultadoCotizacion;
   /** Foto de referencia de cada opción, por id de receta. */
@@ -179,7 +188,10 @@ function portada(lienzo: Lienzo, fondo: PDFEmbeddedPage, datos: DatosPdf) {
   if (solicitante) {
     centrado("Solicitante:", y, 12.5, true);
     centrado(solicitante, y - 17, 11.5, false);
-    y -= 49;
+    // El PNO (7.3.8) pide dirigirse al contacto por su nombre y su puesto.
+    const puesto = datos.cliente?.puesto?.trim();
+    if (puesto) centrado(puesto, y - 31, 9.5, false);
+    y -= puesto ? 60 : 49;
   }
   if (datos.asesor) {
     centrado("Asesor comercial:", y, 12.5, true);
@@ -293,6 +305,10 @@ function paginaDeOpcion(
   const alcance: { texto: string; negrita?: boolean }[] = [{ texto: `Concepto: ${concepto}`, negrita: true }];
   if (datos.alcance?.resumen?.trim()) alcance.push({ texto: datos.alcance.resumen.trim() });
   if (descripcion) alcance.push({ texto: `Descripción: ${descripcion}`, negrita: true });
+  // PNO-COM-01, 7.1.7 y 8.4: se anuncia el retiro de gráficos previos cuando aplica.
+  if (datos.sitio?.retiroGraficosPrevios) {
+    alcance.push({ texto: "Incluye el retiro y acondicionamiento de los gráficos previos." });
+  }
   if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
 
   const filas: Celda[][] = variante.filas.map((fila, i) => [
@@ -305,7 +321,7 @@ function paginaDeOpcion(
 
   tabla(lienzo, columnasCotizacion(), filas, { estilo: "reticula", tamano: 8.8, alturaMinima: 70, centrarVertical: true });
   bloqueTotales(lienzo, variante);
-  cierreDeCotizacion(lienzo);
+  cierreDeCotizacion(lienzo, datos);
 
   if (imagen) dibujarImagen(lienzo, imagen);
 }
@@ -334,7 +350,7 @@ function materialesAdicionales(lienzo: Lienzo, datos: DatosPdf) {
 
   tabla(lienzo, columnasCotizacion(), filas, { estilo: "reticula", tamano: 8.8, alturaMinima: 58, centrarVertical: true });
   bloqueTotales(lienzo, { subtotal: reventa.subtotal, descuento: "0", iva: reventa.iva, total: reventa.total });
-  cierreDeCotizacion(lienzo);
+  cierreDeCotizacion(lienzo, datos);
 }
 
 function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal" | "descuento" | "iva" | "total">) {
@@ -367,11 +383,43 @@ function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal" | "de
   lienzo.espacio(26);
 }
 
-/** "Precios sin IVA" y la leyenda del diseño, obligatoria en cada página de cotización. */
-function cierreDeCotizacion(lienzo: Lienzo) {
+/** Cómo se lee al cliente cada petición de acción del PNO (apartado 7.3.7). */
+const PETICIONES: Record<string, string> = {
+  visita: "Con gusto agendamos una visita a sus instalaciones para revisar juntos esta propuesta.",
+  piloto: "Quedamos en espera de la unidad piloto para ejecutarla y confirmar medidas y precio por volumen.",
+  orden_compra: "Quedamos en espera de su orden de compra para programar el trabajo.",
+};
+
+/**
+ * "Precios sin IVA", lo que no incluye, supuestos, vigencia y petición de acción.
+ * El PNO-COM-01 (7.3.3 y 7.3.6) obliga a delimitar el alcance y asentar las condiciones.
+ */
+function cierreDeCotizacion(lienzo: Lienzo, datos: DatosPdf) {
+  const { propuesta } = datos;
   lienzo.espacio(4);
   lienzo.texto("Precios sin IVA", { tamano: 11 });
-  lienzo.espacio(4);
+
+  if (propuesta?.noIncluye?.trim()) {
+    lienzo.espacio(8);
+    lienzo.texto("No incluye", { tamano: 9, negrita: true, color: COLOR.morado });
+    lienzo.texto(propuesta.noIncluye.trim(), { tamano: 8.5, color: COLOR.suave, interlineado: 12 });
+  }
+  if (propuesta?.supuestos?.trim()) {
+    lienzo.espacio(6);
+    lienzo.texto("Esta propuesta considera", { tamano: 9, negrita: true, color: COLOR.morado });
+    lienzo.texto(propuesta.supuestos.trim(), { tamano: 8.5, color: COLOR.suave, interlineado: 12 });
+  }
+  if (Number(propuesta?.vigenciaDias) > 0) {
+    lienzo.espacio(6);
+    lienzo.texto(`Vigencia de la propuesta: ${propuesta?.vigenciaDias} días naturales.`, { tamano: 8.5, color: COLOR.suave });
+  }
+  const peticion = propuesta?.peticionAccion ? PETICIONES[propuesta.peticionAccion] : null;
+  if (peticion) {
+    lienzo.espacio(6);
+    lienzo.texto(peticion, { tamano: 9, negrita: true });
+  }
+
+  lienzo.espacio(8);
   lienzo.texto(LEYENDA_DISENO, { tamano: 7.5, color: COLOR.tenue, interlineado: 10.5 });
 }
 

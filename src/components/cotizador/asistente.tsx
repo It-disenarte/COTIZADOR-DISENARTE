@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
@@ -20,9 +20,22 @@ type Props = {
   recetas: RecetaOpcion[];
   clientes: ClienteOpcion[];
   inicial?: BorradorCotizacion;
+  /** Quien puede autorizar el análisis de costos (PNO-COM-01, Fase 1). */
+  puedeAutorizar: boolean;
+  /** Fecha de autorización del análisis; null mientras no se autoriza. */
+  autorizada?: string | null;
 };
 
-export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor, recetas, clientes, inicial }: Props) {
+export function AsistenteCotizacion({
+  usuarioId,
+  vendedores,
+  puedeElegirVendedor,
+  recetas,
+  clientes,
+  inicial,
+  puedeAutorizar,
+  autorizada = null,
+}: Props) {
   const router = useRouter();
   const [borrador, setBorrador] = useState<BorradorCotizacion>(inicial ?? borradorInicial(usuarioId));
   const [paso, setPaso] = useState(0);
@@ -31,6 +44,7 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
   const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
+  const [autorizadaEn, setAutorizadaEn] = useState<string | null>(autorizada);
 
   // El catálogo se descarga una vez y el precio se recalcula aquí mismo, sin ir al servidor.
   useEffect(() => {
@@ -77,6 +91,27 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
     }
   }
 
+  /**
+   * Autoriza el análisis de costos (PNO-COM-01, Fase 1). Solo lo puede hacer el responsable;
+   * guarda primero, porque se autoriza exactamente lo que está capturado.
+   */
+  async function autorizar() {
+    const id = await guardar({ avisar: false });
+    if (!id) return;
+    try {
+      const { autorizadaEn: fecha } = await llamarApi<{ autorizadaEn: string }>(
+        `/api/cotizaciones/${id}/autorizar`,
+        "POST",
+        {},
+      );
+      setAutorizadaEn(fecha);
+      setMensaje({ tipo: "ok", texto: "Análisis autorizado. Ya puedes generar la propuesta para el cliente." });
+      router.refresh();
+    } catch (error) {
+      setMensaje({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo autorizar." });
+    }
+  }
+
   /** Guarda (para que el PDF salga de lo último capturado) y descarga. Las alertas piden confirmar. */
   async function generarPdf() {
     const id = await guardar({ avisar: false });
@@ -105,7 +140,11 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
     setPaso(Math.min(Math.max(destino, 0), PASOS.length - 1));
   }
 
-  const cambiar = (transformacion: (b: BorradorCotizacion) => BorradorCotizacion) => setBorrador(transformacion);
+  const cambiar = (transformacion: (b: BorradorCotizacion) => BorradorCotizacion) => {
+    setBorrador(transformacion);
+    // Al editar, la autorización anterior deja de valer: el servidor la borra al guardar.
+    setAutorizadaEn(null);
+  };
   const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
 
   return (
@@ -132,6 +171,15 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
 
         {mensaje && <Aviso tipo={mensaje.tipo}>{mensaje.texto}</Aviso>}
 
+        {/* Punto de control del PNO-COM-01: sin autorización no se comunica ningún precio. */}
+        {paso === PASOS.length - 1 && !autorizadaEn && (
+          <Aviso tipo="error">
+            {puedeAutorizar
+              ? "El análisis de costos no está autorizado. Revísalo y presiona “Autorizar análisis” para poder generar la propuesta."
+              : "El análisis de costos debe autorizarlo tu responsable antes de enviar cualquier precio al cliente. Avísale que ya está listo para revisión."}
+          </Aviso>
+        )}
+
         {paso === 0 && (
           <PasoDatos
             borrador={borrador}
@@ -152,7 +200,9 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
         )}
         {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
         {paso === 4 && <PasoReventa borrador={borrador} cambiar={cambiar} />}
-        {paso === 5 && <PasoResumen borrador={borrador} cambiar={cambiar} resultado={resultado} />}
+        {paso === 5 && (
+          <PasoResumen borrador={borrador} cambiar={cambiar} resultado={resultado} autorizada={!!autorizadaEn} />
+        )}
 
         <div className="flex items-center justify-between gap-3 border-t pt-4">
           <Button type="button" variant="ghost" disabled={paso === 0} onClick={() => irAlPaso(paso - 1)}>
@@ -162,8 +212,19 @@ export function AsistenteCotizacion({ usuarioId, vendedores, puedeElegirVendedor
             <Button type="button" variant="outline" onClick={() => guardar()} disabled={guardando}>
               {guardando ? <Loader2 className="animate-spin" /> : <Save />} Guardar borrador
             </Button>
+            {paso === PASOS.length - 1 && puedeAutorizar && !autorizadaEn && (
+              <Button type="button" onClick={autorizar} disabled={guardando || !resultado}>
+                <ShieldCheck /> Autorizar análisis
+              </Button>
+            )}
             {paso === PASOS.length - 1 && (
-              <Button type="button" variant="accent" onClick={generarPdf} disabled={guardando || !resultado}>
+              <Button
+                type="button"
+                variant="accent"
+                onClick={generarPdf}
+                disabled={guardando || !resultado || !autorizadaEn}
+                title={autorizadaEn ? undefined : "Falta autorizar el análisis de costos (PNO-COM-01, Fase 1)"}
+              >
                 <FileDown /> Generar PDF
               </Button>
             )}

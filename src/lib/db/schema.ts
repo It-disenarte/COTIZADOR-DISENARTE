@@ -180,6 +180,13 @@ export const cotizaciones = pgTable(
     solicitante: text("solicitante"),
     estado: estadoCotizacionEnum("estado").notNull().default("borrador"),
     versionActual: integer("version_actual").notNull().default(1),
+    /**
+     * Autorización del análisis de costos (PNO-COM-01, punto de control de la Fase 1):
+     * sin ella no se puede generar el documento para el cliente. Cualquier cambio posterior
+     * la borra, porque los precios ya no son los que se autorizaron.
+     */
+    autorizadaPor: uuid("autorizada_por").references(() => usuarios.id),
+    autorizadaEn: timestamp("autorizada_en", { withTimezone: true }),
     ...tiempos,
   },
   (t) => [index("cotizaciones_vendedor_idx").on(t.vendedorId), index("cotizaciones_estado_idx").on(t.estado)],
@@ -265,6 +272,8 @@ export const clientes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     nombreContacto: text("nombre_contacto").notNull(),
+    /** Puesto del contacto: el PNO-COM-01 (7.1.1) lo pide para dirigirse a él por su cargo. */
+    puesto: text("puesto"),
     empresa: text("empresa"),
     correo: text("correo"),
     telefono: text("telefono"),

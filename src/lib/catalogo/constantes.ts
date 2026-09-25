@@ -1,13 +1,21 @@
 // Constantes puras del catálogo, compartidas entre esquema, servidor y cliente.
 
-export const UNIDADES_COSTO = ["m2", "ml", "pieza", "lamina"] as const;
+/** Unidades de venta del PNO-COM-01, apartado 9 (más "lámina", que es presentación de compra). */
+export const UNIDADES_COSTO = ["m2", "ml", "pieza", "lamina", "minuto", "ciento", "millar", "persona"] as const;
 export type UnidadCosto = (typeof UNIDADES_COSTO)[number];
 export const ETIQUETA_UNIDAD: Record<UnidadCosto, string> = {
-  m2: "m²",
-  ml: "Metro lineal",
-  pieza: "Pieza",
-  lamina: "Lámina",
+  m2: "m² (lona, impresión, sustratos rígidos, UV)",
+  ml: "Metro lineal (rotulación y corte de vinil)",
+  pieza: "Pieza (playeras y artículos)",
+  lamina: "Lámina (presentación de compra)",
+  minuto: "Minuto (corte y grabado láser)",
+  ciento: "Ciento (tarjetas)",
+  millar: "Millar (tarjetas)",
+  persona: "Persona (cursos)",
 };
+
+/** Cuántas unidades de venta trae la presentación: un ciento son 100, un millar 1,000. */
+export const PIEZAS_POR_UNIDAD: Partial<Record<UnidadCosto, number>> = { ciento: 100, millar: 1000 };
 
 export const FAMILIAS_RECETA = ["senaletica", "tablero", "rotulacion", "vinil_muro", "acrilico", "impresion_menor"] as const;
 export type FamiliaReceta = (typeof FAMILIAS_RECETA)[number];

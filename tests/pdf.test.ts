@@ -14,6 +14,11 @@ const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial
 const { nombreArchivo } = await import("@/lib/pdf/documento");
 const rutaCotizaciones = await import("@/app/api/cotizaciones/route");
 const rutaPdf = await import("@/app/api/cotizaciones/[id]/pdf/route");
+const rutaAutorizar = await import("@/app/api/cotizaciones/[id]/autorizar/route");
+
+/** El PNO-COM-01 exige autorizar el análisis antes de generar la propuesta (Fase 1). */
+const autorizar = (id: string) =>
+  rutaAutorizar.POST(peticion("/api/cotizaciones/" + id + "/autorizar", { metodo: "POST", cookie, cuerpo: {} }), ctxId(id));
 
 const ADMIN = { nombre: "Erick Medina", email: "admin@disenartemx.com", password: "Admin-Definitiva-2026" };
 let cookie = "";
@@ -90,6 +95,7 @@ beforeAll(async () => {
   );
   expect(res.status).toBe(201);
   cotizacionId = (await res.json()).id;
+  await autorizar(cotizacionId);
 });
 
 describe("Criterio de la fase 5: el PDF de la propuesta", () => {
@@ -278,6 +284,7 @@ describe("Foto de referencia por opción", () => {
       ctxId(cotizacionId),
     );
     expect(guardado.status).toBe(200);
+    await autorizar(cotizacionId);
 
     const pdf = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
     expect(await imagenesDe(new Uint8Array(await pdf.arrayBuffer()), 3, 2)).toBe(1);
