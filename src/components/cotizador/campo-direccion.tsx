@@ -27,6 +27,8 @@ export function CampoDireccion({
   const [abierto, setAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [resaltada, setResaltada] = useState(-1);
+  // El servicio de sugerencias es gratuito y puede fallar: se avisa en vez de quedarse mudo.
+  const [sinServicio, setSinServicio] = useState(false);
   // Lo último que se eligió: si el texto cambia, deja de valer.
   const elegido = useRef<string | null>(null);
   const contenedor = useRef<HTMLDivElement>(null);
@@ -40,16 +42,20 @@ export function CampoDireccion({
     const temporizador = setTimeout(async () => {
       setBuscando(true);
       try {
-        const { sugerencias: lista } = await llamarApi<{ sugerencias: Lugar[] }>(
+        const { sugerencias: lista, disponible } = await llamarApi<{ sugerencias: Lugar[]; disponible: boolean }>(
           `/api/distancia/sugerencias?q=${encodeURIComponent(valor)}`,
           "GET",
         );
         if (!vigente) return;
+        setSinServicio(!disponible);
         setSugerencias(lista);
         setResaltada(-1);
         if (lista.length > 0) setAbierto(true);
       } catch {
-        if (vigente) setSugerencias([]);
+        if (vigente) {
+          setSugerencias([]);
+          setSinServicio(true);
+        }
       } finally {
         if (vigente) setBuscando(false);
       }
@@ -138,6 +144,11 @@ export function CampoDireccion({
         </ul>
       )}
 
+      {sinServicio && (
+        <p className="text-xs text-accent">
+          Las sugerencias no están disponibles en este momento. Escribe la dirección completa y usa “Calcular km”.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
         Donde se va a instalar o entregar. Escribe y elige una opción de la lista: así los kilómetros salen del
         punto exacto. Si no aparece, escríbela completa (calle, número, colonia, ciudad y estado).

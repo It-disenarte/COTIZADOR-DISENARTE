@@ -16,5 +16,6 @@ export const GET = manejador(async (req: Request) => {
 
   const texto = (new URL(req.url).searchParams.get("q") ?? "").slice(0, 200);
   const cerca = await origenDisenarte().catch(() => undefined);
-  return NextResponse.json({ sugerencias: await sugerirDirecciones(texto, cerca) });
+  const { lugares, disponible } = await sugerirDirecciones(texto, cerca);
+  return NextResponse.json({ sugerencias: lugares, disponible });
 });

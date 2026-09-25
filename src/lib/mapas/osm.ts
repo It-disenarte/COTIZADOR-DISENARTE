@@ -121,9 +121,14 @@ function etiquetaPhoton(p: Record<string, string | undefined>): string {
  * Sugerencias mientras se escribe (Photon). Solo México y dando preferencia a lo cercano
  * al taller. Si el servicio falla, devuelve vacío: escribir nunca debe mostrar errores.
  */
-export async function sugerirDirecciones(texto: string, cerca?: Punto): Promise<Lugar[]> {
-  if (texto.trim().length < 4) return [];
-  const parametros = new URLSearchParams({ q: texto, limit: "5", lang: "es", bbox: CAJA_MEXICO });
+export async function sugerirDirecciones(
+  texto: string,
+  cerca?: Punto,
+): Promise<{ lugares: Lugar[]; disponible: boolean }> {
+  if (texto.trim().length < 4) return { lugares: [], disponible: true };
+  // OJO: Photon solo acepta lang default, en, de y fr. Con "es" rechaza toda la consulta
+  // (HTTP 400) y no llega ninguna sugerencia. "default" devuelve los nombres locales.
+  const parametros = new URLSearchParams({ q: texto, limit: "5", lang: "default", bbox: CAJA_MEXICO });
   if (cerca) {
     parametros.set("lat", String(cerca.lat));
     parametros.set("lon", String(cerca.lon));
@@ -131,7 +136,9 @@ export async function sugerirDirecciones(texto: string, cerca?: Punto): Promise<
   }
 
   const datos = (await pedir(`${PHOTON}?${parametros}`, false, ESPERA_SUGERENCIAS_MS)) as RespuestaPhoton | null;
-  return (datos?.features ?? [])
+  if (datos === null) return { lugares: [], disponible: false };
+
+  const lugares = (datos.features ?? [])
     .map((f) => {
       const p = f.properties ?? {};
       const [lon, lat] = f.geometry?.coordinates ?? [];
@@ -144,6 +151,8 @@ export async function sugerirDirecciones(texto: string, cerca?: Punto): Promise<
       };
     })
     .filter((l): l is Lugar => Number.isFinite(l.lat) && Number.isFinite(l.lon) && l.etiqueta !== "");
+
+  return { lugares, disponible: true };
 }
 
 /** Distancia en línea recta, en kilómetros (fórmula del haversine). */

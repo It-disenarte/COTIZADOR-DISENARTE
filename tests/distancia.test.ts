@@ -183,11 +183,22 @@ describe("Sugerencias mientras se escribe", () => {
     expect(url.searchParams.get("bbox")).toBe("-118.6,14.3,-86.5,32.8");
     expect(url.searchParams.get("limit")).toBe("5");
     expect(url.searchParams.get("lat")).toBe("20.3882");
+    // Photon solo acepta default/en/de/fr: con "es" rechaza la consulta entera (HTTP 400)
+    // y no llega ninguna sugerencia. Este fue un error real en producción.
+    expect(url.searchParams.get("lang")).toBe("default");
+  });
+
+  it("si el servicio rechaza la consulta, lo reporta para poder avisar en pantalla", async () => {
+    fetchSimulado.mockResolvedValueOnce(json({ message: "bad request" }, 400));
+    const { sugerencias, disponible } = await (await sugerir("Av. Universidad")).json();
+    expect(sugerencias).toEqual([]);
+    expect(disponible).toBe(false);
   });
 
   it("no consulta nada si aún se escribieron menos de 4 letras", async () => {
-    const { sugerencias } = await (await sugerir("Av")).json();
+    const { sugerencias, disponible } = await (await sugerir("Av")).json();
     expect(sugerencias).toEqual([]);
+    expect(disponible).toBe(true);
     expect(fetchSimulado).not.toHaveBeenCalled();
   });
 
