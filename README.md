@@ -155,9 +155,18 @@ gunzip -c cotizador-AAAAMMDD-HHMMSS.sql.gz | docker exec -i $(docker ps -qf name
   (acepta grados, punto y coma o el orden invertido), si no busca la dirección del taller, y si eso también falla
   usa el centro de San Juan del Río. Devuelve de dónde salió (`configurado`, `buscado`, `respaldo`) y la pantalla lo
   dice, para que una variable mal capturada no vuelva a pasar inadvertida.
-- El sesgo ordena por cercanía pero no limita: escribiendo la ciudad ("Av. Universidad, San Nicolás, Nuevo León")
-  aparecen las de ese estado. Ojo: `location_bias_scale` de Photon funciona al revés de lo que parece: 0.3 sesga
-  fuerte y 1 casi no sesga (comprobado contra el servicio real).
+- **Direcciones mexicanas** (comprobado contra el servicio real, ver `limpiarParaBuscar` y `coincideConLoEscrito`):
+  - **Los números de calle se quitan de la búsqueda.** OpenStreetMap casi no los tiene en México y arrastran la
+    búsqueda a otras ciudades donde sí existen: "Av. Universidad 142" devolvía Celaya, León y Tepic; sin el número,
+    San Juan del Río. Se conservan los que son parte del nombre ("Carretera 57", "Calle 5 de Mayo") y el texto que
+    escribe la persona no se toca.
+  - **Si nada quedó a menos de 100 km, se busca otra vez agregando "San Juan del Río, Querétaro"**, porque el mapa
+    responde con coincidencias aproximadas ("Francia" → "Francisco Pacheco, Celaya").
+  - **Las sugerencias se ordenan** poniendo primero las que sí contienen lo escrito y, entre ellas, las más cercanas
+    al taller; cada una muestra su distancia en línea recta. Así "Francia 142" muestra la Avenida Francia de San Juan
+    del Río (2 km) y "Avenida Tulum, Cancún" sigue mostrando Cancún (1,368 km).
+  - `location_bias_scale` de Photon funciona al revés de lo que parece (0.3 sesga fuerte, 1 casi no sesga) y por sí
+    solo no arregla estos casos.
 - **Vehículo y gasolina**: en Operación se elige Hilux o Mazda CX-30 y se llena el rendimiento; el paso muestra el
   costo de gasolina del viaje (km × 2 × viajes ÷ km/L × precio del litro), el mismo cálculo que hace el motor. Los
   rendimientos son parámetros editables (`rendimiento_hilux` 10 km/L, `rendimiento_cx30` 14 km/L, migración `0010`);

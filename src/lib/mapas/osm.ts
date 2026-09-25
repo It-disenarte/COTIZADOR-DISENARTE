@@ -38,6 +38,11 @@ export type Punto = { lat: number; lon: number };
 /** De dónde salió el punto de salida: la variable de entorno, la búsqueda, o el respaldo. */
 export type FuenteOrigen = "configurado" | "buscado" | "respaldo";
 export type Lugar = Punto & {
+  /** Distancia en línea recta al taller, redondeada. Solo informativa. */
+  kmAprox?: number | null;
+  /** Ciudad y estado que reportó el mapa; sirven para saber si la persona ya los escribió. */
+  ciudad?: string;
+  estado?: string;
   etiqueta: string;
   /** "casa", "calle", "colonia", "ciudad"…: qué tan fino es el punto que encontró. */
   detalle: string;
@@ -57,28 +62,38 @@ async function esperarTurno(url: string, esperaMs: number) {
   ultimaLlamada.set(servicio, Date.now());
 }
 
+/**
+ * Una consulta al mapa. Todo lo inesperado (red caída, respuesta rara, JSON mal formado)
+ * termina aquí: si la consulta es obligatoria se convierte en un error con mensaje claro,
+ * y si no, en null. Nunca se escapa un error suelto que tumbe la petición.
+ */
 async function pedir(url: string, obligatorio: boolean, esperaMs = esperaEntreLlamadasMs()): Promise<unknown> {
-  await esperarTurno(url, esperaMs);
-  let respuesta: Response;
+  const fallo = (estado: 429 | 502, mensaje: string, codigo: string) => {
+    if (!obligatorio) return null;
+    throw new ErrorHttp(estado, mensaje, codigo);
+  };
+
   try {
-    respuesta = await fetch(url, {
+    await esperarTurno(url, esperaMs);
+    const respuesta = await fetch(url, {
       headers: { "User-Agent": agente(), Accept: "application/json", "Accept-Language": "es-MX,es" },
       signal: AbortSignal.timeout(TIEMPO_MAXIMO_MS),
       cache: "no-store",
     });
-  } catch {
-    if (!obligatorio) return null;
-    throw new ErrorHttp(502, "No se pudo consultar el mapa. Intenta de nuevo o captura los km a mano.", "MAPAS_FALLO");
-  }
-  if (!respuesta.ok) {
-    if (!obligatorio) return null;
-    if (respuesta.status === 429 || respuesta.status === 403) {
-      throw new ErrorHttp(429, "El mapa está limitando las consultas. Espera un momento o captura los km a mano.", "MAPAS_LIMITE");
+
+    if (!respuesta.ok) {
+      if (respuesta.status === 429 || respuesta.status === 403) {
+        return fallo(429, "El mapa está limitando las consultas. Espera un momento o captura los km a mano.", "MAPAS_LIMITE");
+      }
+      console.error("[mapas] respuesta", respuesta.status, url);
+      return fallo(502, "El mapa respondió con un error. Captura los km a mano.", "MAPAS_FALLO");
     }
-    console.error("[mapas] respuesta", respuesta.status, url);
-    throw new ErrorHttp(502, "El mapa respondió con un error. Captura los km a mano.", "MAPAS_FALLO");
+    return await respuesta.json().catch(() => null);
+  } catch (error) {
+    if (error instanceof ErrorHttp) throw error;
+    console.error("[mapas] no se pudo consultar", url, error instanceof Error ? error.message : error);
+    return fallo(502, "No se pudo consultar el mapa. Intenta de nuevo o captura los km a mano.", "MAPAS_FALLO");
   }
-  return respuesta.json().catch(() => null);
 }
 
 type FilaNominatim = { lat?: string; lon?: string; display_name?: string; addresstype?: string; type?: string };
@@ -123,11 +138,86 @@ function etiquetaPhoton(p: Record<string, string | undefined>): string {
  * Sugerencias mientras se escribe (Photon). Solo México y dando preferencia a lo cercano
  * al taller. Si el servicio falla, devuelve vacío: escribir nunca debe mostrar errores.
  */
+/** Ciudad del taller, para reintentar una búsqueda que no trajo nada cercano. */
+const CIUDAD_TALLER = "San Juan del Río, Querétaro";
+/** Más lejos que esto no se considera "de la zona". */
+const RADIO_CERCANIA_KM = 100;
+
+/**
+ * Quita los números de calle: en México OpenStreetMap casi no los tiene, y dejarlos hace que
+ * la búsqueda se vaya a otras ciudades donde sí existen ("Av. Universidad 142" devolvía
+ * Celaya y Tepic; sin el número, San Juan del Río). Se conservan los que son parte del
+ * nombre ("Calle 5 de Mayo", "Carretera 57") porque van pegados a una palabra clave.
+ */
+export function limpiarParaBuscar(texto: string): string {
+  const palabras = texto.trim().split(/\s+/);
+  if (palabras.length < 2) return texto.trim();
+
+  const claves = /^(carretera|km|kil[oó]metro|calle|avenida|av\.?|blvd\.?|boulevard|eje|circuito)$/i;
+  const limpio = palabras.filter((palabra, i) => {
+    const esNumero = /^#?\d{1,5}[a-z]?$/i.test(palabra);
+    const despuesDeClave = i > 0 && claves.test(palabras[i - 1]);
+    return !esNumero || despuesDeClave;
+  });
+  return (limpio.length ? limpio : palabras).join(" ");
+}
+
 export async function sugerirDirecciones(
   texto: string,
   cerca?: Punto,
 ): Promise<{ lugares: Lugar[]; disponible: boolean }> {
   if (texto.trim().length < 4) return { lugares: [], disponible: true };
+  const base = limpiarParaBuscar(texto);
+
+  const primera = await consultarPhoton(base, cerca);
+  if (!primera) return { lugares: [], disponible: false };
+
+  // Si nada quedó cerca del taller, se busca otra vez agregando la ciudad: así aparecen las
+  // calles locales, que es lo más común ("Francia" existe en San Juan del Río, pero el mapa
+  // respondía "Francisco" de Guanajuato).
+  const hayCercanos = cerca && primera.some((l) => lineaRectaKm(cerca, l) <= RADIO_CERCANIA_KM);
+  const locales = cerca && !hayCercanos ? ((await consultarPhoton(`${base} ${CIUDAD_TALLER}`, cerca)) ?? []) : [];
+
+  const vistos = new Set<string>();
+  const lugares = [...primera, ...locales]
+    .filter((l) => {
+      const clave = `${l.lat.toFixed(5)},${l.lon.toFixed(5)},${l.etiqueta}`;
+      return vistos.has(clave) ? false : (vistos.add(clave), true);
+    })
+    .map((l) => ({
+      ...l,
+      kmAprox: cerca ? Math.round(lineaRectaKm(cerca, l)) : null,
+      coincide: coincideConLoEscrito(base, l),
+    }))
+    // Primero lo que sí contiene lo que se escribió; entre iguales, lo más cercano al taller.
+    // Así "Francia" muestra la de San Juan del Río antes que la del Estado de México, y
+    // "Avenida Tulum Cancún" muestra Cancún aunque esté a 1,300 km.
+    .sort((a, b) => Number(b.coincide) - Number(a.coincide) || (a.kmAprox ?? 0) - (b.kmAprox ?? 0))
+    .slice(0, 6)
+    .map((l) => ({ lat: l.lat, lon: l.lon, etiqueta: l.etiqueta, detalle: l.detalle, exacto: l.exacto, ciudad: l.ciudad, estado: l.estado, kmAprox: l.kmAprox }));
+
+  return { lugares, disponible: true };
+}
+
+const sinAcentos = (t: string) =>
+  t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/**
+ * ¿La sugerencia contiene de verdad las palabras que se escribieron? El mapa responde con
+ * coincidencias aproximadas ("Francia" → "Francisco"), y esas deben quedar hasta abajo.
+ */
+export function coincideConLoEscrito(consulta: string, lugar: Lugar): boolean {
+  const palabras = sinAcentos(consulta)
+    .split(/[^a-z0-9]+/)
+    .filter((p) => p.length >= 4);
+  if (palabras.length === 0) return true;
+
+  const etiqueta = sinAcentos(`${lugar.etiqueta} ${lugar.ciudad ?? ""} ${lugar.estado ?? ""}`);
+  return palabras.every((p) => new RegExp(`\\b${p}`).test(etiqueta));
+}
+
+/** Una consulta a Photon. Devuelve null si el servicio falló. */
+async function consultarPhoton(texto: string, cerca?: Punto): Promise<Lugar[] | null> {
   // OJO: Photon solo acepta lang default, en, de y fr. Con "es" rechaza toda la consulta
   // (HTTP 400) y no llega ninguna sugerencia. "default" devuelve los nombres locales.
   const parametros = new URLSearchParams({ q: texto, limit: "5", lang: "default", bbox: CAJA_MEXICO });
@@ -138,23 +228,23 @@ export async function sugerirDirecciones(
   }
 
   const datos = (await pedir(`${PHOTON}?${parametros}`, false, ESPERA_SUGERENCIAS_MS)) as RespuestaPhoton | null;
-  if (datos === null) return { lugares: [], disponible: false };
+  if (datos === null) return null;
 
-  const lugares = (datos.features ?? [])
-    .map((f) => {
+  return (datos.features ?? [])
+    .map((f): Lugar => {
       const p = f.properties ?? {};
-      const [lon, lat] = f.geometry?.coordinates ?? [];
+      const [lon, lat] = f.geometry?.coordinates ?? [Number.NaN, Number.NaN];
       return {
         lat,
         lon,
         etiqueta: etiquetaPhoton(p),
         detalle: p.osm_value ?? p.osm_key ?? "",
+        ciudad: p.city ?? p.district ?? "",
+        estado: p.state ?? "",
         exacto: Boolean(p.housenumber) || Boolean(p.street),
       };
     })
-    .filter((l): l is Lugar => Number.isFinite(l.lat) && Number.isFinite(l.lon) && l.etiqueta !== "");
-
-  return { lugares, disponible: true };
+    .filter((l) => Number.isFinite(l.lat) && Number.isFinite(l.lon) && l.etiqueta !== "");
 }
 
 /** Distancia en línea recta, en kilómetros (fórmula del haversine). */

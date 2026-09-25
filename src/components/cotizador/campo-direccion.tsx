@@ -140,6 +140,9 @@ export function CampoDireccion({
                 <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
                 <span>
                   {s.etiqueta}
+                  {typeof s.kmAprox === "number" && (
+                    <span className="text-muted-foreground"> · a {s.kmAprox} km</span>
+                  )}
                   {!s.exacto && <span className="text-muted-foreground"> · aproximado</span>}
                 </span>
               </button>
@@ -160,8 +163,10 @@ export function CampoDireccion({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Donde se va a instalar o entregar. Escribe y elige una opción de la lista: así los kilómetros salen del
-        punto exacto. Si no aparece, escríbela completa (calle, número, colonia, ciudad y estado).
+        Donde se va a instalar o entregar. Escribe y elige una opción de la lista: así los kilómetros salen del punto
+        exacto. Los kilómetros que aparecen son en línea recta, solo para reconocer cuál es. Si el cliente está en
+        otra ciudad, escríbela (“Avenida Tulum, Cancún”); los números de calle casi no existen en el mapa, así que
+        la app los ignora al buscar y los conserva en la dirección.
       </p>
     </div>
   );

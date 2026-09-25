@@ -230,8 +230,11 @@ describe("Punto de salida (el taller)", () => {
 
   it("si las coordenadas están mal escritas, no se queda sin referencia: usa el respaldo y lo reporta", async () => {
     vi.stubEnv("ORIGEN_COORDENADAS", "quién sabe");
-    // Falla también la búsqueda de la dirección del taller.
-    fetchSimulado.mockResolvedValueOnce(json([])).mockResolvedValueOnce(json({ features: [] }));
+    // Falla también la búsqueda de la dirección del taller; luego la búsqueda y su reintento.
+    fetchSimulado
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json({ features: [] }))
+      .mockResolvedValueOnce(json({ features: [] }));
 
     const { origen } = await (await sugerir("Av. Universidad")).json();
     expect(origen).toBe("respaldo");
@@ -241,12 +244,46 @@ describe("Punto de salida (el taller)", () => {
     expect(url.searchParams.get("location_bias_scale")).toBe("0.3");
   });
 
-  it("con las coordenadas configuradas, las sugerencias se sesgan a esa zona sin consultar nada más", async () => {
-    fetchSimulado.mockResolvedValueOnce(json({ features: [] }));
+  it("con las coordenadas configuradas, las sugerencias se sesgan a esa zona", async () => {
+    fetchSimulado.mockResolvedValue(json({ features: [] }));
     const { origen } = await (await sugerir("Av. Universidad")).json();
     expect(origen).toBe("configurado");
-    expect(fetchSimulado).toHaveBeenCalledTimes(1);
     expect(new URL(llamada(0)[0]).searchParams.get("lon")).toBe("-99.9965");
+  });
+
+  it("si no hay nada cerca, vuelve a buscar agregando la ciudad del taller", async () => {
+    // Primera búsqueda: solo resultados lejanos (Nuevo León).
+    fetchSimulado
+      .mockResolvedValueOnce(
+        json({
+          features: [
+            {
+              geometry: { coordinates: [-100.3, 25.67] },
+              properties: { name: "Calle Francisco Pacheco", city: "Monterrey", state: "Nuevo León" },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        json({
+          features: [
+            {
+              geometry: { coordinates: [-99.96, 20.38] },
+              properties: { name: "Avenida Francia", city: "San Juan del Río", state: "Querétaro", street: "Avenida Francia" },
+            },
+          ],
+        }),
+      );
+
+    const { sugerencias } = await (await sugerir("Francia 142")).json();
+    expect(fetchSimulado).toHaveBeenCalledTimes(2);
+    // El número no se manda (en México el mapa casi no los tiene) y el reintento lleva la ciudad.
+    expect(new URL(llamada(0)[0]).searchParams.get("q")).toBe("Francia");
+    expect(new URL(llamada(1)[0]).searchParams.get("q")).toBe("Francia San Juan del Río, Querétaro");
+    // Primero lo que sí dice "Francia" y está cerca; la coincidencia aproximada queda al final.
+    expect(sugerencias[0].etiqueta).toContain("Avenida Francia");
+    expect(sugerencias[0].kmAprox).toBeLessThan(5);
+    expect(sugerencias[1].etiqueta).toContain("Francisco Pacheco");
   });
 });
 
