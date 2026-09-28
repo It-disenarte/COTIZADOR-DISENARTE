@@ -49,6 +49,7 @@ export function AsistenteCotizacion({
   const [guardando, setGuardando] = useState(false);
   /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [ranuraCatalogo, setRanuraCatalogo] = useState<HTMLDivElement | null>(null);
   const avisar = useAvisos();
   const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
   const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
@@ -166,8 +167,7 @@ export function AsistenteCotizacion({
   const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
 
   return (
-    // En el paso 2 la tabla y el catálogo necesitan el ancho: el precio en vivo pasa abajo hasta pantallas grandes.
-    <div className={cn("grid gap-6", paso === 1 ? "2xl:grid-cols-[minmax(0,1fr)_20rem]" : "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="space-y-6">
         <nav className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
           {PASOS.map((nombre, i) => (
@@ -208,7 +208,9 @@ export function AsistenteCotizacion({
             puedeElegirVendedor={puedeElegirVendedor}
           />
         )}
-        {paso === 1 && <PasoLevantamiento borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
+        {paso === 1 && (
+          <PasoLevantamiento borrador={borrador} cambiar={cambiar} snapshot={snapshot} ranuraCatalogo={ranuraCatalogo} />
+        )}
         {paso === 2 && (
           <PasoOpciones borrador={borrador} cambiar={cambiar} asegurarGuardado={() => guardar({ avisar: true })} />
         )}
@@ -257,7 +259,7 @@ export function AsistenteCotizacion({
         </div>
       </div>
 
-      <aside className={cn("space-y-4", paso === 1 ? "2xl:sticky 2xl:top-6 2xl:self-start" : "lg:sticky lg:top-6 lg:self-start")}>
+      <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <Card>
           <CardContent className="space-y-3 pt-6">
             <div>
@@ -301,6 +303,8 @@ export function AsistenteCotizacion({
             {guardadoEn && <p className="border-t pt-2 text-xs text-muted-foreground">{guardadoEn}</p>}
           </CardContent>
         </Card>
+        {/* El catálogo del paso 2 se dibuja aquí, debajo del precio en vivo. */}
+        <div ref={setRanuraCatalogo} />
       </aside>
     </div>
   );

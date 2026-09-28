@@ -1,7 +1,8 @@
 "use client";
 
 import { ClipboardPaste, Copy, GripVertical, Plus, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Button, Card, CardContent, Input, Textarea } from "@/components/ui";
 import { ETIQUETA_MODO_CORTA, MODOS_COMPONENTE, type ModoComponente } from "@/lib/catalogo/constantes";
 import {
@@ -32,7 +33,24 @@ type Props = {
   borrador: BorradorCotizacion;
   cambiar: (cambios: (b: BorradorCotizacion) => BorradorCotizacion) => void;
   snapshot: Snapshot | null;
+  /** Lugar en la columna derecha del asistente (debajo del precio en vivo) donde va el catálogo. */
+  ranuraCatalogo?: HTMLElement | null;
 };
+
+// Desde "lg" existe la columna derecha del asistente; debajo de eso, todo va en una sola columna.
+const CONSULTA_PANTALLA_GRANDE = "(min-width: 1024px)";
+
+function usePantallaGrande(): boolean {
+  return useSyncExternalStore(
+    (avisar) => {
+      const consulta = window.matchMedia(CONSULTA_PANTALLA_GRANDE);
+      consulta.addEventListener("change", avisar);
+      return () => consulta.removeEventListener("change", avisar);
+    },
+    () => window.matchMedia(CONSULTA_PANTALLA_GRANDE).matches,
+    () => false,
+  );
+}
 
 const sinClave = <T,>(objeto: Record<string, T>, clave: string): Record<string, T> =>
   Object.fromEntries(Object.entries(objeto).filter(([k]) => k !== clave));
@@ -62,7 +80,8 @@ function modoInicial(insumo: InsumoSnapshot): ModoComponente {
   return "por_pieza";
 }
 
-export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
+export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo }: Props) {
+  const pantallaGrande = usePantallaGrande();
   const { areas, filas } = borrador.entrada.levantamiento;
   const opciones = borrador.entrada.opciones;
   const [indiceOpcion, setIndiceOpcion] = useState(0);
@@ -146,6 +165,18 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
     setIndiceOpcion(opciones.length);
   }
 
+  const panel = (
+    <PanelCatalogo
+      snapshot={snapshot}
+      enColumna={pantallaGrande && !!ranuraCatalogo}
+      filaElegida={filas.find((f) => f.id === filaElegida)?.concepto ?? null}
+      alAgregar={(arrastre) => {
+        const destino = filaElegida && filas.some((f) => f.id === filaElegida) ? filaElegida : filas[0]?.id;
+        if (destino) agregarDelCatalogo(arrastre, destino);
+      }}
+    />
+  );
+
   const totalPiezas = filas.reduce<number>((t, f) => t + f.cantidades.reduce<number>((s, c) => s + num(c), 0), 0);
   const totalM2 = filas.reduce(
     (t, f) => t + f.cantidades.reduce<number>((s, c) => s + num(c), 0) * num(f.anchoM) * num(f.altoM),
@@ -153,7 +184,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
   );
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div className="space-y-4">
       <div className="min-w-0 space-y-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -220,9 +251,9 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Concepto</th>
-                  <th className="px-3 py-2 font-medium">Ancho (m)</th>
-                  <th className="px-3 py-2 font-medium">Alto (m)</th>
+                  <th className="px-2 py-2 font-medium">Concepto</th>
+                  <th className="px-2 py-2 font-medium">Ancho (m)</th>
+                  <th className="px-2 py-2 font-medium">Alto (m)</th>
                   {areas.map((area, j) => (
                     <th key={j} className="px-2 py-1 font-medium">
                       <div className="flex items-center gap-0.5">
@@ -247,9 +278,9 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                       </div>
                     </th>
                   ))}
-                  <th className="px-3 py-2 font-medium">Insumos {opciones.length > 1 && `· ${opcion?.nombre ?? ""}`}</th>
-                  <th className="px-3 py-2 text-right font-medium">Costo</th>
-                  <th className="px-3 py-2" />
+                  <th className="px-2 py-2 font-medium">Insumos {opciones.length > 1 && `· ${opcion?.nombre ?? ""}`}</th>
+                  <th className="px-2 py-2 text-right font-medium">Costo</th>
+                  <th className="px-2 py-2" />
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -272,26 +303,26 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                       onClick={() => setFilaElegida(fila.id)}
                       className={cn("align-top", filaElegida === fila.id && "bg-primary/5")}
                     >
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <Input
-                          className="h-9 min-w-40"
+                          className="h-9 min-w-36"
                           value={fila.concepto}
                           onChange={(e) => editarFila(fila.id, { concepto: e.target.value })}
                           aria-label={`Concepto de la fila ${i + 1}`}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <Input
-                          className="h-9 w-20"
+                          className="h-9 w-[4.5rem]"
                           inputMode="decimal"
                           value={txt(fila.anchoM)}
                           onChange={(e) => editarFila(fila.id, { anchoM: e.target.value })}
                           aria-label={`Ancho de la fila ${i + 1}`}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <Input
-                          className="h-9 w-20"
+                          className="h-9 w-[4.5rem]"
                           inputMode="decimal"
                           value={txt(fila.altoM)}
                           onChange={(e) => editarFila(fila.id, { altoM: e.target.value })}
@@ -301,7 +332,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                       {areas.map((area, j) => (
                         <td key={j} className="px-2 py-2">
                           <Input
-                            className="h-9 w-20"
+                            className="h-9 w-[4.5rem]"
                             inputMode="numeric"
                             value={txt(fila.cantidades[j])}
                             onChange={(e) =>
@@ -311,7 +342,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                           />
                         </td>
                       ))}
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <div
                           onDragOver={(e) => {
                             if (!e.dataTransfer.types.includes(TIPO_ARRASTRE)) return;
@@ -326,7 +357,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                             if (dato) agregarDelCatalogo(JSON.parse(dato) as Arrastre, fila.id);
                           }}
                           className={cn(
-                            "flex min-h-11 min-w-64 flex-wrap items-start gap-1.5 rounded-md border-[1.5px] border-dashed border-input p-1.5 transition-colors",
+                            "flex min-h-11 min-w-56 flex-wrap items-start gap-1.5 rounded-md border-[1.5px] border-dashed border-input p-1.5 transition-colors",
                             filaEncima === fila.id && "border-accent bg-accent/10",
                           )}
                         >
@@ -359,7 +390,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                           </button>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-2 py-2 text-right">
                         {costo !== null && <p>{formatoMoneda(costo)}</p>}
                         {errorCosto && <p className="max-w-48 whitespace-normal text-xs text-destructive">{errorCosto}</p>}
                         <p className="text-xs text-muted-foreground">
@@ -386,10 +417,10 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
               </tbody>
               <tfoot className="bg-muted/40 text-sm font-medium">
                 <tr>
-                  <td className="px-3 py-2" colSpan={4 + areas.length}>
+                  <td className="px-2 py-2" colSpan={4 + areas.length}>
                     Total
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                  <td className="whitespace-nowrap px-2 py-2 text-right">
                     {totalPiezas} pzas · {totalM2.toFixed(2)} m²
                   </td>
                   <td />
@@ -464,14 +495,9 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
         )}
       </div>
 
-      <PanelCatalogo
-        snapshot={snapshot}
-        filaElegida={filas.find((f) => f.id === filaElegida)?.concepto ?? null}
-        alAgregar={(arrastre) => {
-          const destino = filaElegida && filas.some((f) => f.id === filaElegida) ? filaElegida : filas[0]?.id;
-          if (destino) agregarDelCatalogo(arrastre, destino);
-        }}
-      />
+      {/* En pantalla grande el catálogo va en la columna derecha, para que la tabla use todo el ancho;
+          en celular o tablet se queda aquí, junto a la tabla, para no tener que bajar a buscarlo. */}
+      {pantallaGrande && ranuraCatalogo ? createPortal(panel, ranuraCatalogo) : panel}
     </div>
   );
 }
@@ -650,10 +676,13 @@ function ResumenInsumos({ opcion, filas, snapshot }: { opcion: OpcionCotizacion;
 
 function PanelCatalogo({
   snapshot,
+  enColumna,
   filaElegida,
   alAgregar,
 }: {
   snapshot: Snapshot | null;
+  /** En la columna derecha la lista se ajusta al alto de la pantalla, porque esa columna se queda fija. */
+  enColumna: boolean;
   filaElegida: string | null;
   alAgregar: (arrastre: Arrastre) => void;
 }) {
@@ -700,7 +729,7 @@ function PanelCatalogo({
   );
 
   return (
-    <aside className="space-y-3 xl:sticky xl:top-6 xl:self-start">
+    <div className="space-y-3">
       <Card>
         <CardContent className="space-y-3 pt-5">
           <div>
@@ -726,7 +755,7 @@ function PanelCatalogo({
             />
           </div>
           {!snapshot && <p className="text-xs text-muted-foreground">Cargando catálogo…</p>}
-          <div className="max-h-[32rem] space-y-1.5 overflow-y-auto pr-1">
+          <div className={cn("space-y-1.5 overflow-y-auto pr-1", enColumna ? "max-h-[calc(100vh-26rem)] min-h-40" : "max-h-[32rem]")}>
             {grupos.map(([categoria, lista]) => (
               <div key={categoria} className="space-y-1.5">
                 <p className="pt-2 text-[11px] uppercase tracking-wide text-muted-foreground">{categoria}</p>
@@ -747,6 +776,6 @@ function PanelCatalogo({
           </div>
         </CardContent>
       </Card>
-    </aside>
+    </div>
   );
 }
