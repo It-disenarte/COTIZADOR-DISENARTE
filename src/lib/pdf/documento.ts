@@ -21,12 +21,11 @@ export type DatosPdf = {
   tiempoEstimado: string | null;
   /** Concepto y resumen del alcance; si faltan, se usa el título. */
   alcance?: { concepto: string | null; resumen: string | null } | null;
-  /** Lo que exige el PNO-COM-01 (7.3): alcance delimitado, supuestos, vigencia y petición. */
+  /** Lo que exige el PNO-COM-01 (7.3): alcance delimitado, supuestos y vigencia. */
   propuesta?: {
     noIncluye?: string | null;
     supuestos?: string | null;
     vigenciaDias?: string | null;
-    peticionAccion?: "visita" | "piloto" | "orden_compra" | "";
   } | null;
   incluyeEnvio: boolean;
   resultado: ResultadoCotizacion;
@@ -397,12 +396,6 @@ function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal" | "de
 }
 
 /** Cómo se lee al cliente cada petición de acción del PNO (apartado 7.3.7). */
-const PETICIONES: Record<string, string> = {
-  visita: "Con gusto agendamos una visita a sus instalaciones para revisar juntos esta propuesta.",
-  piloto: "Quedamos en espera de la unidad piloto para ejecutarla y confirmar medidas y precio por volumen.",
-  orden_compra: "Quedamos en espera de su orden de compra para programar el trabajo.",
-};
-
 /**
  * "Precios sin IVA", lo que no incluye, supuestos, vigencia y petición de acción.
  * El PNO-COM-01 (7.3.3 y 7.3.6) obliga a delimitar el alcance y asentar las condiciones.
@@ -425,11 +418,6 @@ function cierreDeCotizacion(lienzo: Lienzo, datos: DatosPdf) {
   if (Number(propuesta?.vigenciaDias) > 0) {
     lienzo.espacio(6);
     lienzo.texto(`Vigencia de la propuesta: ${propuesta?.vigenciaDias} días naturales.`, { tamano: 8.5, color: COLOR.suave });
-  }
-  const peticion = propuesta?.peticionAccion ? PETICIONES[propuesta.peticionAccion] : null;
-  if (peticion) {
-    lienzo.espacio(6);
-    lienzo.texto(peticion, { tamano: 9, negrita: true });
   }
 
   lienzo.espacio(8);

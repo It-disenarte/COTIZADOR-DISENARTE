@@ -1,15 +1,15 @@
 import { ErrorHttp } from "@/lib/errores";
-import { type DatosMensajes, type Mensajes, redactarMensajes } from "@/lib/ia/mensajes";
+import { type Canal, type DatosMensajes, type Mensaje, redactarMensaje } from "@/lib/ia/mensajes";
 import type { EntradaCotizacion } from "@/lib/motor";
 import type { UsuarioSesion } from "@/lib/permisos";
 import { exigirResultado, obtenerCotizacion } from "./cotizaciones";
 
 /**
- * Redacta el correo (Fase 2) y el mensaje de WhatsApp (Fase 3) de una cotización.
+ * Redacta el mensaje con el que se manda la propuesta, por correo o por WhatsApp (el vendedor elige).
  * Los datos salen de la versión guardada, no de lo que mande el navegador, y solo se
  * permite con el análisis ya autorizado: el PNO prohíbe comunicar precios antes de eso.
  */
-export async function mensajesDeCotizacion(actor: UsuarioSesion | null, id: string): Promise<Mensajes> {
+export async function mensajeDeCotizacion(actor: UsuarioSesion | null, id: string, canal: Canal): Promise<Mensaje> {
   const cotizacion = await obtenerCotizacion(actor, id);
   if (!cotizacion.autorizadaEn) {
     throw new ErrorHttp(
@@ -41,7 +41,6 @@ export async function mensajesDeCotizacion(actor: UsuarioSesion | null, id: stri
     noIncluye: entrada?.propuesta?.noIncluye ?? null,
     supuestos: entrada?.propuesta?.supuestos ?? null,
     vigenciaDias: entrada?.propuesta?.vigenciaDias == null ? null : String(entrada.propuesta.vigenciaDias),
-    peticionAccion: entrada?.propuesta?.peticionAccion || null,
     // Solo precios de venta: el desglose de costos no sale de la empresa (PNO 7.2 y 7.3.4).
     opciones: resultado.opciones.flatMap((opcion) =>
       opcion.variantes.map((v) => ({
@@ -56,5 +55,5 @@ export async function mensajesDeCotizacion(actor: UsuarioSesion | null, id: stri
     reventa: resultado.reventa.items.map((i) => ({ nombre: i.nombre, cantidad: i.cantidad, subtotal: i.subtotal })),
   };
 
-  return redactarMensajes(actor as UsuarioSesion, datos);
+  return redactarMensaje(actor as UsuarioSesion, datos, canal);
 }

@@ -1,6 +1,7 @@
-import { FileDown, FilePlus2 } from "lucide-react";
+import { FilePlus2 } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { BotonEliminar, BotonPdf } from "@/components/cotizador/acciones-cotizacion";
 import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge, Card } from "@/components/ui";
 import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
@@ -87,14 +88,9 @@ export default async function PaginaCotizaciones({ searchParams }: PageProps<"/c
                     <td className="px-4 py-3 text-right align-top">{c.total ? formatoMoneda(c.total) : "—"}</td>
                     <td className="px-4 py-3 text-right align-top">
                       <div className="flex flex-wrap justify-end gap-2">
-                      <BotonDuplicar id={c.id} folio={c.folio} />
-                      <a
-                        href={`/api/cotizaciones/${c.id}/pdf`}
-                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
-                        title="Descargar la propuesta"
-                      >
-                        <FileDown className="size-3.5" /> PDF
-                      </a>
+                        <BotonDuplicar id={c.id} folio={c.folio} />
+                        <BotonPdf id={c.id} />
+                        <BotonEliminar id={c.id} folio={c.folio} />
                       </div>
                     </td>
                   </tr>

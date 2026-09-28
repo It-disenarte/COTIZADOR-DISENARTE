@@ -33,10 +33,12 @@ const elegir = (valor: unknown, respaldo: unknown): Decimal => d((vacio(valor) ?
 function calcularLevantamiento(entrada: EntradaNormalizada) {
   const { areas, filas } = entrada.levantamiento;
 
+  // Casilla vacía = 0 (el asistente calcula con lo que hay en pantalla).
+  const valor = (v: unknown) => d(vacio(v) ? 0 : (v as never));
   const detalle = filas.map((fila) => {
-    const cantidades = fila.cantidades.map(d);
+    const cantidades = fila.cantidades.map(valor);
     const piezas = suma(cantidades);
-    const areaPieza = d(fila.anchoM).times(d(fila.altoM));
+    const areaPieza = valor(fila.anchoM).times(valor(fila.altoM));
     return { fila, cantidades, piezas, areaPieza, areaM2: piezas.times(areaPieza) };
   });
 
@@ -58,8 +60,8 @@ function calcularLevantamiento(entrada: EntradaNormalizada) {
       areaM2: money(areaM2),
       filas: detalle.map((f) => ({
         concepto: f.fila.concepto,
-        anchoM: d(f.fila.anchoM).toString(),
-        altoM: d(f.fila.altoM).toString(),
+        anchoM: valor(f.fila.anchoM).toString(),
+        altoM: valor(f.fila.altoM).toString(),
         cantidades: f.cantidades.map((c) => c.toString()),
         piezas: f.piezas.toString(),
         areaM2: money(f.areaM2),

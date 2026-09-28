@@ -71,7 +71,6 @@ export function ListaVerificacion({
     },
     { texto: "Vigencia de la propuesta capturada", ok: Number(entrada.propuesta?.vigenciaDias) > 0, obligatorio: false },
     { texto: "Tiempo de entrega capturado", ok: conTexto(entrada.tiempoEstimado), obligatorio: false },
-    { texto: "Petición de acción definida", ok: conTexto(entrada.propuesta?.peticionAccion), obligatorio: false },
     {
       texto: "Análisis de costos autorizado por el responsable",
       ok: autorizada,

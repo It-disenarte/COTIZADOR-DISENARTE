@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MODOS_COMPONENTE } from "@/lib/catalogo/constantes";
+import { PASO, type Pendiente, textoPendiente } from "@/lib/cotizador/pasos";
 import { decimal, decimalOpcional, textoOpcional, textoRequerido, urlOpcional, Uuid } from "./comunes";
 
 const entero = z.coerce.number().int().min(0).max(9999);
@@ -21,15 +22,18 @@ function esquemaEntrada(modo: "borrador" | "completa") {
     borrador ? z.union([z.literal(""), decimal(opciones)]) : decimal(opciones);
   const texto = (max: number, mensaje: string) => (borrador ? z.string().trim().max(max) : textoRequerido(max, mensaje));
   const minimo = (n: number) => (borrador ? 0 : n);
+  // En la tabla, una casilla vacía es cero: un concepto que no va en cierta área, o que se cobra por pieza.
+  const medida = (opciones: Parameters<typeof decimal>[0]) =>
+    borrador ? numero(opciones) : z.union([z.literal("").transform(() => "0"), decimal(opciones)]);
 
   const FilaLevantamiento = z.object({
     // Opcional: las cotizaciones anteriores no lo traen; el motor les asigna uno.
     id: IdLocal.optional(),
     concepto: texto(200, "Escribe el concepto."),
-    anchoM: numero({ min: 0 }),
-    altoM: numero({ min: 0 }),
+    anchoM: medida({ min: 0 }),
+    altoM: medida({ min: 0 }),
     cantidades: z
-      .array(numero({ min: 0 }))
+      .array(medida({ min: 0 }))
       .min(minimo(1), { error: "Captura al menos una cantidad." })
       .max(50),
   });
@@ -176,25 +180,33 @@ export const EntradaBorrador = esquemaEntrada("borrador");
 export type EntradaBorrador = z.infer<typeof EntradaBorrador>;
 
 /** Paso del asistente donde se captura cada parte de la entrada, para decir dónde falta algo. */
-const PASO_DE: Record<string, string> = {
-  levantamiento: "Levantamiento",
-  opciones: "Opciones",
-  tiempoEstimado: "Opciones",
-  incluyeEnvio: "Opciones",
-  operacion: "Operación",
-  sitio: "Operación",
-  reventa: "Reventa",
-};
+function pasoDeRuta(ruta: PropertyKey[]): number {
+  const [seccion, , campo] = ruta;
+  switch (seccion) {
+    case "levantamiento":
+      return PASO.levantamiento;
+    case "opciones":
+      // El nombre y la descripción de la opción se capturan en "Opciones y fotos"; sus insumos, en el levantamiento.
+      return campo === "nombre" || campo === "descripcion" ? PASO.opciones : PASO.levantamiento;
+    case "tiempoEstimado":
+    case "incluyeEnvio":
+      return PASO.opciones;
+    case "operacion":
+    case "sitio":
+      return PASO.operacion;
+    case "reventa":
+      return PASO.reventa;
+    default:
+      return PASO.resumen;
+  }
+}
 
-/**
- * Revisa si la entrada está completa para calcular. Devuelve null si lo está o, si no, el
- * primer pendiente dicho para el vendedor: "Levantamiento, fila 2: Escribe el concepto.".
- */
-export function pendienteDeEntrada(entrada: unknown): string | null {
+/** Primer pendiente para poder calcular, con el paso donde se captura. null si está completa. */
+export function problemaDeEntrada(entrada: unknown): Pendiente | null {
   const revision = EntradaCotizacion.safeParse(entrada);
   if (revision.success) return null;
   let [problema] = revision.error.issues;
-  if (!problema) return "Faltan datos por capturar.";
+  if (!problema) return { paso: PASO.resumen, mensaje: "Faltan datos por capturar." };
   let ruta = problema.path;
   // Las opciones aceptan dos formas; si no cuadra ninguna, el detalle útil es el de la actual.
   if (problema.code === "invalid_union" && problema.errors[0]?.[0]) {
@@ -202,8 +214,16 @@ export function pendienteDeEntrada(entrada: unknown): string | null {
     ruta = [...ruta, ...interno.path];
     problema = interno;
   }
-  const [seccion, ...resto] = ruta;
-  const paso = PASO_DE[String(seccion)] ?? "Resumen";
-  const fila = resto[0] === "filas" && typeof resto[1] === "number" ? `, fila ${resto[1] + 1}` : "";
-  return `${paso}${fila}: ${problema.message}`;
+  const [, subseccion, indice] = ruta;
+  const fila = subseccion === "filas" && typeof indice === "number" ? `Concepto ${indice + 1}: ` : "";
+  return { paso: pasoDeRuta(ruta), mensaje: `${fila}${problema.message}` };
+}
+
+/**
+ * Revisa si la entrada está completa para calcular. Devuelve null si lo está o, si no, el
+ * primer pendiente dicho para el vendedor: "Levantamiento y materiales: Concepto 2: Escribe el concepto.".
+ */
+export function pendienteDeEntrada(entrada: unknown): string | null {
+  const problema = problemaDeEntrada(entrada);
+  return problema ? textoPendiente(problema) : null;
 }

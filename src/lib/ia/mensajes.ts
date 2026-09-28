@@ -4,55 +4,68 @@ import type { UsuarioSesion } from "@/lib/permisos";
 import { consultarGemini } from "./gemini";
 
 /**
- * Redacta la comunicación al cliente conforme al PNO-COM-01:
- *   Fase 2 (7.3) — correo formal con la propuesta.
- *   Fase 3 (7.4) — mensaje breve de WhatsApp, sin cifras, con una pregunta técnica.
+ * Redacta la comunicación con la que se manda la propuesta al cliente (PNO-COM-01, 7.3). Hay dos
+ * canales independientes, correo o WhatsApp: el vendedor elige por dónde la manda y cada mensaje
+ * se sostiene solo, sin dar por hecho que se mandó el otro.
  * Los datos salen de la cotización ya autorizada: la IA solo redacta, no calcula.
  */
 
-const MensajesIa = z.object({
+export const CANALES = ["correo", "whatsapp"] as const;
+export type Canal = (typeof CANALES)[number];
+
+const CorreoIa = z.object({
   asunto: z.string().trim().min(1).max(200),
   correo: z.string().trim().min(1).max(4000),
-  whatsapp: z.string().trim().min(1).max(1200),
-  preguntaTecnica: z.string().trim().max(300),
+});
+const WhatsappIa = z.object({
+  whatsapp: z.string().trim().min(1).max(1500),
 });
 
-export type Mensajes = z.infer<typeof MensajesIa>;
+export type Mensaje = ({ canal: "correo" } & z.infer<typeof CorreoIa>) | ({ canal: "whatsapp" } & z.infer<typeof WhatsappIa>);
 
-const ESQUEMA = {
+const ESQUEMA_CORREO = {
   type: "object",
   properties: {
     asunto: { type: "string", description: "Asunto del correo, con el concepto y la empresa." },
     correo: { type: "string", description: "Cuerpo del correo en texto plano, con saltos de línea." },
-    whatsapp: { type: "string", description: "Mensaje de WhatsApp, un párrafo breve, sin cifras." },
-    preguntaTecnica: { type: "string", description: "La pregunta concreta que se le hace al cliente." },
   },
-  required: ["asunto", "correo", "whatsapp", "preguntaTecnica"],
+  required: ["asunto", "correo"],
+};
+const ESQUEMA_WHATSAPP = {
+  type: "object",
+  properties: { whatsapp: { type: "string", description: "Mensaje de WhatsApp en texto plano, con saltos de línea." } },
+  required: ["whatsapp"],
 };
 
-const INSTRUCCIONES = `Redactas la comunicación comercial de Diseñarte México (San Juan del Río, Querétaro) siguiendo su
+const REGLAS_COMUNES = `Redactas la comunicación comercial de Diseñarte México (San Juan del Río, Querétaro) siguiendo su
 procedimiento PNO-COM-01. Escribes en español de México, en tono cálido y profesional, de usted.
-
-CORREO (Fase 2):
 - Dirígete al contacto por su nombre y su puesto cuando los tengas.
-- Estructura: saludo; concepto del trabajo; descripción (material, medidas, colores, diseño e instalación);
-  lo que NO incluye, dicho de forma clara; las modalidades cuando haya más de una, cada una con su precio;
-  las condiciones comerciales (vigencia, tiempo de entrega, forma de pago) y los supuestos; y el cierre con la
-  petición de acción que te indiquen.
-- Los precios que te doy son de venta. Muéstralos tal cual: subtotal, IVA y total. NUNCA menciones costos, márgenes,
-  utilidades ni cómo se calculó el precio: eso es información interna.
+- Los precios que te doy son de venta. Muéstralos tal cual. NUNCA menciones costos, márgenes, utilidades ni cómo
+  se calculó el precio: eso es información interna.
 - Menciona que la propuesta detallada va adjunta en PDF.
-- Cierra con "Quedo atento a sus comentarios." y la firma del asesor con el nombre de la empresa.
 - No inventes materiales, garantías, plazos ni descuentos que no estén en los datos.
+- No des por hecho que el cliente recibió otro mensaje: este mensaje es por sí solo el envío de la propuesta.`;
 
-WHATSAPP (Fase 3):
-- Un párrafo breve; no repite el correo ni lo resume entero.
-- Avisa que ya se envió la propuesta por correo.
-- Enuncia las modalidades en una línea cada una, SIN cifras de ningún tipo.
-- Incluye una pregunta técnica concreta que el cliente deba responder (algo pendiente de confirmar: medidas,
-  material, accesos, modelo de la unidad, fecha). La misma pregunta va en "preguntaTecnica".
-- Reitera la petición de acción en términos coloquiales.
-Responde solo con el JSON pedido.`;
+const INSTRUCCIONES: Record<Canal, string> = {
+  correo: `${REGLAS_COMUNES}
+
+CORREO:
+- Estructura: saludo; concepto del trabajo; descripción (material, medidas, colores, diseño e instalación);
+  lo que NO incluye, dicho de forma clara; las opciones o modalidades cuando haya más de una, cada una con su
+  subtotal, IVA y total; las condiciones comerciales (vigencia, tiempo de entrega) y los supuestos.
+- Cierra invitando a resolver cualquier duda, con "Quedo atento a sus comentarios." y la firma del asesor con el
+  nombre de la empresa.
+Responde solo con el JSON pedido.`,
+  whatsapp: `${REGLAS_COMUNES}
+
+WHATSAPP:
+- Breve y fácil de leer en el celular: saludo con su nombre, el concepto en una línea, y una línea por cada opción
+  o modalidad con su total con IVA incluido.
+- Agrega el tiempo de entrega y la vigencia si los tengo, y lo que NO incluye en una frase si lo hay.
+- Cierra invitándolo a resolver dudas por este medio y firma con el nombre del asesor y de la empresa.
+- Sin viñetas de Markdown ni negritas con asteriscos dobles; puedes usar saltos de línea y guiones simples.
+Responde solo con el JSON pedido.`,
+};
 
 export type DatosMensajes = {
   folio: string;
@@ -73,19 +86,12 @@ export type DatosMensajes = {
   noIncluye: string | null;
   supuestos: string | null;
   vigenciaDias: string | null;
-  peticionAccion: string | null;
   /** Solo precios de venta: el desglose de costos jamás sale de la empresa. */
   opciones: { nombre: string; descripcion: string | null; modalidad: string; subtotal: string; iva: string; total: string }[];
   reventa: { nombre: string; cantidad: string; subtotal: string }[];
 };
 
-const PETICIONES: Record<string, string> = {
-  visita: "Solicitar una visita a sus instalaciones o una reunión para revisar la propuesta.",
-  piloto: "Solicitar el ingreso de la pieza piloto para ejecutarla.",
-  orden_compra: "Solicitar la orden de compra.",
-};
-
-export async function redactarMensajes(actor: UsuarioSesion, datos: DatosMensajes): Promise<Mensajes> {
+export async function redactarMensaje(actor: UsuarioSesion, datos: DatosMensajes, canal: Canal): Promise<Mensaje> {
   const dinero = (valor: string) => `$${Number(valor).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
   const texto = [
     `Folio: ${datos.folio}`,
@@ -102,7 +108,6 @@ export async function redactarMensajes(actor: UsuarioSesion, datos: DatosMensaje
     datos.noIncluye ? `NO incluye: ${datos.noIncluye}` : null,
     datos.supuestos ? `Supuestos: ${datos.supuestos}` : null,
     datos.vigenciaDias ? `Vigencia: ${datos.vigenciaDias} días naturales` : null,
-    datos.peticionAccion ? `Petición de acción: ${PETICIONES[datos.peticionAccion] ?? datos.peticionAccion}` : null,
     "",
     "PRECIOS DE VENTA (los únicos que se pueden mostrar):",
     ...datos.opciones.map(
@@ -117,14 +122,26 @@ export async function redactarMensajes(actor: UsuarioSesion, datos: DatosMensaje
     .filter((linea) => linea !== null)
     .join("\n");
 
-  const { datos: mensajes } = await consultarGemini({
+  const consulta = {
     actor,
-    tarea: "mensajes",
-    instrucciones: INSTRUCCIONES,
+    tarea: "mensajes" as const,
     partes: [{ text: texto }],
-    esquemaJson: ESQUEMA,
-    esquemaZod: MensajesIa,
-    resumenEntrada: { folio: datos.folio, opciones: datos.opciones.length },
+    resumenEntrada: { folio: datos.folio, canal, opciones: datos.opciones.length },
+  };
+  if (canal === "correo") {
+    const { datos: correo } = await consultarGemini({
+      ...consulta,
+      instrucciones: INSTRUCCIONES.correo,
+      esquemaJson: ESQUEMA_CORREO,
+      esquemaZod: CorreoIa,
+    });
+    return { canal, ...correo };
+  }
+  const { datos: whatsapp } = await consultarGemini({
+    ...consulta,
+    instrucciones: INSTRUCCIONES.whatsapp,
+    esquemaJson: ESQUEMA_WHATSAPP,
+    esquemaZod: WhatsappIa,
   });
-  return mensajes;
+  return { canal, ...whatsapp };
 }

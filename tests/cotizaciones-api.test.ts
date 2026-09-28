@@ -247,7 +247,7 @@ describe("Borradores: se guardan con los datos del paso 1", () => {
     const datos = await res.json();
     expect(datos.folio).toMatch(/^COT-/);
     expect(datos.resultado).toBeNull();
-    expect(datos.pendiente).toMatch(/^Levantamiento: Nombra el área/);
+    expect(datos.pendiente).toMatch(/^Levantamiento y materiales: Nombra el área/);
 
     // Al abrirlo de nuevo, vuelve tal cual se dejó para seguir capturando.
     const abierta = await rutaCotizacion.GET(peticion(`/api/cotizaciones/${datos.id}`, { cookie: cookieVentas }), ctxId(datos.id));
@@ -310,5 +310,60 @@ describe("Cotizaciones con la forma anterior (una receta por opción)", () => {
     expect(opcion.id).toBe(recetaEstireno);
     expect(opcion.nombre).toBe("Estireno cal. 40 + impresión");
     for (const fila of entrada.levantamiento.filas) expect(opcion.materiales[fila.id]).toHaveLength(2);
+  });
+});
+
+describe("Eliminar una cotización", () => {
+  const crear = async (cookie = cookieVentas) =>
+    (
+      await (
+        await rutaCotizaciones.POST(
+          peticion("/api/cotizaciones", { metodo: "POST", cookie, cuerpo: cotizacionGandhi(recetaEstireno) }),
+          undefined,
+        )
+      ).json()
+    ).id as string;
+  const eliminar = (id: string, cookie: string) =>
+    rutaCotizacion.DELETE(peticion(`/api/cotizaciones/${id}`, { metodo: "DELETE", cookie }), ctxId(id));
+
+  it("quien la hizo la borra para siempre, con todo lo que tenía guardado", async () => {
+    const id = await crear();
+    expect((await eliminar(id, cookieVentas)).status).toBe(204);
+    expect(await db.select().from(cotizaciones).where(eq(cotizaciones.id, id))).toHaveLength(0);
+    expect(await db.select().from(cotizacionVersiones).where(eq(cotizacionVersiones.cotizacionId, id))).toHaveLength(0);
+  });
+
+  it("otro vendedor no puede borrar una cotización ajena", async () => {
+    const id = await crear();
+    expect((await eliminar(id, cookieOtroVentas)).status).toBe(403);
+    expect(await db.select().from(cotizaciones).where(eq(cotizaciones.id, id))).toHaveLength(1);
+  });
+});
+
+describe("Avisos y datos que llegan incompletos del navegador", () => {
+  it("guarda las condiciones de la propuesta aunque solo se haya escrito una (antes fallaba al autorizar)", async () => {
+    const cuerpo = cotizacionGandhi(recetaEstireno) as ReturnType<typeof cotizacionGandhi> & { entrada: { propuesta?: unknown } };
+    cuerpo.entrada.propuesta = { noIncluye: "No incluye obra civil." };
+    const res = await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo }), undefined);
+    expect(res.status).toBe(201);
+    expect((await res.json()).resultado).not.toBeNull();
+  });
+
+  it("si a un concepto le faltan insumos, dice en qué paso se agregan", async () => {
+    const cuerpo = cotizacionGandhi(recetaEstireno) as unknown as {
+      entrada: { levantamiento: { filas: object[] }; opciones: object[] };
+    };
+    cuerpo.entrada.levantamiento.filas = [{ id: "letrero", concepto: "Letrero", anchoM: "1", altoM: "1", cantidades: ["1", "", ""] }];
+    cuerpo.entrada.opciones = [{ id: "o1", nombre: "Opción 1", materiales: {} }];
+    const res = await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo }), undefined);
+    expect((await res.json()).pendiente).toBe(
+      'Levantamiento y materiales: "Letrero" no tiene insumos en "Opción 1". Agrégaselos en el paso Levantamiento.',
+    );
+  });
+
+  it("las fechas se muestran en hora del centro de México, aunque el servidor esté en UTC", async () => {
+    const { formatoFechaHora } = await import("@/lib/formato");
+    // 17:34 UTC = 11:34 a. m. en San Juan del Río.
+    expect(formatoFechaHora(new Date("2026-09-28T17:34:00Z"))).toMatch(/11:34/);
   });
 });

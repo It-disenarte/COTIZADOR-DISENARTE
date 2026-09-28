@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AsistenteCotizacion } from "@/components/cotizador/asistente";
+import { BotonEliminar } from "@/components/cotizador/acciones-cotizacion";
 import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge } from "@/components/ui";
 import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
@@ -55,8 +56,9 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
           <Badge variant={cotizacion.estado === "ganada" ? "success" : cotizacion.estado === "perdida" ? "destructive" : "default"}>
             {ETIQUETA_ESTADO[cotizacion.estado]}
           </Badge>
-          <div className="ml-auto">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <BotonDuplicar id={cotizacion.id} folio={cotizacion.folio} />
+            <BotonEliminar id={cotizacion.id} folio={cotizacion.folio} alEliminar="volver" />
           </div>
         </div>
         <p className="font-mono text-xs text-muted-foreground">{cotizacion.folio}</p>

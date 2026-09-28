@@ -98,3 +98,24 @@
     background-image: linear-gradient(90deg, var(--marca-turquesa), var(--marca-magenta));
   }
 }
+
+/*
+ * Pantalla de carga: aparece con un pequeño retraso para que una operación rápida no la haga
+ * parpadear; si tarda, entra suave en lugar de cambiar de golpe.
+ */
+@keyframes aparecer-carga {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.aparecer-carga {
+  animation: aparecer-carga 220ms ease-out 180ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aparecer-carga {
+    animation-duration: 1ms;
+  }
+}

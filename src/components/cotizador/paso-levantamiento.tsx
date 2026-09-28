@@ -69,6 +69,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
   const [filaElegida, setFilaElegida] = useState<string | null>(filas[0]?.id ?? null);
   const [pegado, setPegado] = useState<string | null>(null);
   const [filaEncima, setFilaEncima] = useState<string | null>(null);
+  const [opcionPorQuitar, setOpcionPorQuitar] = useState<string | null>(null);
 
   const editarEntrada = (transformar: (e: BorradorCotizacion["entrada"]) => BorradorCotizacion["entrada"]) =>
     cambiar((b) => ({ ...b, entrada: transformar(b.entrada) }));
@@ -133,6 +134,13 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
     });
   }
 
+  function quitarOpcion(id: string) {
+    const indice = opciones.findIndex((o) => o.id === id);
+    editarEntrada((e) => ({ ...e, opciones: e.opciones.filter((o) => o.id !== id) }));
+    setOpcionPorQuitar(null);
+    if (indice !== -1 && indice <= activa) setIndiceOpcion(Math.max(activa - 1, 0));
+  }
+
   function agregarOpcion() {
     // La opción nueva parte de la actual: solo se cambia lo que sea distinto.
     const base = opcion;
@@ -153,19 +161,49 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
       <div className="min-w-0 space-y-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            {opciones.map((o, i) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setIndiceOpcion(i)}
-                className={cn(
-                  "rounded-full border px-4 py-1.5 text-sm transition-colors",
-                  i === activa ? "border-primary bg-primary/10 font-medium text-primary" : "bg-card hover:bg-muted",
-                )}
-              >
-                {o.nombre || `Opción ${i + 1}`}
-              </button>
-            ))}
+            {opciones.map((o, i) =>
+              opcionPorQuitar === o.id ? (
+                <span
+                  key={o.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/5 py-1 pl-3 pr-1 text-sm"
+                >
+                  ¿Quitar “{o.nombre || `Opción ${i + 1}`}” y sus insumos?
+                  <button
+                    type="button"
+                    onClick={() => quitarOpcion(o.id)}
+                    className="rounded-full px-2 py-0.5 font-medium text-destructive hover:bg-destructive/10"
+                  >
+                    Sí, quitar
+                  </button>
+                  <button type="button" onClick={() => setOpcionPorQuitar(null)} className="rounded-full px-2 py-0.5 hover:bg-muted">
+                    No
+                  </button>
+                </span>
+              ) : (
+                <span
+                  key={o.id}
+                  className={cn(
+                    "inline-flex items-center rounded-full border text-sm transition-colors",
+                    i === activa ? "border-primary bg-primary/10 font-medium text-primary" : "bg-card hover:bg-muted",
+                  )}
+                >
+                  <button type="button" onClick={() => setIndiceOpcion(i)} className={cn("py-1.5 pl-4", opciones.length > 1 ? "pr-1" : "pr-4")}>
+                    {o.nombre || `Opción ${i + 1}`}
+                  </button>
+                  {opciones.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setOpcionPorQuitar(o.id)}
+                      title="Quitar esta opción"
+                      aria-label={`Quitar ${o.nombre || `la opción ${i + 1}`}`}
+                      className="mr-1 rounded-full p-1 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </span>
+              ),
+            )}
             <button
               type="button"
               onClick={agregarOpcion}
@@ -177,7 +215,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
           <p className="text-xs text-muted-foreground">
             Casi siempre basta con una opción. Si el cliente quiere comparar materiales, agrega otra: se copian los
             insumos de la opción actual y cambias solo lo que sea distinto. Cada opción es una página del PDF; su
-            nombre y su foto se capturan en el paso siguiente.
+            nombre y su foto se capturan en el paso siguiente. Si agregaste una de más, quítala con la ×.
           </p>
         </div>
 

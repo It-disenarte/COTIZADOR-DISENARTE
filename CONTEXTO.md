@@ -38,8 +38,8 @@ Lo esencial, ya implementado y cubierto por `tests/pno.test.ts`:
   muestra en el paso Resumen.
 - **Punto de control de la Fase 1:** ninguna comunicación al cliente sin **autorización** del responsable. Sin
   ella, el PDF y los mensajes responden 409. Cualquier edición posterior borra la autorización.
-- **Fase 2:** la propuesta debe decir expresamente **lo que no incluye**, los supuestos, la vigencia y una
-  petición de acción acorde a la etapa (visita / pieza piloto / orden de compra).
+- **Fase 2:** la propuesta debe decir expresamente **lo que no incluye**, los supuestos y la vigencia. (La
+  petición de acción del PNO se quitó por decisión del dueño; ver apartado 7.)
 - **Nunca sale el desglose de costos al cliente.** Solo precios de venta. Hay pruebas que lo verifican.
 - **Unidades de venta (apartado 9):** rotulación y corte de vinil por **metro lineal**; lona, impresión y
   sustratos por **m²**; láser por **minuto**; tarjetas por **ciento/millar**; cursos por **persona**.
@@ -156,6 +156,10 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | pdf-lib en vez de Playwright | Chromium pesa ~50 MB y arranca lento en serverless |
 | OpenStreetMap en vez de Google Maps | No quiere crear cuentas ni registrar tarjeta |
 | Margen de error absorbe indirectos | No hay merma explícita; todo va en el 30% |
+| Sin "petición de acción" en la propuesta | El dueño la quitó (sept. 2026) aunque el PNO la menciona; no sale en PDF ni mensajes |
+| Sin escenario "piloto y volumen" en pantalla | El dueño lo quitó (sept. 2026); el motor lo sigue calculando para cotizaciones anteriores |
+| Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
+| Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |
 
 ---
 
@@ -179,8 +183,8 @@ Detalles que costaron trabajo y conviene no volver a descubrir:
 
 ### Gemini (`src/lib/ia/`)
 
-Cinco tareas: leer levantamiento, precio de reventa, redactar alcance, leer listas de costos y redactar los
-mensajes al cliente. Reglas que ya están aplicadas:
+Cinco tareas: leer levantamiento, precio de reventa, redactar alcance, leer listas de costos y redactar el
+mensaje para mandar la propuesta (correo o WhatsApp, cada uno con su botón). Reglas que ya están aplicadas:
 
 - Todo se pide con **esquema JSON** y se valida con Zod; si no cumple, se muestra error y se captura a mano.
 - **Nunca** se llama sola: siempre por un botón.
@@ -223,6 +227,9 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 ## 11. Cómo trabajar en este proyecto
 
 - **Todo en español**: nombres de variables, funciones, comentarios, mensajes de error y textos de pantalla.
+- **Fechas siempre en hora del centro de México** (`ZONA_HORARIA` en `src/lib/formato.ts`): Vercel corre en UTC.
+- Toda espera del servidor muestra `PantallaCarga` (`src/components/pantalla-carga.tsx`); lo que falta para
+  calcular se avisa con el paso donde se captura (`src/lib/cotizador/pasos.ts`).
 - Los comentarios explican **por qué**, no qué. Si algo se hizo raro por una limitación externa, se documenta.
 - **Cada campo que pueda confundir lleva su texto de ayuda** debajo. Es petición expresa del dueño.
 - Los mensajes de error se escriben para el vendedor, no para el programador: dicen qué hacer.

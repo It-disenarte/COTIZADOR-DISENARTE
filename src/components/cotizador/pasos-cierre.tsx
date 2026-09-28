@@ -4,10 +4,8 @@ import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { type BorradorCotizacion, num, txt } from "@/lib/cotizador/estado";
 import { formatoFraccion, formatoMoneda } from "@/lib/formato";
-import type { EntradaCotizacion, ResultadoCotizacion, Snapshot } from "@/lib/motor";
+import type { ResultadoCotizacion, Snapshot } from "@/lib/motor";
 
-type PeticionAccion = NonNullable<NonNullable<EntradaCotizacion["propuesta"]>["peticionAccion"]>;
-type Modalidades = EntradaCotizacion["presentacion"]["modalidades"];
 import { cn } from "@/lib/utils";
 import { BuscarPrecio, RedactarAlcance } from "./ia";
 import { ListaVerificacion } from "./lista-verificacion";
@@ -409,6 +407,9 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
             >
               <option value="solo_una">Una sola</option>
               <option value="A_y_B">A) Suministro y B) Suministro e instalación</option>
+              {borrador.entrada.presentacion.modalidades === "piloto_y_volumen" && (
+                <option value="piloto_y_volumen">Unidad piloto y precio por volumen (cotización anterior)</option>
+              )}
             </Select>
             <p className="text-xs text-muted-foreground">
               A y B muestra dos precios en el PDF para que el cliente elija: solo comprar el material, o comprarlo
@@ -541,9 +542,22 @@ export function PasoResumen({
   cambiar,
   resultado,
   autorizada = false,
-}: Props & { resultado: ResultadoCotizacion | null; autorizada?: boolean }) {
+  pendiente,
+}: Props & {
+  resultado: ResultadoCotizacion | null;
+  autorizada?: boolean;
+  /** Aviso de lo que falta para calcular, con su botón para ir al paso. */
+  pendiente?: React.ReactNode;
+}) {
   if (!resultado) {
-    return <p className="text-sm text-muted-foreground">Completa los pasos anteriores para ver el resumen.</p>;
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          El análisis de costos se arma en cuanto la cotización esté completa. Esto es lo que falta:
+        </p>
+        {pendiente ?? <p className="text-sm text-muted-foreground">Cargando el catálogo…</p>}
+      </div>
+    );
   }
 
   const descuento = borrador.entrada.ajustes.descuentoDecisionRapida;
@@ -576,69 +590,10 @@ export function PasoResumen({
       <Card>
         <CardContent className="space-y-4 pt-6">
           <div>
-            <h3 className="font-medium">Escenarios que se presentan</h3>
-            <p className="text-sm text-muted-foreground">
-              El PNO (7.2.13) pide un segundo escenario cuando hay volumen: el mismo trabajo con el diseño
-              repartido entre todas las unidades, para que el cliente compare la pieza piloto contra el proyecto
-              completo.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="modalidades">Modalidades</Label>
-              <Select
-                id="modalidades"
-                value={entrada.presentacion.modalidades}
-                onChange={(e) =>
-                  cambiar((b) => ({
-                    ...b,
-                    entrada: {
-                      ...b.entrada,
-                      presentacion: { ...b.entrada.presentacion, modalidades: e.target.value as Modalidades },
-                    },
-                  }))
-                }
-              >
-                <option value="solo_una">Una sola propuesta</option>
-                <option value="A_y_B">A) Suministro y B) Suministro con instalación</option>
-                <option value="piloto_y_volumen">A) Unidad piloto y B) Precio por volumen</option>
-              </Select>
-            </div>
-            {entrada.presentacion.modalidades === "piloto_y_volumen" && (
-              <div className="space-y-2">
-                <Label htmlFor="unidades-volumen">Unidades del proyecto completo</Label>
-                <Input
-                  id="unidades-volumen"
-                  inputMode="numeric"
-                  value={txt(entrada.presentacion.unidadesVolumen)}
-                  onChange={(e) =>
-                    cambiar((b) => ({
-                      ...b,
-                      entrada: {
-                        ...b.entrada,
-                        presentacion: { ...b.entrada.presentacion, unidadesVolumen: e.target.value },
-                      },
-                    }))
-                  }
-                  placeholder="25"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Entre cuántas unidades se reparte el diseño. Recuerda que el PNO prohíbe comprometer el precio
-                  por volumen antes de ejecutar la pieza piloto: es la que confirma el metraje real.
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div>
             <h3 className="font-medium">Condiciones de la propuesta</h3>
             <p className="text-sm text-muted-foreground">
               El PNO-COM-01 (7.3) pide delimitar por escrito lo que no está incluido, dejar asentados los supuestos
-              y cerrar con una petición de acción. Todo esto sale impreso en el PDF.
+              y la vigencia. Todo esto sale impreso en el PDF.
             </p>
           </div>
 
@@ -680,22 +635,8 @@ export function PasoResumen({
                 onChange={(e) => editarPropuesta({ vigenciaDias: e.target.value })}
                 placeholder="15"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="peticion">Petición de acción</Label>
-              <Select
-                id="peticion"
-                value={txt(entrada.propuesta?.peticionAccion)}
-                onChange={(e) => editarPropuesta({ peticionAccion: e.target.value as PeticionAccion })}
-              >
-                <option value="">Sin petición</option>
-                <option value="visita">Cliente nuevo: solicitar una visita</option>
-                <option value="piloto">Proyecto con piloto: solicitar la unidad piloto</option>
-                <option value="orden_compra">Cliente consolidado: solicitar la orden de compra</option>
-              </Select>
               <p className="text-xs text-muted-foreground">
-                El PNO advierte que pedir la orden de compra a quien todavía no ha visto un trabajo terminado
-                adelanta la negociación y baja la probabilidad de cierre.
+                Días naturales que se sostiene el precio. Sale impresa en el PDF.
               </p>
             </div>
           </div>

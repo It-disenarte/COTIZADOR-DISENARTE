@@ -2,8 +2,11 @@
 
 const moneda = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 2 });
 const numero = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 4 });
-const fechaCorta = new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" });
-const fechaHora = new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" });
+// Siempre en hora del centro de México: las pantallas se arman en el servidor de Vercel, que
+// trabaja en UTC, y sin esto una cotización de las 11:34 a.m. aparecía guardada a las 5:34 p.m.
+export const ZONA_HORARIA = "America/Mexico_City";
+const fechaCorta = new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeZone: ZONA_HORARIA });
+const fechaHora = new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: ZONA_HORARIA });
 
 export const SIN_DATO = "Por capturar";
 

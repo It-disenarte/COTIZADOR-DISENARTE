@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { leerJson, manejador } from "@/lib/api";
 import { requireSesion } from "@/lib/sesion";
-import { cambiarEstadoCotizacion, guardarCotizacion, obtenerCotizacion } from "@/lib/servicios/cotizaciones";
+import { cambiarEstadoCotizacion, eliminarCotizacion, guardarCotizacion, obtenerCotizacion } from "@/lib/servicios/cotizaciones";
 import { CambiarEstado, GuardarCotizacion } from "@/lib/validacion/cotizaciones";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -25,4 +25,12 @@ export const PATCH = manejador<Ctx>(async (req, { params }) => {
   const { id } = await params;
   const { estado } = await leerJson(req, CambiarEstado);
   return NextResponse.json({ cotizacion: await cambiarEstadoCotizacion(usuario, id, estado) });
+});
+
+// Borrado definitivo, con sus fotos. No se puede deshacer: la pantalla pide confirmarlo.
+export const DELETE = manejador<Ctx>(async (req, { params }) => {
+  const { usuario } = await requireSesion(req.headers);
+  const { id } = await params;
+  await eliminarCotizacion(usuario, id);
+  return new NextResponse(null, { status: 204 });
 });

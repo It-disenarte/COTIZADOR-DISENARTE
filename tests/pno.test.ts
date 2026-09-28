@@ -220,7 +220,7 @@ describe("Punto de control de la Fase 1: autorización antes de comunicar precio
     expect(res.status).toBe(409);
     const cuerpo = await res.json();
     expect(cuerpo.codigo).toBe("COTIZACION_INCOMPLETA");
-    expect(cuerpo.error).toContain("Opciones: Agrega al menos una opción de material.");
+    expect(cuerpo.error).toContain("Levantamiento y materiales: Agrega al menos una opción de material.");
 
     const [fila] = await db.select().from(cotizaciones).where(eq(cotizaciones.id, id));
     expect(fila.autorizadaEn).toBeNull();
@@ -244,11 +244,11 @@ describe("Punto de control de la Fase 1: autorización antes de comunicar precio
   });
 });
 
-describe("Fases 2 y 3: correo y mensaje de WhatsApp", () => {
+describe("Mandar la propuesta: por correo o por WhatsApp, cada uno por su lado", () => {
   const rutaMensajes = () => import("@/app/api/cotizaciones/[id]/mensajes/route");
-  const pedirMensajes = async (id: string, cookie = cookieVentas) => {
+  const pedirMensajes = async (id: string, canal: "correo" | "whatsapp" = "correo", cookie = cookieVentas) => {
     const ruta = await rutaMensajes();
-    return ruta.POST(peticion(`/api/cotizaciones/${id}/mensajes`, { metodo: "POST", cookie, cuerpo: {} }), ctxId(id));
+    return ruta.POST(peticion(`/api/cotizaciones/${id}/mensajes`, { metodo: "POST", cookie, cuerpo: { canal } }), ctxId(id));
   };
 
   it("sin autorización no se redacta nada: el PNO prohíbe comunicar precios antes", async () => {
@@ -272,20 +272,16 @@ describe("Fases 2 y 3: correo y mensaje de WhatsApp", () => {
     await autorizar(id, cookieAdmin);
 
     generar.mockResolvedValue({
-      text: JSON.stringify({
-        asunto: "Propuesta de señalética · Gandhi",
-        correo: "Estimada Claudia P., Jefa de Compras: ...",
-        whatsapp: "Le acabo de enviar la propuesta por correo...",
-        preguntaTecnica: "¿Las tres áreas usan el mismo material?",
-      }),
+      text: JSON.stringify({ asunto: "Propuesta de señalética · Gandhi", correo: "Estimada Claudia P., Jefa de Compras: ..." }),
       candidates: [{}],
     });
 
     const res = await pedirMensajes(id);
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    expect(await res.json()).toEqual({
+      canal: "correo",
       asunto: "Propuesta de señalética · Gandhi",
-      preguntaTecnica: "¿Las tres áreas usan el mismo material?",
+      correo: "Estimada Claudia P., Jefa de Compras: ...",
     });
 
     const [llamada] = generar.mock.calls[0] as [{ contents: { parts: { text: string }[] }[] }];
@@ -299,8 +295,39 @@ describe("Fases 2 y 3: correo y mensaje de WhatsApp", () => {
   });
 });
 
+describe("WhatsApp como canal propio para mandar la propuesta", () => {
+  it("redacta solo el WhatsApp, con los precios de venta y sin dar por hecho que hubo correo", async () => {
+    const id = await crearCotizacion(cotizacionGandhi(recetaId));
+    await autorizar(id, cookieAdmin);
+    generar.mockResolvedValue({
+      text: JSON.stringify({ whatsapp: "Buen día, Claudia. Le comparto la propuesta de señalética..." }),
+      candidates: [{}],
+    });
+
+    const ruta = await import("@/app/api/cotizaciones/[id]/mensajes/route");
+    const res = await ruta.POST(
+      peticion(`/api/cotizaciones/${id}/mensajes`, { metodo: "POST", cookie: cookieVentas, cuerpo: { canal: "whatsapp" } }),
+      ctxId(id),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ canal: "whatsapp", whatsapp: "Buen día, Claudia. Le comparto la propuesta de señalética..." });
+
+    const [llamada] = generar.mock.calls[0] as [{ contents: { parts: { text: string }[] }[]; config: { systemInstruction?: unknown } }];
+    expect(llamada.contents[0].parts[0].text).toContain("PRECIOS DE VENTA");
+    expect(JSON.stringify(llamada)).toContain("este mensaje es por sí solo el envío de la propuesta");
+    expect(generar).toHaveBeenCalledTimes(1);
+  });
+
+  it("pide elegir el canal", async () => {
+    const id = await crearCotizacion(cotizacionGandhi(recetaId));
+    const ruta = await import("@/app/api/cotizaciones/[id]/mensajes/route");
+    const res = await ruta.POST(peticion(`/api/cotizaciones/${id}/mensajes`, { metodo: "POST", cookie: cookieVentas, cuerpo: {} }), ctxId(id));
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("Fase 2: lo que la propuesta debe decir al cliente", () => {
-  it("imprime lo que no incluye, los supuestos, la vigencia y la petición de acción", async () => {
+  it("imprime lo que no incluye, los supuestos y la vigencia", async () => {
     const cuerpo = cotizacionGandhi(recetaId);
     cuerpo.cliente.puesto = "Jefa de Compras";
     cuerpo.entrada.sitio = { retiroGraficosPrevios: true, notasSuperficie: "Muro con pintura descarapelada." };
@@ -324,7 +351,6 @@ describe("Fase 2: lo que la propuesta debe decir al cliente", () => {
     expect(texto).toContain("Esta propuesta considera");
     expect(texto).toContain("Metraje estimado sujeto a verificación en sitio.");
     expect(texto).toContain("Vigencia de la propuesta: 15 días naturales.");
-    expect(texto).toContain("agendamos una visita a sus instalaciones");
     // 7.3.8: el contacto va con su nombre y su puesto; 7.1.7: se anuncia el retiro de gráficos previos.
     expect(texto).toContain("Jefa de Compras");
     expect(texto).toContain("Incluye el retiro y acondicionamiento de los gráficos previos.");

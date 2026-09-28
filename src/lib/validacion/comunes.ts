@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-const vacioANull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
+/**
+ * Vacío, null o ausente: todo cuenta como "sin dato". El navegador a veces manda el objeto con solo
+ * el campo que se editó (p. ej. las condiciones de la propuesta) y los demás llegan sin definir.
+ * Los esquemas parciales (.partial) no pasan por aquí cuando falta el campo: ahí sigue significando "sin cambio".
+ */
+const vacioANull = (v: unknown) => (v === undefined || (typeof v === "string" && v.trim() === "") ? null : v);
 
 /**
  * Número decimal validado y normalizado como string (así se guarda en numeric sin pasar por float).

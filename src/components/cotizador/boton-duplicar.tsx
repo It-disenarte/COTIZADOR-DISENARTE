@@ -3,6 +3,7 @@
 import { Copy, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PantallaCarga } from "@/components/pantalla-carga";
 import { llamarApi } from "@/lib/utils";
 
 /** Copia la cotización como borrador nuevo y abre la copia para editarla. */
@@ -25,6 +26,7 @@ export function BotonDuplicar({ id, folio }: { id: string; folio: string }) {
 
   return (
     <>
+      {ocupado && <PantallaCarga mensaje={`Duplicando ${folio}…`} />}
       <button
         type="button"
         onClick={duplicar}

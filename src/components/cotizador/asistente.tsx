@@ -3,17 +3,18 @@
 import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
+import { PASO, PASOS, type Pendiente, pasoDeErrorMotor } from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
 import { calcular, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
+import { problemaDeEntrada } from "@/lib/validacion/cotizacion";
 import { PasoLevantamiento } from "./paso-levantamiento";
 import { PasoOpciones } from "./paso-opciones";
 import { type ClienteOpcion, PasoDatos } from "./pasos-captura";
 import { PasoOperacion, PasoResumen, PasoReventa } from "./pasos-cierre";
-
-const PASOS = ["Datos", "Levantamiento y materiales", "Opciones y fotos", "Operación", "Reventa", "Resumen"] as const;
 
 type Props = {
   usuarioId: string;
@@ -45,6 +46,8 @@ export function AsistenteCotizacion({
   const [paso, setPaso] = useState(0);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [guardando, setGuardando] = useState(false);
+  /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
+  const [ocupado, setOcupado] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
   const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
@@ -57,13 +60,18 @@ export function AsistenteCotizacion({
       .catch(() => setMensaje({ tipo: "error", texto: "No se pudo cargar el catálogo." }));
   }, []);
 
-  const { resultado, errorCalculo } = useMemo(() => {
-    if (!snapshot || borrador.entrada.opciones.length === 0) return { resultado: null, errorCalculo: null };
+  // Lo primero que falta (con el paso donde se captura) o el resultado, si ya se puede calcular.
+  const { resultado, pendiente } = useMemo((): { resultado: ReturnType<typeof calcular> | null; pendiente: Pendiente | null } => {
+    if (!snapshot) return { resultado: null, pendiente: null };
+    const problema = problemaDeEntrada(borrador.entrada);
+    if (problema) return { resultado: null, pendiente: problema };
     try {
-      return { resultado: calcular(borrador.entrada as EntradaCotizacion, snapshot), errorCalculo: null };
+      return { resultado: calcular(borrador.entrada as EntradaCotizacion, snapshot), pendiente: null };
     } catch (error) {
-      const texto = error instanceof ErrorMotor ? error.message : "Faltan datos para calcular.";
-      return { resultado: null, errorCalculo: texto };
+      if (error instanceof ErrorMotor) {
+        return { resultado: null, pendiente: { paso: pasoDeErrorMotor(error.codigo), mensaje: error.message } };
+      }
+      return { resultado: null, pendiente: { paso: PASO.resumen, mensaje: "Faltan datos para calcular." } };
     }
   }, [borrador.entrada, snapshot]);
 
@@ -102,6 +110,7 @@ export function AsistenteCotizacion({
   async function autorizar() {
     const id = await guardar({ avisar: false });
     if (!id) return;
+    setOcupado("Autorizando el análisis…");
     try {
       const { autorizadaEn: fecha } = await llamarApi<{ autorizadaEn: string }>(
         `/api/cotizaciones/${id}/autorizar`,
@@ -113,6 +122,8 @@ export function AsistenteCotizacion({
       router.refresh();
     } catch (error) {
       setMensaje({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo autorizar." });
+    } finally {
+      setOcupado(null);
     }
   }
 
@@ -142,6 +153,7 @@ export function AsistenteCotizacion({
       await guardar({ avisar: false });
     }
     setPaso(Math.min(Math.max(destino, 0), PASOS.length - 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const cambiar = (transformacion: (b: BorradorCotizacion) => BorradorCotizacion) => {
@@ -174,6 +186,7 @@ export function AsistenteCotizacion({
           ))}
         </nav>
 
+        {(guardando || ocupado) && <PantallaCarga mensaje={ocupado ?? "Guardando…"} />}
         {mensaje && <Aviso tipo={mensaje.tipo}>{mensaje.texto}</Aviso>}
 
         {/* Punto de control del PNO-COM-01: sin autorización no se comunica ningún precio. */}
@@ -201,7 +214,13 @@ export function AsistenteCotizacion({
         {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
         {paso === 4 && <PasoReventa borrador={borrador} cambiar={cambiar} />}
         {paso === 5 && (
-          <PasoResumen borrador={borrador} cambiar={cambiar} resultado={resultado} autorizada={!!autorizadaEn} />
+          <PasoResumen
+            borrador={borrador}
+            cambiar={cambiar}
+            resultado={resultado}
+            autorizada={!!autorizadaEn}
+            pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} />}
+          />
         )}
 
         <div className="flex items-center justify-between gap-3 border-t pt-4">
@@ -245,15 +264,7 @@ export function AsistenteCotizacion({
               {borrador.folio && <p className="font-mono text-xs">{borrador.folio}</p>}
             </div>
 
-            {errorCalculo && (
-              <p className="flex items-start gap-2 text-sm text-destructive">
-                <TriangleAlert className="mt-0.5 size-4 shrink-0" /> {errorCalculo}
-              </p>
-            )}
-
-            {!errorCalculo && !primeraVariante && (
-              <p className="text-sm text-muted-foreground">Captura el levantamiento y ponle insumos a cada concepto.</p>
-            )}
+            {pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} />}
 
             {primeraVariante && (
               <div className="space-y-1 text-sm">
@@ -290,6 +301,33 @@ export function AsistenteCotizacion({
           </CardContent>
         </Card>
       </aside>
+    </div>
+  );
+}
+
+/** Lo que falta para calcular, con un botón para ir directo al paso donde se captura. */
+function AvisoPendiente({
+  pendiente,
+  pasoActual,
+  irAlPaso,
+}: {
+  pendiente: Pendiente;
+  pasoActual: number;
+  irAlPaso: (paso: number) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-accent/40 bg-accent/5 p-3 text-sm">
+      <p className="flex items-start gap-2">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-accent" />
+        <span>
+          <span className="font-medium">Falta en “{PASOS[pendiente.paso]}”:</span> {pendiente.mensaje}
+        </span>
+      </p>
+      {pendiente.paso !== pasoActual && (
+        <Button type="button" size="sm" variant="outline" onClick={() => irAlPaso(pendiente.paso)}>
+          Ir a {PASOS[pendiente.paso]} <ChevronRight />
+        </Button>
+      )}
     </div>
   );
 }

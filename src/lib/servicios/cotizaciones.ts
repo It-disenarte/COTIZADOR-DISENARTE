@@ -13,6 +13,7 @@ import {
   type Snapshot,
 } from "@/lib/motor";
 import { requirePermiso, requireVerCotizacion, tienePermiso, type UsuarioSesion } from "@/lib/permisos";
+import { pasoDeErrorMotor, textoPendiente } from "@/lib/cotizador/pasos";
 import { EntradaCotizacion, pendienteDeEntrada } from "@/lib/validacion/cotizacion";
 import type { GuardarCotizacion } from "@/lib/validacion/cotizaciones";
 import { exigirUuid, noEncontrado } from "./comun";
@@ -78,7 +79,9 @@ function intentarCalcular(entrada: unknown, snapshot: Snapshot): Calculo {
   try {
     return { resultado: calcular(completa.data as EntradaMotor, snapshot), pendiente: null };
   } catch (error) {
-    if (error instanceof ErrorMotor) return { resultado: null, pendiente: error.message };
+    if (error instanceof ErrorMotor) {
+      return { resultado: null, pendiente: textoPendiente({ paso: pasoDeErrorMotor(error.codigo), mensaje: error.message }) };
+    }
     throw error;
   }
 }
@@ -380,4 +383,18 @@ export async function cambiarEstadoCotizacion(actor: UsuarioSesion | null, id: s
 
   const [actualizada] = await db.update(cotizaciones).set({ estado }).where(eq(cotizaciones.id, id)).returning();
   return actualizada;
+}
+
+/**
+ * Borra una cotización para siempre, con sus datos y sus fotos (la base las borra en cascada).
+ * Solo quien la hizo, o quien puede ver las de todo el equipo. El cliente se conserva: puede
+ * estar en otras cotizaciones.
+ */
+export async function eliminarCotizacion(actor: UsuarioSesion | null, id: string) {
+  requirePermiso(actor, "cotizaciones.propias");
+  exigirUuid(id, "Cotización");
+  const [existente] = await db.select().from(cotizaciones).where(eq(cotizaciones.id, id));
+  if (!existente) noEncontrado("Cotización");
+  requireVerCotizacion(actor, { vendedorId: existente.vendedorId });
+  await db.delete(cotizaciones).where(eq(cotizaciones.id, id));
 }
