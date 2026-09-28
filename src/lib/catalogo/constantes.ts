@@ -34,19 +34,6 @@ export const ETIQUETA_FAMILIA: Record<FamiliaReceta, string> = {
  */
 export const MODOS_COMPONENTE = ["por_m2", "por_ml", "por_pieza", "fijo"] as const;
 export type ModoComponente = (typeof MODOS_COMPONENTE)[number];
-export const ETIQUETA_MODO: Record<ModoComponente, string> = {
-  por_m2: "Por m²",
-  por_ml: "Metros lineales por pieza",
-  por_pieza: "Por pieza",
-  fijo: "Cantidad total (a mano)",
-};
-/** Versión corta, para los chips de la tabla del levantamiento. */
-export const ETIQUETA_MODO_CORTA: Record<ModoComponente, string> = {
-  por_m2: "auto por m²",
-  por_ml: "ml por pieza",
-  por_pieza: "por pieza",
-  fijo: "total a mano",
-};
 
 export const ESTADOS_COTIZACION = ["borrador", "enviada", "ganada", "perdida"] as const;
 export type EstadoCotizacion = (typeof ESTADOS_COTIZACION)[number];

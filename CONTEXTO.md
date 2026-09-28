@@ -120,14 +120,16 @@ números aunque cambien los precios: el snapshot se guarda con cada versión.
 Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y fotos → Operación → Reventa → Resumen**.
 
 - El **cliente** se captura dentro de la cotización (no hay pantalla de clientes) y se guarda solo.
-- El **levantamiento** es una tabla: conceptos por filas, áreas por columnas (nombres editables en el
-  encabezado). Se puede pegar desde Excel o importar con IA. Si el material se cobra por pieza, se dejan ancho y
-  alto en 0.
+- El **levantamiento** es una tabla de conceptos con **una sola columna "Cantidad"**. Si algo va en varias áreas,
+  **cada área es un concepto distinto** ("Fotomural oficina", "Fotomural comedor"), aunque sean iguales. Se puede
+  pegar desde Excel o importar con IA: si el archivo reparte por áreas, cada área entra como concepto. Si el
+  material se cobra por pieza, se dejan ancho y alto en 0.
 - **Cada concepto lleva sus propios insumos**: se arrastran del catálogo a la fila (o se elige la fila y se
   presiona +). El costo de cada concepto sale de sus insumos y cada uno tiene **su propio precio unitario** y su
   fila en el PDF. Producción y, si se prorratea, la operación se reparten según el costo de cada concepto.
-- La cantidad de cada insumo es **automática por medidas** (`por_m2`: ancho × alto × piezas) o se escribe
-  **a mano como total** (`fijo` = "total a mano", p. ej. 2 láminas). También hay **metros lineales por pieza**
+- La cantidad de cada insumo es **automática por medidas** (`por_m2`: ancho × alto × piezas; el recuadro dice
+  "Se usan 20 m² · calculado: 5 × 4 m × 1 pieza") o se escribe **a mano como total** con "Escribir otra
+  cantidad" (`fijo`, queda marcada "escrito a mano"; p. ej. 2 láminas o el doble por ambas caras). También hay **metros lineales por pieza**
   (rotulación: los metros salen del escaneo) y **por pieza**. Cada insumo muestra lo que calculó, en su unidad de
   compra (`consumoDeInsumo` en el motor), y debajo de la tabla hay un **resumen de insumos** de la opción (total
   y costo por insumo; interno, nunca sale en el PDF).
@@ -162,6 +164,7 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Margen de error absorbe indirectos | No hay merma explícita; todo va en el 30% |
 | Sin "petición de acción" en la propuesta | El dueño la quitó (sept. 2026) aunque el PNO la menciona; no sale en PDF ni mensajes |
 | Sin escenario "piloto y volumen" en pantalla | El dueño lo quitó (sept. 2026); el motor lo sigue calculando para cotizaciones anteriores |
+| Sin columnas por área | El dueño prefiere un concepto por área; las cotizaciones de antes se abren con un concepto por área (`separarAreasEnConceptos`) |
 | Sin recetas | El dueño las quitó (sept. 2026): cada concepto lleva sus insumos directamente; las tablas quedan solo para cotizaciones anteriores |
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
 | Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |

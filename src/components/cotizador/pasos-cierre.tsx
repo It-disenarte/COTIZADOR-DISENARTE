@@ -577,7 +577,8 @@ export function PasoResumen({
         resumen={txt(entrada.alcance?.resumen)}
         peticion={{
           titulo: borrador.titulo,
-          areas: entrada.levantamiento.areas,
+          // Con una sola columna no hay reparto por áreas que describir: los conceptos ya lo dicen.
+          areas: entrada.levantamiento.areas.length > 1 ? entrada.levantamiento.areas : [],
           piezas: resultado.levantamiento.piezas,
           recetas: resultado.opciones.map((o) => ({ nombre: o.nombre, descripcion: o.descripcionPdf })),
           tiempoEstimado: entrada.tiempoEstimado ?? null,

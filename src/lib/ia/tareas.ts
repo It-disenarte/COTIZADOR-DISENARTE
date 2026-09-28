@@ -226,7 +226,7 @@ export async function redactarAlcance(
 
   const descripcion = [
     `Título del proyecto: ${datos.titulo}`,
-    `Áreas: ${datos.areas.join(", ") || "sin especificar"}`,
+    datos.areas.length ? `Áreas: ${datos.areas.join(", ")}` : null,
     `Piezas: ${datos.piezas}`,
     `Material(es): ${datos.recetas.map((r) => (r.descripcion ? `${r.nombre} (${r.descripcion})` : r.nombre)).join("; ")}`,
     `Tiempo estimado: ${datos.tiempoEstimado || "sin especificar"}`,

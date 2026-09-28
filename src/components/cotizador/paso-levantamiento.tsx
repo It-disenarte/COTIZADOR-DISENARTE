@@ -4,12 +4,12 @@ import { ClipboardPaste, Copy, GripVertical, Plus, Search, Trash2, X } from "luc
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Button, Card, CardContent, Input, Textarea } from "@/components/ui";
-import { ETIQUETA_MODO_CORTA, MODOS_COMPONENTE, type ModoComponente } from "@/lib/catalogo/constantes";
+import type { ModoComponente } from "@/lib/catalogo/constantes";
 import {
   type BorradorCotizacion,
   filaNueva,
+  agregarLevantamientoLeido,
   filasDesdeTsv,
-  fusionarLevantamiento,
   num,
   opcionNueva,
   txt,
@@ -82,7 +82,7 @@ function modoInicial(insumo: InsumoSnapshot): ModoComponente {
 
 export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo }: Props) {
   const pantallaGrande = usePantallaGrande();
-  const { areas, filas } = borrador.entrada.levantamiento;
+  const { filas } = borrador.entrada.levantamiento;
   const opciones = borrador.entrada.opciones;
   const [indiceOpcion, setIndiceOpcion] = useState(0);
   const activa = Math.min(indiceOpcion, Math.max(opciones.length - 1, 0));
@@ -134,19 +134,6 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
       // Sus insumos y su precio manual se van con él, en todas las opciones.
       opciones: e.opciones.map((o) => ({ ...o, materiales: sinClave(o.materiales, id), preciosManuales: sinClave(o.preciosManuales ?? {}, id) })),
     }));
-  }
-
-  function cambiarAreas(nuevas: string[], quitar?: number) {
-    editarLevantamiento({
-      areas: nuevas,
-      filas: filas.map((f) => ({
-        ...f,
-        cantidades:
-          quitar === undefined
-            ? Array.from({ length: nuevas.length }, (_, i) => f.cantidades[i] ?? "")
-            : f.cantidades.filter((_, i) => i !== quitar),
-      })),
-    });
   }
 
   function quitarOpcion(id: string) {
@@ -254,30 +241,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
                   <th className="px-2 py-2 font-medium">Concepto</th>
                   <th className="px-2 py-2 font-medium">Ancho (m)</th>
                   <th className="px-2 py-2 font-medium">Alto (m)</th>
-                  {areas.map((area, j) => (
-                    <th key={j} className="px-2 py-1 font-medium">
-                      <div className="flex items-center gap-0.5">
-                        <input
-                          value={area}
-                          onChange={(e) => cambiarAreas(areas.map((a, k) => (k === j ? e.target.value : a)))}
-                          placeholder={`Área ${j + 1}`}
-                          aria-label={`Nombre del área ${j + 1}`}
-                          className="h-8 w-24 rounded-md border border-transparent bg-transparent px-1.5 text-xs uppercase tracking-wide hover:border-input focus:border-input focus:bg-card focus:outline-none"
-                        />
-                        {areas.length > 1 && (
-                          <button
-                            type="button"
-                            title="Quitar área"
-                            aria-label={`Quitar el área ${area || j + 1}`}
-                            onClick={() => cambiarAreas(areas.filter((_, k) => k !== j), j)}
-                            className="rounded p-0.5 hover:bg-muted hover:text-foreground"
-                          >
-                            <X className="size-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </th>
-                  ))}
+                  <th className="px-2 py-2 font-medium">Cantidad</th>
                   <th className="px-2 py-2 font-medium">Insumos {opciones.length > 1 && `· ${opcion?.nombre ?? ""}`}</th>
                   <th className="px-2 py-2 text-right font-medium">Costo</th>
                   <th className="px-2 py-2" />
@@ -329,19 +293,15 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
                           aria-label={`Alto de la fila ${i + 1}`}
                         />
                       </td>
-                      {areas.map((area, j) => (
-                        <td key={j} className="px-2 py-2">
-                          <Input
-                            className="h-9 w-[4.5rem]"
-                            inputMode="numeric"
-                            value={txt(fila.cantidades[j])}
-                            onChange={(e) =>
-                              editarFila(fila.id, { cantidades: fila.cantidades.map((c, k) => (k === j ? e.target.value : c)) })
-                            }
-                            aria-label={`Cantidad de ${area || `área ${j + 1}`} en la fila ${i + 1}`}
-                          />
-                        </td>
-                      ))}
+                      <td className="px-2 py-2">
+                        <Input
+                          className="h-9 w-[4.5rem]"
+                          inputMode="numeric"
+                          value={txt(fila.cantidades[0])}
+                          onChange={(e) => editarFila(fila.id, { cantidades: [e.target.value] })}
+                          aria-label={`Cantidad de la fila ${i + 1}`}
+                        />
+                      </td>
                       <td className="px-2 py-2">
                         <div
                           onDragOver={(e) => {
@@ -417,7 +377,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
               </tbody>
               <tfoot className="bg-muted/40 text-sm font-medium">
                 <tr>
-                  <td className="px-2 py-2" colSpan={4 + areas.length}>
+                  <td className="px-2 py-2" colSpan={5}>
                     Total
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-right">
@@ -433,35 +393,28 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
               type="button"
               variant="outline"
               onClick={() => {
-                const fila = filaNueva(areas.length);
+                const fila = filaNueva();
                 editarLevantamiento({ filas: [...filas, fila] });
                 setFilaElegida(fila.id);
               }}
             >
               <Plus /> Agregar concepto
             </Button>
-            <Button type="button" variant="outline" onClick={() => cambiarAreas([...areas, `Área ${areas.length + 1}`])}>
-              <Plus /> Agregar área
-            </Button>
             <Button type="button" variant="outline" onClick={() => setPegado(pegado === null ? "" : null)}>
               <ClipboardPaste /> Pegar de Excel
             </Button>
             <ImportarLevantamiento
-              alAplicar={(leido, modo) => {
-                const nuevo = { areas: leido.areas, filas: leido.filas };
-                editarLevantamiento(
-                  modo === "reemplazar"
-                    ? fusionarLevantamiento({ areas: leido.areas, filas: [] }, nuevo)
-                    : fusionarLevantamiento(borrador.entrada.levantamiento, nuevo),
-                );
-              }}
+              alAplicar={(leido, modo) =>
+                // Si el documento reparte por áreas, cada área entra como concepto propio.
+                editarLevantamiento(agregarLevantamientoLeido(borrador.entrada.levantamiento, leido, modo))
+              }
             />
           </div>
           <p className="px-3 pb-3 text-xs text-muted-foreground">
-            Cada área es una columna de cantidades; toca su nombre para cambiarlo. La cantidad de cada insumo se
-            calcula sola con las medidas (“auto por m²”); si prefieres escribir cuánto se necesita, cámbialo a “total
-            a mano” (p. ej. 2 láminas). Si el material se cobra por pieza, deja ancho y alto en 0. Para rotulación,
-            pon los metros lineales del escaneo (“ml por pieza”).
+            Si algo va en varias áreas o ubicaciones, captura un concepto por cada una. La cantidad de cada insumo se
+            calcula sola con las medidas; si necesitas otra (desperdicio, ambas caras), presiona “Escribir otra
+            cantidad”. Si el material se cobra por pieza, deja ancho y alto en 0. Para rotulación, escribe en el
+            insumo los metros por pieza que salen del escaneo.
           </p>
         </Card>
 
@@ -473,7 +426,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
               <Textarea
                 value={pegado}
                 onChange={(e) => setPegado(e.target.value)}
-                placeholder={"Concepto\tAncho\tAlto\tCantidad área 1\tCantidad área 2"}
+                placeholder={"Concepto\tAncho\tAlto\tCantidad"}
                 className="min-h-28 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
@@ -483,7 +436,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
                 type="button"
                 size="sm"
                 onClick={() => {
-                  const nuevas = filasDesdeTsv(pegado, areas.length);
+                  const nuevas = filasDesdeTsv(pegado);
                   if (nuevas.length) editarLevantamiento({ filas: nuevas });
                   setPegado(null);
                 }}
@@ -502,15 +455,7 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
   );
 }
 
-/** Qué significa la cantidad en cada forma de consumo (se muestra junto a la casilla). */
-function unidadDeCantidad(modo: ModoComponente, insumo: InsumoSnapshot | undefined): string {
-  if (modo === "por_m2") return "× área";
-  if (modo === "por_ml") return "ml c/u";
-  if (modo === "por_pieza") return "c/u";
-  return UNIDAD_TOTAL[insumo?.unidadCosto ?? ""] ?? "unidades";
-}
-
-/** Unidad de la cantidad total escrita a mano: como se compra (tarjetas: por pieza). */
+/** Unidad de la cantidad escrita a mano: como se compra el insumo (tarjetas: por pieza). */
 const UNIDAD_TOTAL: Record<string, string> = {
   m2: "m²",
   ml: "ml",
@@ -524,6 +469,14 @@ const UNIDAD_TOTAL: Record<string, string> = {
 
 const numeroCorto = (valor: number) => valor.toLocaleString("es-MX", { maximumFractionDigits: 2 });
 
+/**
+ * Un insumo dentro de un concepto, dicho en palabras: cuánto se usa y cuánto cuesta.
+ * - Por medidas (lo normal en materiales por m²): no hay nada que llenar; se ve de dónde sale.
+ * - Rotulación: pide los metros por pieza que salen del escaneo.
+ * - Por pieza: pide cuántos lleva cada pieza.
+ * - "Escribir otra cantidad" pasa a una cantidad total escrita a mano (queda marcada como tal,
+ *   para que quien autoriza vea que no salió de las medidas); se puede volver al cálculo.
+ */
 function ChipInsumo({
   componente,
   fila,
@@ -550,49 +503,104 @@ function ChipInsumo({
     }
   }
 
+  const piezas = fila.cantidades.reduce<number>((s, c) => s + num(c), 0);
+  const ancho = num(fila.anchoM);
+  const alto = num(fila.altoM);
+  const veces = num(componente.cantidad);
+  const textoPiezas = `${numeroCorto(piezas)} pieza${piezas === 1 ? "" : "s"}`;
+  const unidadManual = consumo?.unidad ?? UNIDAD_TOTAL[insumo?.unidadCosto ?? ""] ?? "unidades";
+
+  const escribirAMano = () =>
+    alCambiar({ modo: "fijo", cantidad: consumo ? String(Number(consumo.cantidad.toFixed(2))) : "" });
+  const volverACalcular = () => alCambiar({ modo: insumo ? modoInicial(insumo) : "por_m2", cantidad: "1" });
+
+  const campo = (etiqueta: string) => (
+    <input
+      inputMode="decimal"
+      value={txt(componente.cantidad)}
+      onChange={(e) => alCambiar({ cantidad: e.target.value })}
+      aria-label={etiqueta}
+      className="h-6 w-16 rounded border border-input bg-card px-1 text-foreground"
+    />
+  );
+
   return (
-    <div className="grid gap-1 rounded-md bg-primary/10 py-1 pl-2 pr-1 text-xs text-primary">
+    <div className="grid gap-1 rounded-md bg-primary/10 py-1.5 pl-2 pr-1 text-xs text-primary">
       <div className="flex items-center justify-between gap-1">
         <span className="font-medium">{nombre}</span>
         <button type="button" onClick={alQuitar} aria-label={`Quitar ${nombre}`} className="rounded p-0.5 hover:bg-primary/15">
           <X className="size-3.5" />
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-1">
-        <input
-          inputMode="decimal"
-          value={txt(componente.cantidad)}
-          onChange={(e) => alCambiar({ cantidad: e.target.value })}
-          aria-label={`Cantidad de ${nombre}`}
-          title={
-            componente.modo === "fijo"
-              ? "Cuánto se necesita en total para este concepto, en la unidad en que se compra"
-              : componente.modo === "por_m2"
-                ? "Se calcula con las medidas: 1 = cubre el área del concepto una vez"
-                : "Cuánto lleva cada pieza"
-          }
-          className="h-6 w-14 rounded border border-input bg-card px-1 text-foreground"
-        />
-        <span className="text-muted-foreground">{unidadDeCantidad(componente.modo, insumo)}</span>
-        <select
-          value={componente.modo}
-          onChange={(e) => alCambiar({ modo: e.target.value as ModoComponente })}
-          aria-label={`Cómo se calcula la cantidad de ${nombre}`}
-          className="h-6 rounded border border-input bg-card px-1 text-foreground"
-        >
-          {MODOS_COMPONENTE.map((m) => (
-            <option key={m} value={m}>
-              {ETIQUETA_MODO_CORTA[m]}
-            </option>
-          ))}
-        </select>
-      </div>
+
+      {componente.modo === "por_m2" && (
+        <div className="text-foreground">
+          {consumo && (
+            <p>
+              Se usan <strong>{numeroCorto(consumo.cantidad.toNumber())} {consumo.unidad}</strong>
+            </p>
+          )}
+          {ancho > 0 && alto > 0 ? (
+            <p className="text-muted-foreground">
+              calculado: {numeroCorto(ancho)} × {numeroCorto(alto)} m × {textoPiezas}
+              {veces !== 1 && ` × ${numeroCorto(veces)}`}
+              {consumo && consumo.unidad !== "m²" && ` = ${numeroCorto(ancho * alto * piezas * veces)} m²`}
+            </p>
+          ) : (
+            <p className="text-muted-foreground">El concepto no tiene medidas: escribe la cantidad a mano.</p>
+          )}
+        </div>
+      )}
+
+      {componente.modo === "por_ml" && (
+        <div className="space-y-0.5 text-foreground">
+          <label className="flex flex-wrap items-center gap-1">
+            Metros por pieza (del escaneo): {campo(`Metros por pieza de ${nombre}`)}
+          </label>
+          {consumo && (
+            <p>
+              Se usan <strong>{numeroCorto(consumo.cantidad.toNumber())} m</strong>{" "}
+              <span className="text-muted-foreground">({textoPiezas})</span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {componente.modo === "por_pieza" && (
+        <div className="space-y-0.5 text-foreground">
+          <label className="flex flex-wrap items-center gap-1">
+            ¿Cuántos lleva cada pieza? {campo(`Cuántos ${nombre} lleva cada pieza`)}
+          </label>
+          {consumo && (
+            <p>
+              Se usan <strong>{numeroCorto(consumo.cantidad.toNumber())} {consumo.unidad}</strong>{" "}
+              <span className="text-muted-foreground">({textoPiezas})</span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {componente.modo === "fijo" && (
+        <label className="flex flex-wrap items-center gap-1 text-foreground">
+          Se usan {campo(`Cantidad total de ${nombre}`)} {unidadManual}
+          <span className="text-muted-foreground">(escrito a mano)</span>
+        </label>
+      )}
+
       {consumo && (
-        <p className="text-muted-foreground">
-          = {numeroCorto(consumo.cantidad.toNumber())} {consumo.unidad} · {formatoMoneda(consumo.costo.toFixed(2))}
+        <p className="text-foreground">
+          Costo: <strong>{formatoMoneda(consumo.costo.toFixed(2))}</strong>
         </p>
       )}
-      {error && <p className="max-w-56 text-destructive">{error}</p>}
+      {error && <p className="max-w-60 text-destructive">{error}</p>}
+
+      <button
+        type="button"
+        onClick={componente.modo === "fijo" ? volverACalcular : escribirAMano}
+        className="justify-self-start text-[11px] underline underline-offset-2 hover:text-foreground"
+      >
+        {componente.modo === "fijo" ? "Volver a calcularlo" : "Escribir otra cantidad"}
+      </button>
     </div>
   );
 }

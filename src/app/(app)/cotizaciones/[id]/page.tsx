@@ -6,7 +6,7 @@ import { BotonEliminar } from "@/components/cotizador/acciones-cotizacion";
 import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge } from "@/components/ui";
 import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
-import { clienteVacio, type BorradorCotizacion } from "@/lib/cotizador/estado";
+import { clienteVacio, type BorradorCotizacion, separarAreasEnConceptos } from "@/lib/cotizador/estado";
 import { type EntradaCotizacion, normalizarEntrada } from "@/lib/motor";
 import { tienePermiso } from "@/lib/permisos";
 import { requireSesion } from "@/lib/sesion";
@@ -41,8 +41,9 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
           notas: cotizacion.cliente.notas ?? "",
         }
       : clienteVacio(),
-    // Las cotizaciones anteriores (una receta por opción) se abren ya con los insumos en cada concepto.
-    entrada: normalizarEntrada(cotizacion.entrada as EntradaCotizacion, snapshot),
+    // Las cotizaciones anteriores se abren ya en la forma actual: insumos en cada concepto (antes era
+    // una receta por opción) y un concepto por área (antes eran columnas de cantidad por área).
+    entrada: separarAreasEnConceptos(normalizarEntrada(cotizacion.entrada as EntradaCotizacion, snapshot)),
   };
 
   return (

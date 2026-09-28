@@ -237,13 +237,16 @@ function marcoInterior(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
 
 // Páginas de cotización ----------------------------------------------------------------------
 
-/** Consolidado del levantamiento: qué se va a producir, agrupado por área. */
+/**
+ * Consolidado del levantamiento: qué se va a producir. Las cotizaciones de antes podían repartir
+ * por áreas (una columna por área); ahora cada área es un concepto y hay una sola columna.
+ */
 function consolidado(lienzo: Lienzo, datos: DatosPdf) {
   const { levantamiento } = datos.resultado;
   lienzo.nuevaPagina();
   lienzo.titulo(`Consolidado del levantamiento: ${levantamiento.piezas} piezas`);
 
-  const areas = levantamiento.porArea.map((a) => a.area);
+  const areas = levantamiento.porArea.length > 1 ? levantamiento.porArea.map((a) => a.area) : [];
   const anchoMedida = 72;
   const anchoTotal = 52;
   const anchoAreas = Math.min(72, (lienzo.anchoUtil - 200 - anchoMedida - anchoTotal) / Math.max(areas.length, 1));
@@ -251,19 +254,19 @@ function consolidado(lienzo: Lienzo, datos: DatosPdf) {
     { titulo: "Concepto", ancho: lienzo.anchoUtil - anchoMedida - anchoAreas * areas.length - anchoTotal },
     { titulo: "Medida", ancho: anchoMedida, alineacion: "centro" },
     ...areas.map((area) => ({ titulo: area, ancho: anchoAreas, alineacion: "centro" as const })),
-    { titulo: "Total", ancho: anchoTotal, alineacion: "centro" },
+    { titulo: areas.length ? "Total" : "Cantidad", ancho: anchoTotal, alineacion: "centro" },
   ];
 
   const filas: Celda[][] = levantamiento.filas.map((fila) => [
     fila.concepto || "Sin concepto",
     Number(fila.anchoM) > 0 || Number(fila.altoM) > 0 ? `${fila.anchoM}×${fila.altoM}` : "Pieza",
-    ...fila.cantidades.map((c) => (Number(c) > 0 ? c : "—")),
+    ...(areas.length ? fila.cantidades.map((c) => (Number(c) > 0 ? c : "—")) : []),
     fila.piezas,
   ]);
   filas.push([
     [{ texto: "Totales", negrita: true }],
     "",
-    ...levantamiento.porArea.map((a) => [{ texto: a.piezas, negrita: true }]),
+    ...(areas.length ? levantamiento.porArea.map((a) => [{ texto: a.piezas, negrita: true }]) : []),
     [{ texto: String(levantamiento.piezas), negrita: true }],
   ]);
 

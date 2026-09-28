@@ -32,7 +32,8 @@ export async function mensajeDeCotizacion(actor: UsuarioSesion | null, id: strin
     puesto: cotizacion.cliente?.puesto ?? null,
     asesor: cotizacion.vendedor,
     piezas: resultado.levantamiento.piezas,
-    areas: resultado.levantamiento.porArea.map((a) => a.area),
+    // Solo las cotizaciones de antes reparten por áreas; ahora cada área es un concepto.
+    areas: resultado.levantamiento.porArea.length > 1 ? resultado.levantamiento.porArea.map((a) => a.area) : [],
     tiempoEstimado: entrada?.tiempoEstimado ?? null,
     incluyeEnvio: entrada?.incluyeEnvio ?? false,
     incluyeInstalacion: entrada?.operacion?.instalacion?.incluye ?? false,

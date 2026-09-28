@@ -19,7 +19,7 @@ const { db } = await import("@/lib/db");
 const { llamadasIa } = await import("@/lib/db/schema");
 const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial");
 const { MODELO_PREDETERMINADO, extraerJson } = await import("@/lib/ia/gemini");
-const { fusionarLevantamiento } = await import("@/lib/cotizador/estado");
+const { agregarLevantamientoLeido, filasDesdeTsv, separarAreasEnConceptos } = await import("@/lib/cotizador/estado");
 const rutaLevantamiento = await import("@/app/api/ia/levantamiento/route");
 const rutaReventa = await import("@/app/api/ia/reventa/route");
 const rutaAlcance = await import("@/app/api/ia/alcance/route");
@@ -287,26 +287,54 @@ describe("Utilidades", () => {
     expect(() => extraerJson("sin datos")).toThrow();
   });
 
-  it("fusionarLevantamiento junta áreas por nombre y agrega las nuevas como columnas", () => {
+  it("lo que la IA lee repartido por áreas entra como un concepto por área", () => {
     const actual = {
-      areas: ["CENDI", "Primaria"],
+      areas: ["Cantidad"],
       filas: [
-        { id: "salida", concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2", "24"] },
-        { concepto: "", anchoM: "0", altoM: "0", cantidades: ["", ""] },
+        { id: "salida", concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2"] },
+        { id: "vacia", concepto: "", anchoM: "0", altoM: "0", cantidades: [""] },
       ],
     };
-    const nuevo = {
-      areas: ["primaria", "Secundaria"],
-      filas: [{ concepto: "EXTINTOR", anchoM: "0.2", altoM: "0.25", cantidades: ["6", "13"] }],
-    };
-    expect(fusionarLevantamiento(actual, nuevo)).toEqual({
-      areas: ["CENDI", "Primaria", "Secundaria"],
+    const leido = {
+      areas: ["Oficina", "Comedor"],
       filas: [
-        // El concepto que ya estaba conserva su id (y con él sus insumos); el nuevo recibe uno.
-        { id: "salida", concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2", "24", ""] },
-        { id: expect.any(String), concepto: "EXTINTOR", anchoM: "0.2", altoM: "0.25", cantidades: ["", "6", "13"] },
+        { concepto: "Fotomural", anchoM: "5", altoM: "4", cantidades: ["1", "1"] },
+        { concepto: "Extintor", anchoM: "0.2", altoM: "0.25", cantidades: ["", "6"] },
+      ],
+    };
+    expect(agregarLevantamientoLeido(actual, leido, "agregar")).toEqual({
+      areas: ["Cantidad"],
+      filas: [
+        // El concepto que ya estaba conserva su id (y con él sus insumos); la fila vacía se descarta.
+        { id: "salida", concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2"] },
+        { id: expect.any(String), concepto: "Fotomural · Oficina", anchoM: "5", altoM: "4", cantidades: ["1"] },
+        { id: expect.any(String), concepto: "Fotomural · Comedor", anchoM: "5", altoM: "4", cantidades: ["1"] },
+        { id: expect.any(String), concepto: "Extintor · Comedor", anchoM: "0.2", altoM: "0.25", cantidades: ["6"] },
       ],
     });
+  });
+
+  it("una cotización de antes con áreas se abre con un concepto por área y los mismos insumos", () => {
+    const insumos = [{ insumoId: "vinil", modo: "por_m2" as const, cantidad: "1" }];
+    const entrada = separarAreasEnConceptos({
+      levantamiento: {
+        areas: ["CENDI", "Primaria"],
+        filas: [{ id: "c1", concepto: "Señalamiento", anchoM: "0.2", altoM: "0.3", cantidades: ["30", "40"] }],
+      },
+      opciones: [{ id: "o1", nombre: "Opción 1", materiales: { c1: insumos }, preciosManuales: { c1: "150" } }],
+    } as never);
+
+    const [cendi, primaria] = entrada.levantamiento.filas;
+    expect(entrada.levantamiento.areas).toEqual(["Cantidad"]);
+    expect([cendi.concepto, cendi.cantidades, cendi.id]).toEqual(["Señalamiento · CENDI", ["30"], "c1"]);
+    expect([primaria.concepto, primaria.cantidades]).toEqual(["Señalamiento · Primaria", ["40"]]);
+    expect(entrada.opciones[0].materiales[primaria.id]).toEqual(insumos);
+    expect(entrada.opciones[0].preciosManuales?.[primaria.id]).toBe("150");
+  });
+
+  it("al pegar de Excel con varias columnas de cantidad, se suman en una", () => {
+    const [fila] = filasDesdeTsv(["Letrero", "1.2", "0.4", "2", "3"].join("\t"));
+    expect(fila).toMatchObject({ concepto: "Letrero", anchoM: "1.2", altoM: "0.4", cantidades: ["5"] });
   });
 });
 
