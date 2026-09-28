@@ -469,6 +469,24 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
   };
 }
 
+/**
+ * Viñetas de "Descripción" de un concepto en el PDF: las que se escribieron para él o, si no hay,
+ * el nombre para el cliente de cada insumo (su nombre del catálogo si no tiene uno). Nunca cantidades
+ * ni costos: esto lo lee el cliente.
+ */
+function descripcionDeConcepto(opcion: OpcionCotizacion, filaId: string, snapshot: Snapshot): string[] {
+  const escrita = (opcion.descripciones?.[filaId] ?? "")
+    .split(/\r?\n/)
+    .map((renglon) => renglon.replace(/^\s*[-•*]\s*/, "").trim())
+    .filter(Boolean);
+  if (escrita.length) return escrita;
+  const nombres = (opcion.materiales[filaId] ?? []).flatMap((c) => {
+    const insumo = snapshot.insumos[c.insumoId];
+    return insumo ? [insumo.nombreCliente?.trim() || insumo.nombre] : [];
+  });
+  return [...new Set(nombres)];
+}
+
 type CostoConcepto = { fila: FilaConId; piezas: Decimal; materiales: Decimal; consumibles: Decimal; directo: Decimal };
 
 function calcularVariante(args: {
@@ -531,6 +549,7 @@ function calcularVariante(args: {
       unitarioCalculado: unitarioCalculado.toDecimalPlaces(4).toString(),
       unitario: unitarioMostrado.toFixed(2),
       subtotal: money(unitarioMostrado.times(c.piezas)),
+      descripcion: descripcionDeConcepto(opcion, c.fila.id, snapshot),
     };
   });
 
@@ -539,6 +558,7 @@ function calcularVariante(args: {
     cantidad: c.piezas,
     unitario: c.unitario,
     subtotal: c.subtotal,
+    descripcion: c.descripcion,
   }));
 
   if (!prorratear && costos.fijos.total.gt(0)) {

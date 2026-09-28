@@ -105,6 +105,11 @@ export const insumos = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     nombre: text("nombre").notNull(),
+    /**
+     * Cómo se le nombra al cliente en el PDF ("Corte de vinil de color" en lugar de "Vinil de corte
+     * 1.22"). La IA lo propone desde el catálogo y alguien lo revisa. null = se usa el nombre.
+     */
+    nombreCliente: text("nombre_cliente"),
     categoria: text("categoria").notNull(),
     /** null mientras no se conozca la presentación de compra */
     unidadCosto: unidadCostoEnum("unidad_costo"),

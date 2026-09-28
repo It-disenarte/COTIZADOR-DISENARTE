@@ -8,6 +8,11 @@ import { type Campo, PanelCrud } from "./panel-crud";
 
 const CAMPOS: Campo[] = [
   { nombre: "nombre", etiqueta: "Nombre", requerido: true },
+  {
+    nombre: "nombreCliente",
+    etiqueta: "Nombre para el cliente",
+    ayuda: "Cómo sale en la descripción de los conceptos del PDF. Vacío = se usa el nombre.",
+  },
   { nombre: "categoria", etiqueta: "Categoría", requerido: true, ayuda: "Ej. Vinil de corte, Sustrato, Impresión JV33." },
   {
     nombre: "unidadCosto",
@@ -34,10 +39,11 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
       etiquetaNueva="Nuevo insumo"
       archivable
       esArchivado={(i) => i.archivado}
-      texto={(i) => `${i.nombre} ${i.categoria} ${i.fuente ?? ""}`}
+      texto={(i) => `${i.nombre} ${i.nombreCliente ?? ""} ${i.categoria} ${i.fuente ?? ""}`}
       campos={CAMPOS}
       valores={(i) => ({
         nombre: i?.nombre ?? "",
+        nombreCliente: i?.nombreCliente ?? "",
         categoria: i?.categoria ?? "",
         unidadCosto: i?.unidadCosto ?? "",
         costo: i?.costo ?? "",
@@ -52,6 +58,7 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
           celda: (i) => (
             <div className="space-y-1">
               <p className="font-medium">{i.nombre}</p>
+              {i.nombreCliente && <p className="text-xs">Para el cliente: {i.nombreCliente}</p>}
               <p className="text-xs text-muted-foreground">{i.categoria}</p>
               <div className="flex flex-wrap gap-1">
                 {i.requiereRevision && <Badge variant="accent">Por revisar</Badge>}

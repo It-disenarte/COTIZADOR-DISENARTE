@@ -16,6 +16,8 @@ export type InsumoSnapshot = {
   requiereRevision: boolean;
   /** Para agrupar el catálogo en el asistente. Las cotizaciones viejas no lo traen. */
   categoria?: string;
+  /** Cómo se le nombra al cliente en el PDF. null o ausente = se usa el nombre. */
+  nombreCliente?: string | null;
   /** Archivado: ya no se ofrece en el asistente, pero las cotizaciones que lo usan siguen calculando. */
   archivado?: boolean;
 };
@@ -122,6 +124,11 @@ export type OpcionCotizacion = {
   materiales: Record<string, ComponenteConcepto[]>;
   /** Precio unitario capturado a mano, por id de fila. Vacío = el calculado. */
   preciosManuales?: Record<string, Numerico | null>;
+  /**
+   * Descripción de cada concepto para el PDF (una viñeta por renglón), por id de fila. Vacía = los
+   * nombres para el cliente de sus insumos.
+   */
+  descripciones?: Record<string, string | null>;
 };
 
 /** Forma anterior: una receta para todo el levantamiento. Se convierte sola al calcular. */
@@ -185,7 +192,14 @@ export type Desglose = {
   costoTotal: string;
 };
 
-export type FilaPdf = { concepto: string; cantidad: string; unitario: string; subtotal: string };
+export type FilaPdf = {
+  concepto: string;
+  cantidad: string;
+  unitario: string;
+  subtotal: string;
+  /** Viñetas de "Descripción:" en el PDF. Las cotizaciones anteriores y la fila de operación no la traen. */
+  descripcion?: string[];
+};
 
 export type Variante = {
   clave: "unica" | "A" | "B";
@@ -217,6 +231,8 @@ export type ConceptoResultado = {
   unitarioCalculado: string;
   unitario: string;
   subtotal: string;
+  /** Viñetas de la descripción del concepto para el PDF. */
+  descripcion: string[];
 };
 
 export type OpcionResultado = {

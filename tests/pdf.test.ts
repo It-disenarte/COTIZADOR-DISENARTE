@@ -160,8 +160,10 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     expect(texto).toContain("CENDI");
     expect(texto).toContain("Estireno cal. 40 + impresión");
     expect(texto).toContain("5-7 días");
-    // Resumen de alcance capturado (o redactado con la IA)
-    expect(texto.replace(/\s+/g, " ")).toContain("Concepto: Señalética para protección civil");
+    // Resumen de alcance capturado (o redactado con la IA): el del proyecto va arriba de la tabla...
+    expect(texto.replace(/\s+/g, " ")).toContain("Proyecto: Señalética para protección civil");
+    // ...y cada fila dice su concepto con la descripción en viñetas.
+    expect(texto.replace(/\s+/g, " ")).toContain("Concepto: Señalamiento 20 × 30 cm Descripción: •");
     expect(texto.replace(/\s+/g, " ")).toContain("Señalética completa para las 3 áreas.");
     expect(texto).toContain("Precios sin IVA");
     expect(texto).toContain("Materiales adicionales");

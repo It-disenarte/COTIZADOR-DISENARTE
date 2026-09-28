@@ -437,8 +437,15 @@ describe("Insumos por concepto: cada concepto con su propio precio", () => {
     const v = calcular(entradaDosConceptos(), snapshot({})).opciones[0].variantes[0];
     // Letrero: 2 m² × $400 = $800 ÷ 0.70 ÷ 2 piezas. Placa: 10 × $200 = $2,000 ÷ 0.70 ÷ 10.
     expect(v.filas).toEqual([
-      { concepto: "Letrero", cantidad: "2", unitario: "571.43", subtotal: "1142.86" },
-      { concepto: "Placa", cantidad: "10", unitario: "285.71", subtotal: "2857.10" },
+      // Sin descripción escrita, las viñetas son los nombres de sus insumos.
+      { concepto: "Letrero", cantidad: "2", unitario: "571.43", subtotal: "1142.86", descripcion: ["Corte de vinil"] },
+      {
+        concepto: "Placa",
+        cantidad: "10",
+        unitario: "285.71",
+        subtotal: "2857.10",
+        descripcion: ["Insumos de aplicación en rotulación"],
+      },
     ]);
     expect(v.desglose.materiales).toBe("2800.00");
   });
@@ -542,5 +549,41 @@ describe("Cantidad de cada insumo: automática por medidas o total a mano", () =
       { id: "o1", nombre: "Opción 1", materiales: { letrero: [{ insumoId: "lamina", modo: "fijo", cantidad: "2" }] } },
     ];
     expect(calcular(entrada, snapshot({})).opciones[0].variantes[0].desglose.materiales).toBe("457.58");
+  });
+});
+
+describe("Descripción de cada concepto en el PDF", () => {
+  function entradaLetrero(): EntradaCotizacion {
+    const entrada = entradaVersa(1);
+    entrada.levantamiento.filas = [{ id: "letrero", concepto: "Letrero", anchoM: "1", altoM: "1", cantidades: [1] }];
+    entrada.opciones = [
+      {
+        id: "o1",
+        nombre: "Opción 1",
+        materiales: {
+          letrero: [
+            { insumoId: "lamina", modo: "por_m2", cantidad: "1" },
+            { insumoId: "rollo", modo: "por_m2", cantidad: "1" },
+          ],
+        },
+      },
+    ];
+    return entrada;
+  }
+
+  it("usa el nombre para el cliente de cada insumo, o su nombre si no tiene", () => {
+    const conNombres = snapshot({});
+    conNombres.insumos = { ...INSUMOS, lamina: { ...INSUMOS.lamina, nombreCliente: "Base de trovicel de 3 mm" } };
+    const [fila] = calcular(entradaLetrero(), conNombres).opciones[0].variantes[0].filas;
+    expect(fila.descripcion).toEqual(["Base de trovicel de 3 mm", "Vinil de corte 1.22"]);
+  });
+
+  it("si se escribió una descripción, sale esa, una viñeta por renglón", () => {
+    const entrada = entradaLetrero();
+    (entrada.opciones[0] as { descripciones?: Record<string, string> }).descripciones = {
+      letrero: ["- Base de acrílico espejo plata", "", "• Corte de vinil color"].join("\n"),
+    };
+    const [fila] = calcular(entrada, snapshot({})).opciones[0].variantes[0].filas;
+    expect(fila.descripcion).toEqual(["Base de acrílico espejo plata", "Corte de vinil color"]);
   });
 });

@@ -275,10 +275,10 @@ function consolidado(lienzo: Lienzo, datos: DatosPdf) {
   lienzo.texto(`Área total de producción: ${levantamiento.areaM2} m²`, { tamano: 9, color: COLOR.suave });
 }
 
-const columnasCotizacion = (tituloConcepto = "Resumen de alcance"): Columna[] => [
+const columnasCotizacion = (): Columna[] => [
   { titulo: "Cantidad", ancho: 66, alineacion: "centro" },
   { titulo: "Tiempo estimado", ancho: 76, alineacion: "centro" },
-  { titulo: tituloConcepto, ancho: 190 },
+  { titulo: "Resumen de alcance", ancho: 190 },
   { titulo: "Costo unitario", ancho: 76, alineacion: "centro" },
   { titulo: "Subtotal", ancho: 88, alineacion: "centro" },
 ];
@@ -313,26 +313,38 @@ function paginaDeOpcion(
   }
   if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
 
-  // Con un solo concepto, el alcance va dentro de su fila, como en el diseño de Canva. Con varios,
-  // cada concepto lleva su fila y su precio, y el alcance pasa arriba de la tabla.
-  const variosConceptos = (variante.conceptos?.length ?? 1) > 1;
-  if (variosConceptos) {
-    for (const parrafo of alcance) lienzo.texto(parrafo.texto, { tamano: 9, negrita: parrafo.negrita });
-    lienzo.espacio(10);
+  // Cotizaciones con insumos por concepto: cada fila dice su concepto y su descripción en viñetas
+  // (como las propuestas hechas a mano), y lo que es de todo el proyecto va arriba de la tabla.
+  // Las de antes (una receta para todo) conservan el alcance dentro de su única fila.
+  const porConcepto = !!variante.conceptos;
+  if (porConcepto) {
+    // Cada fila dice su concepto; arriba va el del proyecto completo.
+    const general = [{ texto: `Proyecto: ${concepto}`, negrita: true }, ...alcance.slice(1)];
+    for (const parrafo of general) lienzo.texto(parrafo.texto, { tamano: 9, negrita: parrafo.negrita });
+    if (general.length) lienzo.espacio(10);
   }
+
+  const celdaConcepto = (fila: Variante["filas"][number]): Celda => {
+    const celda: Exclude<Celda, string> = [{ texto: `Concepto: ${fila.concepto}`, negrita: true }];
+    if (fila.descripcion?.length) {
+      celda.push({ texto: "Descripción:", negrita: true });
+      for (const vineta of fila.descripcion) celda.push({ texto: `• ${vineta}`, pegado: true });
+    }
+    return celda;
+  };
 
   const filas: Celda[][] = variante.filas.map((fila, i) => [
     fila.cantidad,
     tiempo,
-    i === 0 && !variosConceptos ? alcance : [{ texto: fila.concepto, negrita: true }],
+    porConcepto ? celdaConcepto(fila) : i === 0 ? alcance : [{ texto: fila.concepto, negrita: true }],
     [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
     `${formatoMoneda(fila.subtotal)} MXN`,
   ]);
 
-  tabla(lienzo, columnasCotizacion(variosConceptos ? "Concepto" : undefined), filas, {
+  tabla(lienzo, columnasCotizacion(), filas, {
     estilo: "reticula",
     tamano: 8.8,
-    alturaMinima: variosConceptos ? 32 : 70,
+    alturaMinima: porConcepto ? 48 : 70,
     centrarVertical: true,
   });
   bloqueTotales(lienzo, variante);

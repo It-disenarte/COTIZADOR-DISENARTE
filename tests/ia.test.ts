@@ -338,3 +338,67 @@ describe("Utilidades", () => {
   });
 });
 
+
+describe("Nombres para el cliente de los insumos", () => {
+  const rutaSugerir = () => import("@/app/api/ia/nombres-cliente/route");
+  const rutaGuardar = () => import("@/app/api/insumos/nombres-cliente/route");
+
+  it("la IA propone solo para insumos que existen y no guarda nada hasta que se revisa", async () => {
+    const { insumos } = await import("@/lib/db/schema");
+    const sinNombre = await db.select().from(insumos).where(eq(insumos.archivado, false));
+    const [primero] = sinNombre.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+
+    generar.mockResolvedValue(
+      respuesta({
+        nombres: [
+          { numero: 1, nombreCliente: "Nombre claro para el cliente." },
+          { numero: 999, nombreCliente: "Un insumo que no existe" },
+        ],
+      }),
+    );
+    const res = await (await rutaSugerir()).POST(peticion("/api/ia/nombres-cliente", { metodo: "POST", cookie, cuerpo: {} }), undefined);
+    expect(res.status).toBe(200);
+    const { sugerencias } = await res.json();
+
+    // El número inventado se descarta y el punto final se quita.
+    expect(sugerencias).toEqual([
+      { insumoId: primero.id, nombre: primero.nombre, categoria: primero.categoria, nombreCliente: "Nombre claro para el cliente" },
+    ]);
+    const [sinCambio] = await db.select().from(insumos).where(eq(insumos.id, primero.id));
+    expect(sinCambio.nombreCliente).toBeNull();
+
+    // Ya revisado, se guarda.
+    const guardado = await (await rutaGuardar()).PUT(
+      peticion("/api/insumos/nombres-cliente", {
+        metodo: "PUT",
+        cookie,
+        cuerpo: { cambios: [{ id: primero.id, nombreCliente: "Corte de vinil de color" }] },
+      }),
+      undefined,
+    );
+    expect(await guardado.json()).toEqual({ guardados: 1 });
+    const [conNombre] = await db.select().from(insumos).where(eq(insumos.id, primero.id));
+    expect(conNombre.nombreCliente).toBe("Corte de vinil de color");
+  });
+
+  it("ventas no puede pedir ni guardar nombres (es edición del catálogo)", async () => {
+    await rutaUsuarios.POST(
+      peticion("/api/usuarios", {
+        metodo: "POST",
+        cookie,
+        cuerpo: { nombre: "Ventas nombres", email: "ventas-nombres@disenartemx.com", rol: "ventas", passwordTemporal: "Temporal-1234567" },
+      }),
+      undefined,
+    );
+    const temporal = await iniciarSesion("ventas-nombres@disenartemx.com", "Temporal-1234567");
+    await rutaCuentaPassword.POST(
+      peticion("/api/cuenta/password", { metodo: "POST", cookie: temporal, cuerpo: { actual: "Temporal-1234567", nueva: "Definitiva-1234567" } }),
+      undefined,
+    );
+    const ventas = await iniciarSesion("ventas-nombres@disenartemx.com", "Definitiva-1234567");
+
+    const sugerir = await (await rutaSugerir()).POST(peticion("/api/ia/nombres-cliente", { metodo: "POST", cookie: ventas, cuerpo: {} }), undefined);
+    expect(sugerir.status).toBe(403);
+    expect(generar).not.toHaveBeenCalled();
+  });
+});

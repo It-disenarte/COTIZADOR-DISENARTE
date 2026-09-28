@@ -74,6 +74,8 @@ function esquemaEntrada(modo: "borrador" | "completa") {
             // Insumos de cada concepto, por id de fila.
             materiales: z.record(IdLocal, z.array(Componente).max(40)),
             preciosManuales: z.record(IdLocal, decimalOpcional({ min: 0 })).optional(),
+            // Descripción de cada concepto para el PDF, una viñeta por renglón.
+            descripciones: z.record(IdLocal, textoOpcional(1000)).optional(),
           }),
           // Forma anterior (una receta para todo el levantamiento): la siguen mandando las
           // pestañas que quedaron abiertas durante un despliegue. El servidor la convierte.

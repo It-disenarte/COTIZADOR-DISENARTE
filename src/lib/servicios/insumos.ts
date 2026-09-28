@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { insumos } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
-import type { ActualizarInsumo, CrearInsumo } from "@/lib/validacion/catalogo";
+import type { ActualizarInsumo, CrearInsumo, GuardarNombresCliente } from "@/lib/validacion/catalogo";
 import { exigirUuid, noEncontrado, soloDefinidos } from "./comun";
 
 export type Insumo = typeof insumos.$inferSelect;
@@ -36,5 +36,18 @@ export async function actualizarInsumo(actor: UsuarioSesion | null, id: string, 
     }
     const [despues] = await tx.update(insumos).set(valores).where(eq(insumos.id, id)).returning();
     return despues;
+  });
+}
+
+/** Guarda de una vez los nombres para el cliente que alguien revisó. */
+export async function guardarNombresCliente(actor: UsuarioSesion | null, { cambios }: GuardarNombresCliente): Promise<number> {
+  requirePermiso(actor, "catalogo.editar");
+  return db.transaction(async (tx) => {
+    let guardados = 0;
+    for (const { id, nombreCliente } of cambios) {
+      const actualizados = await tx.update(insumos).set({ nombreCliente }).where(eq(insumos.id, id)).returning({ id: insumos.id });
+      guardados += actualizados.length;
+    }
+    return guardados;
   });
 }

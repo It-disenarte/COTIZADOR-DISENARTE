@@ -162,7 +162,8 @@ export type Columna = {
   alineacion?: "izquierda" | "derecha" | "centro";
 };
 
-export type Celda = string | { texto: string; negrita?: boolean }[];
+/** Una celda: texto simple o párrafos. "pegado" quita el renglón en blanco antes del párrafo (viñetas). */
+export type Celda = string | { texto: string; negrita?: boolean; pegado?: boolean }[];
 
 type OpcionesTabla = {
   tamano?: number;
@@ -241,7 +242,8 @@ export function tabla(lienzo: Lienzo, columnas: Columna[], filas: Celda[][], opc
           .renglones(p.texto, tamano, columnas[i].ancho - RELLENO * 2, p.negrita)
           .map((texto) => ({ texto, negrita: !!p.negrita }));
         // Un renglón en blanco separa párrafos dentro de la misma celda.
-        return k > 0 && typeof celda !== "string" ? [{ texto: "", negrita: false }, ...renglones] : renglones;
+        const separar = k > 0 && typeof celda !== "string" && !("pegado" in p && p.pegado);
+        return separar ? [{ texto: "", negrita: false }, ...renglones] : renglones;
       });
     });
     const alto = Math.max(alturaMinima, ...celdas.map((c) => c.length * interlineado + 14));

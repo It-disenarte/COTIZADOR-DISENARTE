@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { UNIDADES_COSTO, ZONAS } from "@/lib/catalogo/constantes";
-import { decimalOpcional, textoOpcional, textoRequerido } from "./comunes";
+import { decimalOpcional, textoOpcional, textoRequerido, Uuid } from "./comunes";
 
 // Insumos ------------------------------------------------------------------------------------
 
 const camposInsumo = {
   nombre: textoRequerido(200, "Escribe el nombre."),
+  nombreCliente: textoOpcional(200),
   categoria: textoRequerido(100, "Escribe la categoría."),
   unidadCosto: z.preprocess((v) => (v === "" ? null : v), z.enum(UNIDADES_COSTO).nullable()),
   costo: decimalOpcional({ min: 0 }),
@@ -30,6 +31,15 @@ export const ActualizarInsumo = z
   .partial()
   .superRefine(reglasInsumo);
 export type ActualizarInsumo = z.infer<typeof ActualizarInsumo>;
+
+/** Nombres para el cliente ya revisados (los propone la IA desde el catálogo). */
+export const GuardarNombresCliente = z.object({
+  cambios: z
+    .array(z.object({ id: Uuid, nombreCliente: textoRequerido(200, "Escribe el nombre para el cliente.") }))
+    .min(1, { error: "Elige al menos un nombre para guardar." })
+    .max(300),
+});
+export type GuardarNombresCliente = z.infer<typeof GuardarNombresCliente>;
 
 // Parámetros ---------------------------------------------------------------------------------
 

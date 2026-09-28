@@ -106,6 +106,13 @@
       "when": 1790615147778,
       "tag": "0014_metros_lineales_por_pieza",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790630541879,
+      "tag": "0015_nombre_para_cliente",
+      "breakpoints": true
     }
   ]
 }

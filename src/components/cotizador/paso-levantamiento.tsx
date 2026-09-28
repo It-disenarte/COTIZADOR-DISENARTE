@@ -120,10 +120,14 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
     const origen = opcion?.materiales[filaId] ?? [];
     editarOpcionActiva((o) => {
       const materiales = { ...o.materiales };
+      const descripciones = { ...(o.descripciones ?? {}) };
+      const descripcion = o.descripciones?.[filaId];
       for (const f of filas) {
-        if (f.id !== filaId && !(materiales[f.id]?.length)) materiales[f.id] = origen.map((c) => ({ ...c }));
+        if (f.id === filaId || materiales[f.id]?.length) continue;
+        materiales[f.id] = origen.map((c) => ({ ...c }));
+        if (descripcion && !descripciones[f.id]) descripciones[f.id] = descripcion;
       }
-      return { ...o, materiales };
+      return { ...o, materiales, descripciones };
     });
   }
 
@@ -132,7 +136,12 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
       ...e,
       levantamiento: { ...e.levantamiento, filas: e.levantamiento.filas.filter((f) => f.id !== id) },
       // Sus insumos y su precio manual se van con él, en todas las opciones.
-      opciones: e.opciones.map((o) => ({ ...o, materiales: sinClave(o.materiales, id), preciosManuales: sinClave(o.preciosManuales ?? {}, id) })),
+      opciones: e.opciones.map((o) => ({
+        ...o,
+        materiales: sinClave(o.materiales, id),
+        preciosManuales: sinClave(o.preciosManuales ?? {}, id),
+        descripciones: sinClave(o.descripciones ?? {}, id),
+      })),
     }));
   }
 
@@ -147,7 +156,10 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
     // La opción nueva parte de la actual: solo se cambia lo que sea distinto.
     const base = opcion;
     const nueva = opcionNueva(opciones.length + 1);
-    if (base) nueva.materiales = JSON.parse(JSON.stringify(base.materiales));
+    if (base) {
+      nueva.materiales = JSON.parse(JSON.stringify(base.materiales));
+      nueva.descripciones = { ...(base.descripciones ?? {}) };
+    }
     editarEntrada((e) => ({ ...e, opciones: [...e.opciones, nueva] }));
     setIndiceOpcion(opciones.length);
   }
@@ -348,6 +360,18 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
                           >
                             <Copy className="size-3" /> Usar en los conceptos sin insumos
                           </button>
+                        )}
+                        {componentes.length > 0 && snapshot && (
+                          <DescripcionConcepto
+                            valor={txt(opcion?.descripciones?.[fila.id])}
+                            automatica={componentes.flatMap((c) => {
+                              const insumo = snapshot.insumos[c.insumoId];
+                              return insumo ? [insumo.nombreCliente?.trim() || insumo.nombre] : [];
+                            })}
+                            alCambiar={(valor) =>
+                              editarOpcionActiva((o) => ({ ...o, descripciones: { ...(o.descripciones ?? {}), [fila.id]: valor } }))
+                            }
+                          />
                         )}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right">
@@ -601,6 +625,54 @@ function ChipInsumo({
       >
         {componente.modo === "fijo" ? "Volver a calcularlo" : "Escribir otra cantidad"}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Lo que dice el PDF debajo del concepto ("Descripción:" con viñetas). Vacío = el nombre para el
+ * cliente de cada insumo, que se muestra de ejemplo; si se escribe algo, sale eso.
+ */
+function DescripcionConcepto({
+  valor,
+  automatica,
+  alCambiar,
+}: {
+  valor: string;
+  automatica: string[];
+  alCambiar: (valor: string) => void;
+}) {
+  const [abierta, setAbierta] = useState(valor.trim() !== "");
+  const vinetas = [...new Set(automatica)];
+
+  if (!abierta) {
+    return (
+      <div className="mt-1 text-xs text-muted-foreground">
+        <p>En el PDF: {vinetas.join(" · ")}</p>
+        <button type="button" onClick={() => setAbierta(true)} className="underline underline-offset-2 hover:text-foreground">
+          Escribir la descripción para el cliente
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1 space-y-1">
+      <Textarea
+        value={valor}
+        onChange={(e) => alCambiar(e.target.value)}
+        placeholder={vinetas.join("\n")}
+        aria-label="Descripción para el PDF"
+        className="min-h-20 text-xs"
+      />
+      <p className="text-xs text-muted-foreground">
+        Una viñeta por renglón; así sale en el PDF, sin cantidades ni costos. Vacía = los nombres de los insumos
+        (los de ejemplo).{" "}
+        {valor.trim() === "" && (
+          <button type="button" onClick={() => setAbierta(false)} className="underline underline-offset-2 hover:text-foreground">
+            Cerrar
+          </button>
+        )}
+      </p>
     </div>
   );
 }

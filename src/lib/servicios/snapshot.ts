@@ -42,6 +42,7 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       areaLaminaM2: i.areaLaminaM2,
       requiereRevision: i.requiereRevision,
       categoria: i.categoria,
+      nombreCliente: i.nombreCliente,
       archivado: i.archivado,
     };
   }

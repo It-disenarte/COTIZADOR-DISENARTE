@@ -1,0 +1,1 @@
+ALTER TABLE "insumos" ADD COLUMN "nombre_cliente" text;

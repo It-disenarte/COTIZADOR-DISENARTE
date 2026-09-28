@@ -158,12 +158,14 @@ export function separarAreasEnConceptos(entrada: EntradaNormalizada): EntradaNor
   const opciones = entrada.opciones.map((opcion) => {
     const materiales = { ...opcion.materiales };
     const preciosManuales = { ...(opcion.preciosManuales ?? {}) };
+    const descripciones = { ...(opcion.descripciones ?? {}) };
     for (const { fila, origen } of nuevos) {
       if (!origen || fila.id === origen) continue;
       if (opcion.materiales[origen]) materiales[fila.id] = opcion.materiales[origen].map((c) => ({ ...c }));
       if (opcion.preciosManuales?.[origen] != null) preciosManuales[fila.id] = opcion.preciosManuales[origen];
+      if (opcion.descripciones?.[origen]) descripciones[fila.id] = opcion.descripciones[origen];
     }
-    return { ...opcion, materiales, preciosManuales };
+    return { ...opcion, materiales, preciosManuales, descripciones };
   });
   return { ...entrada, levantamiento: { areas: [COLUMNA_CANTIDAD], filas: nuevos.map((n) => n.fila) }, opciones };
 }

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { ImportarCatalogo } from "@/components/catalogo/importar-catalogo";
+import { SugerirNombresCliente } from "@/components/catalogo/sugerir-nombres-cliente";
 import { TablaInsumos } from "@/components/catalogo/tabla-insumos";
 import { TablaParametros } from "@/components/catalogo/tabla-parametros";
 import { Badge } from "@/components/ui";
@@ -54,7 +55,7 @@ export default async function PaginaCatalogo({ searchParams }: PageProps<"/catal
         )}
       </nav>
 
-      {activa === "insumos" && <TablaInsumos insumos={await listarInsumos(usuario)} puedeEditar={puedeEditar} />}
+      {activa === "insumos" && <PestanaInsumos usuario={usuario} puedeEditar={puedeEditar} />}
       {activa === "parametros" && <TablaParametros parametros={await listarParametros(usuario)} puedeEditar={puedeEditar} />}
       {activa === "importar" && puedeEditar && (
         <ImportarCatalogo
@@ -63,6 +64,17 @@ export default async function PaginaCatalogo({ searchParams }: PageProps<"/catal
             .map((i) => ({ id: i.id, nombre: i.nombre, categoria: i.categoria }))}
         />
       )}
+    </div>
+  );
+}
+
+async function PestanaInsumos({ usuario, puedeEditar }: { usuario: Parameters<typeof listarInsumos>[0]; puedeEditar: boolean }) {
+  const lista = await listarInsumos(usuario);
+  const sinNombre = lista.filter((i) => !i.archivado && !i.nombreCliente).length;
+  return (
+    <div className="space-y-4">
+      {puedeEditar && <SugerirNombresCliente sinNombre={sinNombre} />}
+      <TablaInsumos insumos={lista} puedeEditar={puedeEditar} />
     </div>
   );
 }

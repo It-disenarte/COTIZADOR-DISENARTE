@@ -133,6 +133,10 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   (rotulación: los metros salen del escaneo) y **por pieza**. Cada insumo muestra lo que calculó, en su unidad de
   compra (`consumoDeInsumo` en el motor), y debajo de la tabla hay un **resumen de insumos** de la opción (total
   y costo por insumo; interno, nunca sale en el PDF).
+- **PDF por concepto:** cada fila dice "Concepto:" y "Descripción:" con viñetas. Las viñetas son la descripción
+  escrita para ese concepto en el paso 2 o, si está vacía, el **nombre para el cliente** de cada insumo
+  (`insumos.nombre_cliente`; si no tiene, su nombre). El concepto del proyecto va arriba de la tabla ("Proyecto:").
+  Nunca salen cantidades ni costos de los insumos.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
   base, sin pantalla, solo para convertir las cotizaciones anteriores.
 - Una **opción** es una página del PDF. Casi siempre hay una; si el cliente quiere comparar materiales se agrega
@@ -191,8 +195,9 @@ Detalles que costaron trabajo y conviene no volver a descubrir:
 
 ### Gemini (`src/lib/ia/`)
 
-Cinco tareas: leer levantamiento, precio de reventa, redactar alcance, leer listas de costos y redactar el
-mensaje para mandar la propuesta (correo o WhatsApp, cada uno con su botón). Reglas que ya están aplicadas:
+Seis tareas: leer levantamiento, precio de reventa, redactar alcance, leer listas de costos, redactar el
+mensaje para mandar la propuesta (correo o WhatsApp, cada uno con su botón) y proponer el **nombre para el
+cliente** de los insumos (Catálogo → Insumos → "Sugerir con IA"; se revisa antes de guardar). Reglas que ya están aplicadas:
 
 - Todo se pide con **esquema JSON** y se valida con Zod; si no cumple, se muestra error y se captura a mano.
 - **Nunca** se llama sola: siempre por un botón.
