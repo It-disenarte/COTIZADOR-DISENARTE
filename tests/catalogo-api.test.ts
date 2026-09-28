@@ -184,6 +184,21 @@ describe("Edición del catálogo por agente_admin", () => {
     expect(insumo).toMatchObject({ costo: "123.4567", unidadCosto: "m2", archivado: false });
   });
 
+  it("un insumo creado desde el cotizador queda listo para cotizar, con su nombre para el cliente", async () => {
+    const res = await rutaInsumos.POST(
+      peticion("/api/insumos", {
+        metodo: "POST",
+        cookie: cookieAgente,
+        cuerpo: { ...insumoValido, nombre: "Acrílico espejo plata 3 mm", nombreCliente: "Base de acrílico espejo plata" },
+      }),
+      undefined,
+    );
+    const { insumo } = await res.json();
+    const { obtenerSnapshot } = await import("@/lib/servicios/snapshot");
+    const snapshot = await obtenerSnapshot({ id: "x", nombre: "Agente", rol: "agente_admin", activo: true } as never);
+    expect(snapshot.insumos[insumo.id]).toMatchObject({ costo: "123.4567", nombreCliente: "Base de acrílico espejo plata" });
+  });
+
   it("edita el costo y archiva el insumo", async () => {
     const edicion = await rutaInsumo.PATCH(
       peticion(`/api/insumos/${insumoId}`, { metodo: "PATCH", cookie: cookieAgente, cuerpo: { costo: "200" } }),

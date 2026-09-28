@@ -25,6 +25,8 @@ type Props = {
   inicial?: BorradorCotizacion;
   /** Quien puede autorizar el análisis de costos (PNO-COM-01, Fase 1). */
   puedeAutorizar: boolean;
+  /** Quien edita el catálogo puede crear o corregir insumos desde el paso 2. */
+  puedeEditarCatalogo?: boolean;
   /** Fecha de autorización del análisis; null mientras no se autoriza. */
   autorizada?: string | null;
 };
@@ -36,6 +38,7 @@ export function AsistenteCotizacion({
   clientes,
   inicial,
   puedeAutorizar,
+  puedeEditarCatalogo = false,
   autorizada = null,
 }: Props) {
   const router = useRouter();
@@ -54,6 +57,16 @@ export function AsistenteCotizacion({
   const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
   const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
   const [autorizadaEn, setAutorizadaEn] = useState<string | null>(autorizada);
+
+  /** Vuelve a descargar el catálogo: tras crear o editar un insumo, los precios se recalculan solos. */
+  async function recargarCatalogo() {
+    try {
+      const datos = await llamarApi<{ snapshot: Snapshot }>("/api/catalogo/snapshot", "GET");
+      setSnapshot(datos.snapshot);
+    } catch {
+      avisar({ tipo: "error", texto: "No se pudo actualizar el catálogo. Recarga la página." });
+    }
+  }
 
   // El catálogo se descarga una vez y el precio se recalcula aquí mismo, sin ir al servidor.
   useEffect(() => {
@@ -209,7 +222,14 @@ export function AsistenteCotizacion({
           />
         )}
         {paso === 1 && (
-          <PasoLevantamiento borrador={borrador} cambiar={cambiar} snapshot={snapshot} ranuraCatalogo={ranuraCatalogo} />
+          <PasoLevantamiento
+            borrador={borrador}
+            cambiar={cambiar}
+            snapshot={snapshot}
+            ranuraCatalogo={ranuraCatalogo}
+            puedeEditarCatalogo={puedeEditarCatalogo}
+            recargarCatalogo={recargarCatalogo}
+          />
         )}
         {paso === 2 && (
           <PasoOpciones borrador={borrador} cambiar={cambiar} asegurarGuardado={() => guardar({ avisar: true })} />

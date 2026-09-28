@@ -20,6 +20,7 @@ export default async function PaginaNuevaCotizacion() {
         puedeElegirVendedor={tienePermiso(usuario, "cotizaciones.ver_todas")}
         clientes={clientes}
         puedeAutorizar={tienePermiso(usuario, "cotizaciones.autorizar")}
+        puedeEditarCatalogo={tienePermiso(usuario, "catalogo.editar")}
       />
     </div>
   );

@@ -72,6 +72,7 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
         clientes={clientes}
         inicial={inicial}
         puedeAutorizar={tienePermiso(usuario, "cotizaciones.autorizar")}
+        puedeEditarCatalogo={tienePermiso(usuario, "catalogo.editar")}
         autorizada={cotizacion.autorizadaEn ? cotizacion.autorizadaEn.toISOString() : null}
       />
     </div>

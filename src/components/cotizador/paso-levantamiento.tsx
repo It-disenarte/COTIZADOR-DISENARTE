@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPaste, Copy, GripVertical, Plus, Search, Trash2, X } from "lucide-react";
+import { ClipboardPaste, Copy, GripVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Button, Card, CardContent, Input, Textarea } from "@/components/ui";
@@ -27,6 +27,7 @@ import {
   type Snapshot,
 } from "@/lib/motor";
 import { cn } from "@/lib/utils";
+import { FormularioInsumo, type InsumoGuardado } from "./formulario-insumo";
 import { ImportarLevantamiento } from "./ia";
 
 type Props = {
@@ -35,6 +36,10 @@ type Props = {
   snapshot: Snapshot | null;
   /** Lugar en la columna derecha del asistente (debajo del precio en vivo) donde va el catálogo. */
   ranuraCatalogo?: HTMLElement | null;
+  /** Quien edita el catálogo puede crear o corregir insumos desde aquí. */
+  puedeEditarCatalogo?: boolean;
+  /** Vuelve a descargar el catálogo (tras crear o editar un insumo). */
+  recargarCatalogo?: () => Promise<void>;
 };
 
 // Desde "lg" existe la columna derecha del asistente; debajo de eso, todo va en una sola columna.
@@ -74,13 +79,22 @@ const UNIDAD_CORTA: Record<string, string> = {
  * Cómo se consume un insumo recién agregado, según cómo se compra. Un rollo sin ancho útil
  * (vinil de rotulación) va por metros lineales por pieza: los metros salen del escaneo.
  */
-function modoInicial(insumo: InsumoSnapshot): ModoComponente {
+function modoInicial(insumo: Pick<InsumoSnapshot, "unidadCosto" | "anchoUtilM">): ModoComponente {
   if (insumo.unidadCosto === "ml") return insumo.anchoUtilM ? "por_m2" : "por_ml";
   if (insumo.unidadCosto === "m2" || insumo.unidadCosto === "lamina") return "por_m2";
   return "por_pieza";
 }
 
-export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo }: Props) {
+export function PasoLevantamiento({
+  borrador,
+  cambiar,
+  snapshot,
+  ranuraCatalogo,
+  puedeEditarCatalogo = false,
+  recargarCatalogo,
+}: Props) {
+  /** Formulario abierto: null = cerrado; { insumo: null } = nuevo. */
+  const [formulario, setFormulario] = useState<{ insumo: InsumoSnapshot | null } | null>(null);
   const pantallaGrande = usePantallaGrande();
   const { filas } = borrador.entrada.levantamiento;
   const opciones = borrador.entrada.opciones;
@@ -107,8 +121,8 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
   const editarMateriales = (filaId: string, transformar: (lista: ComponenteConcepto[]) => ComponenteConcepto[]) =>
     editarOpcionActiva((o) => ({ ...o, materiales: { ...o.materiales, [filaId]: transformar(o.materiales[filaId] ?? []) } }));
 
-  function agregarDelCatalogo(arrastre: Arrastre, filaId: string) {
-    const insumo = snapshot?.insumos[arrastre.id];
+  function agregarDelCatalogo(arrastre: Arrastre, filaId: string, recienCreado?: InsumoGuardado) {
+    const insumo = recienCreado ?? snapshot?.insumos[arrastre.id];
     if (!insumo) return;
     // Por defecto la cantidad es automática (según las medidas); se puede cambiar a "total a mano".
     editarMateriales(filaId, (lista) => [...lista, { insumoId: insumo.id, modo: modoInicial(insumo), cantidad: "1" }]);
@@ -164,13 +178,25 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
     setIndiceOpcion(opciones.length);
   }
 
+  const destinoElegido = () => (filaElegida && filas.some((f) => f.id === filaElegida) ? filaElegida : filas[0]?.id);
+
+  async function alGuardarInsumo(insumo: InsumoGuardado, agregarAlConcepto: boolean) {
+    setFormulario(null);
+    await recargarCatalogo?.();
+    const destino = destinoElegido();
+    if (agregarAlConcepto && destino) agregarDelCatalogo({ tipo: "insumo", id: insumo.id }, destino, insumo);
+  }
+
   const panel = (
     <PanelCatalogo
       snapshot={snapshot}
+      puedeEditar={puedeEditarCatalogo}
+      alNuevo={() => setFormulario({ insumo: null })}
+      alEditar={(insumo) => setFormulario({ insumo })}
       enColumna={pantallaGrande && !!ranuraCatalogo}
       filaElegida={filas.find((f) => f.id === filaElegida)?.concepto ?? null}
       alAgregar={(arrastre) => {
-        const destino = filaElegida && filas.some((f) => f.id === filaElegida) ? filaElegida : filas[0]?.id;
+        const destino = destinoElegido();
         if (destino) agregarDelCatalogo(arrastre, destino);
       }}
     />
@@ -475,6 +501,15 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot, ranuraCatalogo 
       {/* En pantalla grande el catálogo va en la columna derecha, para que la tabla use todo el ancho;
           en celular o tablet se queda aquí, junto a la tabla, para no tener que bajar a buscarlo. */}
       {pantallaGrande && ranuraCatalogo ? createPortal(panel, ranuraCatalogo) : panel}
+      {formulario && (
+        <FormularioInsumo
+          insumo={formulario.insumo}
+          categorias={[...new Set(Object.values(snapshot?.insumos ?? {}).map((i) => i.categoria).filter((c): c is string => !!c))].sort()}
+          conceptoElegido={filas.length ? (filas.find((f) => f.id === destinoElegido())?.concepto ?? "") : null}
+          alCerrar={() => setFormulario(null)}
+          alGuardar={alGuardarInsumo}
+        />
+      )}
     </div>
   );
 }
@@ -759,8 +794,14 @@ function PanelCatalogo({
   enColumna,
   filaElegida,
   alAgregar,
+  puedeEditar,
+  alNuevo,
+  alEditar,
 }: {
   snapshot: Snapshot | null;
+  puedeEditar: boolean;
+  alNuevo: () => void;
+  alEditar: (insumo: InsumoSnapshot) => void;
   /** En la columna derecha la lista se ajusta al alto de la pantalla, porque esa columna se queda fija. */
   enColumna: boolean;
   filaElegida: string | null;
@@ -781,7 +822,7 @@ function PanelCatalogo({
     return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
   }, [snapshot, busqueda]);
 
-  const item = (arrastre: Arrastre, nombre: string, detalle: string) => (
+  const item = (arrastre: Arrastre, nombre: string, detalle: string, insumo: InsumoSnapshot) => (
     <div
       key={`${arrastre.tipo}-${arrastre.id}`}
       draggable
@@ -796,6 +837,17 @@ function PanelCatalogo({
         <p className="font-medium">{nombre}</p>
         <p className="text-muted-foreground">{detalle}</p>
       </div>
+      {puedeEditar && (
+        <button
+          type="button"
+          onClick={() => alEditar(insumo)}
+          title="Editar (p. ej. si cambió el precio)"
+          aria-label={`Editar ${nombre}`}
+          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => alAgregar(arrastre)}
@@ -813,9 +865,17 @@ function PanelCatalogo({
       <Card>
         <CardContent className="space-y-3 pt-5">
           <div>
-            <h3 className="text-sm font-medium">Catálogo</h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium">Catálogo</h3>
+              {puedeEditar && (
+                <Button type="button" size="sm" variant="outline" onClick={alNuevo}>
+                  <Plus /> Nuevo insumo
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               Arrastra a la columna Insumos, o elige un concepto y presiona +.
+              {!puedeEditar && " ¿Falta un insumo o cambió un precio? Pídeselo a un administrador."}
               {filaElegida !== null && (
                 <>
                   {" "}
@@ -846,6 +906,7 @@ function PanelCatalogo({
                     insumo.costo == null
                       ? "Sin costo capturado"
                       : `${formatoMoneda(insumo.costo)} por ${UNIDAD_CORTA[insumo.unidadCosto ?? ""] ?? "unidad"}`,
+                    insumo,
                   ),
                 )}
               </div>

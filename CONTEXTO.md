@@ -137,6 +137,9 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   escrita para ese concepto en el paso 2 o, si está vacía, el **nombre para el cliente** de cada insumo
   (`insumos.nombre_cliente`; si no tiene, su nombre). El concepto del proyecto va arriba de la tabla ("Proyecto:").
   Nunca salen cantidades ni costos de los insumos.
+- Desde el catálogo del paso 2, quien edita el catálogo puede **crear un insumo nuevo** o **editar uno** (p. ej. si
+  cambió el precio) sin salir de la cotización (`formulario-insumo.tsx`). Se guarda en el catálogo y los precios se
+  recalculan al momento; las cotizaciones autorizadas conservan el suyo. Ventas ve el catálogo sin esos botones.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
   base, sin pantalla, solo para convertir las cotizaciones anteriores.
 - Una **opción** es una página del PDF. Casi siempre hay una; si el cliente quiere comparar materiales se agrega
