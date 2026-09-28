@@ -81,13 +81,11 @@ function costoPorM2(insumo: InsumoSnapshot): Decimal {
   switch (insumo.unidadCosto) {
     case "m2":
       return costo;
-    case "ml": {
-      const ancho = d(insumo.anchoUtilM);
-      if (ancho.lte(0)) {
-        throw new ErrorMotor(`"${insumo.nombre}" se compra por metro lineal y no tiene ancho útil capturado.`, "SIN_ANCHO_UTIL");
-      }
-      return costo.div(ancho);
-    }
+    case "ml":
+      return costo.div(anchoUtil(insumo));
+    case "rollo":
+      // Precio del rollo entre su superficie útil (ancho × largo).
+      return costoPorMl(insumo).div(anchoUtil(insumo));
     case "lamina": {
       const area = d(insumo.areaLaminaM2);
       if (area.lte(0)) {
@@ -97,10 +95,19 @@ function costoPorM2(insumo: InsumoSnapshot): Decimal {
     }
     default:
       throw new ErrorMotor(
-        `El insumo "${insumo.nombre}" se cobra por ${insumo.unidadCosto ?? "unidad sin definir"} y no se puede usar por m². Cámbialo a por pieza en la receta.`,
+        `El insumo "${insumo.nombre}" se cobra por ${insumo.unidadCosto ?? "unidad sin definir"} y no se puede calcular por medidas. Presiona “Escribir otra cantidad” y escribe cuánto lleva.`,
         "UNIDAD_INCOMPATIBLE",
       );
   }
+}
+
+/** Ancho útil de un rollo (por metro lineal o completo), para llevarlo a m². */
+function anchoUtil(insumo: InsumoSnapshot): Decimal {
+  const ancho = d(insumo.anchoUtilM ?? 0);
+  if (ancho.lte(0)) {
+    throw new ErrorMotor(`"${insumo.nombre}" es un rollo y no tiene ancho útil capturado.`, "SIN_ANCHO_UTIL");
+  }
+  return ancho;
 }
 
 function exigirCosto(insumo: InsumoSnapshot): Decimal {
@@ -124,6 +131,14 @@ function costoPorPieza(insumo: InsumoSnapshot): Decimal {
 /** Rotulación (PNO 9): el vinil se vende por metro lineal y los metros salen del escaneo de la unidad. */
 function costoPorMl(insumo: InsumoSnapshot): Decimal {
   const costo = exigirCosto(insumo);
+  if (insumo.unidadCosto === "rollo") {
+    // Rollo completo: su precio entre los metros que trae.
+    const largo = d(insumo.largoRolloM ?? 0);
+    if (largo.lte(0)) {
+      throw new ErrorMotor(`"${insumo.nombre}" se compra por rollo completo y no tiene el largo del rollo capturado.`, "SIN_LARGO_ROLLO");
+    }
+    return costo.div(largo);
+  }
   if (insumo.unidadCosto !== "ml") {
     throw new ErrorMotor(
       `"${insumo.nombre}" se compra por ${insumo.unidadCosto ?? "unidad sin definir"}, no por metro lineal. Cámbialo a "por m²" o "por pieza".`,
@@ -140,6 +155,7 @@ export type ConsumoInsumo = { insumoId: string; cantidad: Decimal; unidad: strin
 const UNIDAD_CONSUMO: Record<string, string> = {
   m2: "m²",
   ml: "ml",
+  rollo: "rollos",
   lamina: "láminas",
   pieza: "piezas",
   minuto: "min",
@@ -162,7 +178,9 @@ function consumoDeComponente(componente: ComponenteConcepto, snapshot: Snapshot,
       const costo = m2.times(costoPorM2(insumo));
       // Se expresa como se compra: láminas o metros del rollo (costoPorM2 ya validó área y ancho).
       if (insumo.unidadCosto === "lamina") return { ...base, cantidad: m2.div(d(insumo.areaLaminaM2)), unidad: "láminas", costo };
-      if (insumo.unidadCosto === "ml") return { ...base, cantidad: m2.div(d(insumo.anchoUtilM)), unidad: "ml", costo };
+      if (insumo.unidadCosto === "ml" || insumo.unidadCosto === "rollo") {
+        return { ...base, cantidad: m2.div(d(insumo.anchoUtilM)), unidad: "ml", costo };
+      }
       return { ...base, cantidad: m2, unidad: "m²", costo };
     }
     case "por_ml": {

@@ -13,6 +13,8 @@ export type InsumoSnapshot = {
   costo: string | null;
   anchoUtilM: string | null;
   areaLaminaM2: string | null;
+  /** Rollo completo: largo en metros. Las cotizaciones anteriores no lo traen. */
+  largoRolloM?: string | null;
   requiereRevision: boolean;
   /** Para agrupar el catálogo en el asistente. Las cotizaciones viejas no lo traen. */
   categoria?: string;

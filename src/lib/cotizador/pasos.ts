@@ -15,6 +15,7 @@ const PASO_DE_ERROR: Record<string, number> = {
   SIN_COSTO: PASO.levantamiento,
   SIN_ANCHO_UTIL: PASO.levantamiento,
   SIN_AREA_LAMINA: PASO.levantamiento,
+  SIN_LARGO_ROLLO: PASO.levantamiento,
   UNIDAD_INCOMPATIBLE: PASO.levantamiento,
   INSUMO_INEXISTENTE: PASO.levantamiento,
   RECETA_INEXISTENTE: PASO.levantamiento,

@@ -1,17 +1,22 @@
 // Constantes puras del catálogo, compartidas entre esquema, servidor y cliente.
 
 /** Unidades de venta del PNO-COM-01, apartado 9 (más "lámina", que es presentación de compra). */
-export const UNIDADES_COSTO = ["m2", "ml", "pieza", "lamina", "minuto", "ciento", "millar", "persona"] as const;
+export const UNIDADES_COSTO = ["m2", "ml", "rollo", "pieza", "lamina", "minuto", "ciento", "millar", "persona"] as const;
 export type UnidadCosto = (typeof UNIDADES_COSTO)[number];
+/**
+ * Unidad en la que está el COSTO del insumo: cómo lo compra Diseñarte (el cliente nunca la ve).
+ * En minúsculas porque también se lee como "por metro lineal".
+ */
 export const ETIQUETA_UNIDAD: Record<UnidadCosto, string> = {
-  m2: "m² (lona, impresión, sustratos rígidos, UV)",
-  ml: "Metro lineal (rotulación y corte de vinil)",
-  pieza: "Pieza (playeras y artículos)",
-  lamina: "Lámina (presentación de compra)",
-  minuto: "Minuto (corte y grabado láser)",
-  ciento: "Ciento (tarjetas)",
-  millar: "Millar (tarjetas)",
-  persona: "Persona (cursos)",
+  m2: "m²",
+  ml: "metro lineal (rollo)",
+  rollo: "rollo completo",
+  pieza: "pieza",
+  lamina: "lámina completa",
+  minuto: "minuto (de máquina)",
+  ciento: "ciento",
+  millar: "millar",
+  persona: "persona",
 };
 
 /** Cuántas unidades de venta trae la presentación: un ciento son 100, un millar 1,000. */

@@ -67,6 +67,7 @@ const TIPO_ARRASTRE = "application/x-disenarte-catalogo";
 const UNIDAD_CORTA: Record<string, string> = {
   m2: "m²",
   ml: "metro lineal",
+  rollo: "rollo",
   pieza: "pieza",
   lamina: "lámina",
   minuto: "minuto",
@@ -80,7 +81,7 @@ const UNIDAD_CORTA: Record<string, string> = {
  * (vinil de rotulación) va por metros lineales por pieza: los metros salen del escaneo.
  */
 function modoInicial(insumo: Pick<InsumoSnapshot, "unidadCosto" | "anchoUtilM">): ModoComponente {
-  if (insumo.unidadCosto === "ml") return insumo.anchoUtilM ? "por_m2" : "por_ml";
+  if (insumo.unidadCosto === "ml" || insumo.unidadCosto === "rollo") return insumo.anchoUtilM ? "por_m2" : "por_ml";
   if (insumo.unidadCosto === "m2" || insumo.unidadCosto === "lamina") return "por_m2";
   return "por_pieza";
 }
@@ -518,6 +519,7 @@ export function PasoLevantamiento({
 const UNIDAD_TOTAL: Record<string, string> = {
   m2: "m²",
   ml: "ml",
+  rollo: "rollos",
   lamina: "láminas",
   pieza: "piezas",
   minuto: "min",
@@ -722,8 +724,9 @@ function ResumenInsumos({ opcion, filas, snapshot }: { opcion: OpcionCotizacion;
     for (const componente of opcion.materiales[fila.id] ?? []) {
       try {
         const consumo = consumoDeInsumo(componente, fila, snapshot);
-        const actual = totales.get(consumo.insumoId) ?? { cantidad: 0, unidad: consumo.unidad, costo: 0 };
-        totales.set(consumo.insumoId, {
+        const clave = `${consumo.insumoId}|${consumo.unidad}`;
+        const actual = totales.get(clave) ?? { cantidad: 0, unidad: consumo.unidad, costo: 0 };
+        totales.set(clave, {
           cantidad: actual.cantidad + consumo.cantidad.toNumber(),
           unidad: actual.unidad,
           costo: actual.costo + consumo.costo.toNumber(),
@@ -736,7 +739,10 @@ function ResumenInsumos({ opcion, filas, snapshot }: { opcion: OpcionCotizacion;
   if (totales.size === 0) return null;
 
   const renglones = [...totales.entries()]
-    .map(([id, t]) => ({ id, nombre: snapshot.insumos[id]?.nombre ?? "Insumo", ...t }))
+    .map(([clave, t]) => {
+      const insumo = snapshot.insumos[clave.split("|")[0]];
+      return { id: clave, nombre: insumo?.nombre ?? "Insumo", largoRollo: Number(insumo?.largoRolloM ?? 0), ...t };
+    })
     .sort((a, b) => b.costo - a.costo);
   const total = renglones.reduce((s, r) => s + r.costo, 0);
 
@@ -766,6 +772,12 @@ function ResumenInsumos({ opcion, filas, snapshot }: { opcion: OpcionCotizacion;
                   {numeroCorto(r.cantidad)} {r.unidad}
                   {r.unidad === "láminas" && r.cantidad % 1 > 0 && (
                     <span className="block text-xs text-muted-foreground">se compran {Math.ceil(r.cantidad)}</span>
+                  )}
+                  {r.unidad === "ml" && r.largoRollo > 0 && (
+                    <span className="block text-xs text-muted-foreground">
+                      se compra{Math.ceil(r.cantidad / r.largoRollo) === 1 ? "" : "n"} {Math.ceil(r.cantidad / r.largoRollo)} rollo
+                      {Math.ceil(r.cantidad / r.largoRollo) === 1 ? "" : "s"} de {numeroCorto(r.largoRollo)} m
+                    </span>
                   )}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-right">{formatoMoneda(r.costo.toFixed(2))}</td>

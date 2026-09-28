@@ -119,6 +119,8 @@ export const insumos = pgTable(
     anchoUtilM: medida("ancho_util_m"),
     /** Láminas: convierte costo por lámina a costo por m² */
     areaLaminaM2: medida("area_lamina_m2"),
+    /** Rollo completo: su largo en metros. Con el ancho útil convierte el precio del rollo a metro y a m². */
+    largoRolloM: medida("largo_rollo_m"),
     fuente: text("fuente"),
     requiereRevision: boolean("requiere_revision").notNull().default(false),
     archivado: boolean("archivado").notNull().default(false),

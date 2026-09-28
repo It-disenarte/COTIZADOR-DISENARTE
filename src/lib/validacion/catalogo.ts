@@ -12,6 +12,7 @@ const camposInsumo = {
   costo: decimalOpcional({ min: 0 }),
   anchoUtilM: decimalOpcional({ min: 0 }),
   areaLaminaM2: decimalOpcional({ min: 0 }),
+  largoRolloM: decimalOpcional({ min: 0 }),
   fuente: textoOpcional(1000),
   requiereRevision: z.boolean(),
 };

@@ -40,6 +40,7 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
     costo: insumo?.costo ?? "",
     anchoUtilM: insumo?.anchoUtilM ?? "",
     areaLaminaM2: insumo?.areaLaminaM2 ?? "",
+    largoRolloM: insumo?.largoRolloM ?? "",
   });
   const editar = (cambios: Partial<typeof campos>) => setCampos((c) => ({ ...c, ...cambios }));
 
@@ -57,7 +58,8 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
       const cuerpo = {
         ...campos,
         // El ancho y el área solo aplican a rollos y láminas: en otra unidad no se guardan.
-        anchoUtilM: campos.unidadCosto === "ml" ? campos.anchoUtilM : "",
+        anchoUtilM: campos.unidadCosto === "ml" || campos.unidadCosto === "rollo" ? campos.anchoUtilM : "",
+        largoRolloM: campos.unidadCosto === "rollo" ? campos.largoRolloM : "",
         areaLaminaM2: campos.unidadCosto === "lamina" ? campos.areaLaminaM2 : "",
       };
       const { insumo: guardado } = nuevo
@@ -139,7 +141,7 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="insumo-unidad">Se compra por</Label>
+            <Label htmlFor="insumo-unidad">Unidad del costo</Label>
             <Select id="insumo-unidad" value={campos.unidadCosto} onChange={(e) => editar({ unidadCosto: e.target.value })}>
               <option value="">Por definir</option>
               {UNIDADES_COSTO.map((u) => (
@@ -148,6 +150,7 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
                 </option>
               ))}
             </Select>
+            <p className="text-xs text-muted-foreground">Cómo lo compra Diseñarte. El cliente nunca la ve.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="insumo-costo">Costo</Label>
@@ -170,6 +173,20 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
               Para calcularlo por medidas (m²), p. ej. 1.22. Déjalo vacío si es vinil de rotulación que se cobra por
               metros del escaneo.
             </p>
+          </div>
+        )}
+        {campos.unidadCosto === "rollo" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="insumo-ancho-rollo">Ancho útil (m)</Label>
+              <Input id="insumo-ancho-rollo" inputMode="decimal" value={campos.anchoUtilM} onChange={(e) => editar({ anchoUtilM: e.target.value })} />
+              <p className="text-xs text-muted-foreground">P. ej. 1.22. Déjalo vacío si es vinil de rotulación que se cobra por metros del escaneo.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="insumo-largo">Largo del rollo (m)</Label>
+              <Input id="insumo-largo" inputMode="decimal" value={campos.largoRolloM} onChange={(e) => editar({ largoRolloM: e.target.value })} required />
+              <p className="text-xs text-muted-foreground">Cuántos metros trae, p. ej. 50. El costo es el precio del rollo completo.</p>
+            </div>
           </div>
         )}
         {campos.unidadCosto === "lamina" && (

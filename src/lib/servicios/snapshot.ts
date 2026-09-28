@@ -40,6 +40,7 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       costo: i.costo,
       anchoUtilM: i.anchoUtilM,
       areaLaminaM2: i.areaLaminaM2,
+      largoRolloM: i.largoRolloM,
       requiereRevision: i.requiereRevision,
       categoria: i.categoria,
       nombreCliente: i.nombreCliente,

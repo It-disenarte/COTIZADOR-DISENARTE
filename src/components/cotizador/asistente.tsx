@@ -9,7 +9,7 @@ import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
 import { PASO, PASOS, type Pendiente, pasoDeErrorMotor } from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
-import { calcular, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
+import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
 import { problemaDeEntrada } from "@/lib/validacion/cotizacion";
 import { PasoLevantamiento } from "./paso-levantamiento";
@@ -300,7 +300,12 @@ export function AsistenteCotizacion({
                   {formatoMoneda(primeraVariante.unitario)}
                 </p>
                 <p className="text-muted-foreground">Subtotal {formatoMoneda(primeraVariante.subtotal)}</p>
-                <ComposicionDelCosto desglose={primeraVariante.desglose} irAOperacion={() => irAlPaso(PASO.operacion)} />
+                <ComposicionDelCosto
+                  variante={primeraVariante}
+                  parametros={snapshot?.parametros ?? null}
+                  ajustes={borrador.entrada.ajustes}
+                  irAOperacion={() => irAlPaso(PASO.operacion)}
+                />
               </div>
             )}
 
@@ -359,30 +364,65 @@ function AvisoPendiente({
 }
 
 /**
- * De qué se compone el costo: materiales contra operación (diseño, producción, instalación, viajes).
- * Así se nota enseguida cuando la operación pesa más que el trabajo. Es interno: no sale al cliente.
+ * El camino completo del costo al precio, para que se vea de dónde sale cada peso: materiales,
+ * consumibles y operación; luego la fórmula del PNO (× margen de error, ÷ margen) y el IVA.
+ * Es interno: no sale al cliente.
  */
 function ComposicionDelCosto({
-  desglose,
+  variante,
+  parametros,
+  ajustes,
   irAOperacion,
 }: {
-  desglose: { materiales: string; consumibles: string; costoTotal: string };
+  variante: { desglose: Desglose; subtotal: string; total: string; descuento: string };
+  parametros: Snapshot["parametros"] | null;
+  ajustes: BorradorCotizacion["entrada"]["ajustes"];
   irAOperacion: () => void;
 }) {
-  const materiales = Number(desglose.materiales) + Number(desglose.consumibles);
-  const operacion = Math.max(Number(desglose.costoTotal) - materiales, 0);
+  const { desglose } = variante;
+  const materiales = Number(desglose.materiales);
+  const consumibles = Number(desglose.consumibles);
+  const costo = Number(desglose.costoTotal);
+  const operacion = Math.max(costo - materiales - consumibles, 0);
+
+  const margen = ajustes.margen !== "" && ajustes.margen != null ? Number(ajustes.margen) : Number(parametros?.margen ?? 0.3);
+  const pctError = ajustes.aplicaMargenError ? Number(parametros?.pctMargenError ?? 0.1) : 0;
+  const pctConsumibles = Number(parametros?.pctConsumibles ?? 0.05);
+  const iva = Number(parametros?.iva ?? 0.16);
+  const conError = costo * (1 + pctError);
+  const precio = conError / (1 - margen);
+  const subtotal = Number(variante.subtotal);
+  const descuento = Number(variante.descuento);
+  // El subtotal redondea el unitario de cada concepto a centavos (y respeta precios manuales y descuento):
+  // si se aleja de la fórmula más que unos centavos, se dice por qué.
+  const diferencia = Math.abs(subtotal + descuento - precio) > 1;
+
+  const porcentaje = (valor: number) => `${Math.round(valor * 1000) / 10}%`;
+  const renglon = (etiqueta: string, valor: number, clase = "") => (
+    <p className={cn("flex justify-between gap-2", clase)}>
+      <span>{etiqueta}</span>
+      <span className="tabular-nums">{formatoMoneda(valor.toFixed(2))}</span>
+    </p>
+  );
+
   return (
     <div className="space-y-1 border-t pt-2 text-xs">
-      <p className="text-muted-foreground">De qué se compone el costo:</p>
-      <p className="flex justify-between gap-2">
-        <span>Materiales</span>
-        <span>{formatoMoneda(materiales.toFixed(2))}</span>
-      </p>
-      <p className="flex justify-between gap-2">
-        <span>Operación y mano de obra</span>
-        <span>{formatoMoneda(operacion.toFixed(2))}</span>
-      </p>
-      {operacion > materiales && (
+      <p className="text-muted-foreground">Cómo se llega al precio:</p>
+      {renglon("Materiales", materiales)}
+      {ajustes.aplicaConsumibles && renglon(`Consumibles (${porcentaje(pctConsumibles)} de materiales)`, consumibles)}
+      {renglon("Operación y mano de obra", operacion)}
+      {renglon("Costo", costo, "border-t pt-1 font-medium")}
+      {pctError > 0 && renglon(`× ${(1 + pctError).toFixed(2)} margen de error`, conError)}
+      {renglon(`÷ ${(1 - margen).toFixed(2)} margen del ${porcentaje(margen)}`, precio)}
+      {descuento > 0 && renglon("− Descuento", descuento)}
+      {renglon("Subtotal", subtotal, "border-t pt-1 font-medium")}
+      {renglon(`+ IVA ${porcentaje(iva)}`, Number(variante.total), "font-medium")}
+      {diferencia && (
+        <p className="text-muted-foreground">
+          El subtotal no es exacto a la fórmula porque hay precios escritos a mano o por el redondeo de cada pieza.
+        </p>
+      )}
+      {operacion > materiales + consumibles && (
         <p className="rounded-md bg-accent/10 p-2 text-foreground">
           La operación pesa más que los materiales. Si es solo suministro, revisa diseño, instalación y viáticos.{" "}
           <button type="button" onClick={irAOperacion} className="font-medium underline underline-offset-2">

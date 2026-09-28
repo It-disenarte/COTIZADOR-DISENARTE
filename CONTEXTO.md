@@ -140,6 +140,8 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - Desde el catálogo del paso 2, quien edita el catálogo puede **crear un insumo nuevo** o **editar uno** (p. ej. si
   cambió el precio) sin salir de la cotización (`formulario-insumo.tsx`). Se guarda en el catálogo y los precios se
   recalculan al momento; las cotizaciones autorizadas conservan el suyo. Ventas ve el catálogo sin esos botones.
+- **Rollo completo** (unidad `rollo`): se captura el precio del rollo, su ancho útil y su largo (`largo_rollo_m`);
+  el motor lo lleva a costo por metro y por m² y cobra solo lo usado. El resumen de insumos dice cuántos rollos comprar.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
   base, sin pantalla, solo para convertir las cotizaciones anteriores.
 - Una **opción** es una página del PDF. Casi siempre hay una; si el cliente quiere comparar materiales se agrega

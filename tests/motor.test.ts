@@ -587,3 +587,51 @@ describe("Descripción de cada concepto en el PDF", () => {
     expect(fila.descripcion).toEqual(["Base de acrílico espejo plata", "Corte de vinil color"]);
   });
 });
+
+describe("Rollo completo: se captura el precio del rollo y se cobra solo lo que se usa", () => {
+  // Rollo de 1.22 × 50 m a $5,307.50: $106.15 por metro, $87.01 por m².
+  const conRollo = (): Snapshot => {
+    const s = snapshot({});
+    s.insumos = {
+      ...INSUMOS,
+      rolloCompleto: {
+        id: "rolloCompleto",
+        nombre: "Vinil de corte (rollo 50 m)",
+        unidadCosto: "rollo",
+        costo: "5307.50",
+        anchoUtilM: "1.22",
+        largoRolloM: "50",
+        areaLaminaM2: null,
+        requiereRevision: false,
+      },
+    };
+    return s;
+  };
+  const fila = { anchoM: "1.22", altoM: "2", cantidades: [1] }; // 2.44 m²
+
+  it("por medidas: cobra los m² usados y lo expresa en metros del rollo", () => {
+    const consumo = consumoDeInsumo({ insumoId: "rolloCompleto", modo: "por_m2", cantidad: "1" }, fila, conRollo());
+    expect(consumo.unidad).toBe("ml");
+    expect(consumo.cantidad.toFixed(2)).toBe("2.00"); // 2.44 m² ÷ 1.22 m de ancho
+    expect(consumo.costo.toFixed(2)).toBe("212.30"); // 2 m × $106.15
+  });
+
+  it("rotulación: los metros del escaneo se cobran al precio por metro del rollo", () => {
+    const consumo = consumoDeInsumo({ insumoId: "rolloCompleto", modo: "por_ml", cantidad: "6" }, fila, conRollo());
+    expect(consumo.costo.toFixed(2)).toBe("636.90"); // 6 m × $106.15
+  });
+
+  it("a mano: 2 rollos cuestan 2 rollos", () => {
+    const consumo = consumoDeInsumo({ insumoId: "rolloCompleto", modo: "fijo", cantidad: "2" }, fila, conRollo());
+    expect(consumo).toMatchObject({ unidad: "rollos" });
+    expect(consumo.costo.toFixed(2)).toBe("10615.00");
+  });
+
+  it("sin el largo del rollo avisa qué falta", () => {
+    const sinLargo = conRollo();
+    sinLargo.insumos.rolloCompleto = { ...sinLargo.insumos.rolloCompleto, largoRolloM: null };
+    expect(() => consumoDeInsumo({ insumoId: "rolloCompleto", modo: "por_m2", cantidad: "1" }, fila, sinLargo)).toThrow(
+      /no tiene el largo del rollo/,
+    );
+  });
+});

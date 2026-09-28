@@ -17,6 +17,7 @@ const CAMPOS: Campo[] = [
   {
     nombre: "unidadCosto",
     etiqueta: "Unidad del costo",
+    ayuda: "Cómo lo compra Diseñarte: el costo es por esta unidad. El cliente nunca la ve.",
     tipo: "select",
     opciones: [
       { valor: "", etiqueta: "Por definir" },
@@ -24,7 +25,8 @@ const CAMPOS: Campo[] = [
     ],
   },
   { nombre: "costo", etiqueta: "Costo", tipo: "numero", ayuda: "Sin IVA y sin margen. Vacío = por capturar." },
-  { nombre: "anchoUtilM", etiqueta: "Ancho útil (m)", tipo: "numero", ayuda: "Solo rollos: convierte el costo por ML a m²." },
+  { nombre: "anchoUtilM", etiqueta: "Ancho útil (m)", tipo: "numero", ayuda: "Solo rollos (por metro o completo): p. ej. 1.22. Convierte el costo a m²." },
+  { nombre: "largoRolloM", etiqueta: "Largo del rollo (m)", tipo: "numero", ayuda: "Solo rollo completo: cuántos metros trae, p. ej. 50." },
   { nombre: "areaLaminaM2", etiqueta: "Área de lámina (m²)", tipo: "numero", ayuda: "Solo láminas: ej. 2.9768 para 1.22 × 2.44 m." },
   { nombre: "fuente", etiqueta: "Fuente / nota", tipo: "textarea", anchoCompleto: true },
   { nombre: "requiereRevision", etiqueta: "Marcar como “Por revisar”", tipo: "checkbox", anchoCompleto: true },
@@ -49,6 +51,7 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
         costo: i?.costo ?? "",
         anchoUtilM: i?.anchoUtilM ?? "",
         areaLaminaM2: i?.areaLaminaM2 ?? "",
+        largoRolloM: i?.largoRolloM ?? "",
         fuente: i?.fuente ?? "",
         requiereRevision: i?.requiereRevision ?? false,
       })}
@@ -81,7 +84,11 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
         {
           titulo: "Conversión a m²",
           celda: (i) =>
-            i.anchoUtilM ? (
+            i.unidadCosto === "rollo" ? (
+              <span className="text-xs">
+                Rollo de {formatoNumero(i.anchoUtilM ?? "")} × {formatoNumero(i.largoRolloM ?? "")} m
+              </span>
+            ) : i.anchoUtilM ? (
               <span className="text-xs">Ancho útil {formatoNumero(i.anchoUtilM)} m</span>
             ) : i.areaLaminaM2 ? (
               <span className="text-xs">Lámina de {formatoNumero(i.areaLaminaM2)} m²</span>
