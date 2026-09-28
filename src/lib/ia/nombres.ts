@@ -38,15 +38,23 @@ const ESQUEMA = {
 
 const INSTRUCCIONES = `Eres parte del equipo comercial de Diseñarte México, un taller de señalética, impresión de gran
 formato, rotulación y corte láser. Te doy los nombres INTERNOS de sus insumos (como aparecen en su catálogo de
-costos). Para cada uno escribe cómo se le describe a un CLIENTE en la propuesta, como una viñeta de "Descripción".
+costos, es decir, como se COMPRAN: láminas, rollos, piezas). Para cada uno escribe cómo se le describe a un
+CLIENTE en la propuesta, como una viñeta de "Descripción" de una pieza terminada.
+
+Lo más importante: describe el insumo YA TRABAJADO, como parte de la pieza que recibe el cliente, no como
+materia prima. El cliente no compra una lámina ni un rollo: recibe una base, un corte, una impresión.
+- "Acrílico espejo plata 3 mm (lámina 1.22 × 2.44)" → "Base de acrílico espejo plata de 3 mm"
+- "Vinil de corte 1.22" → "Corte de vinil de color"
+- "Vinil fotoluminiscente" → "Corte de vinil fotoluminiscente"
+- "Impresión JV33 vinil transparente 1.52" → "Impresión digital en vinil transparente"
+- "Trovicel 3 mm" → "Base de trovicel de 3 mm"
+Nunca uses "lámina", "rollo" ni "hoja" para hablar de lo que recibe el cliente.
 
 Reglas:
 - Español de México, claro y profesional, máximo 60 caracteres, sin punto final.
 - Quita lo que solo entiende el taller: modelos de máquina (JV33, UV), anchos de rollo (1.22, 1.52),
   claves y abreviaturas internas.
 - Conserva lo que al cliente sí le importa: material, espesor y calibre (3 mm, cal. 40), acabado si viene en el nombre.
-- Describe el material o el proceso: "Corte de vinil de color", "Impresión digital en vinil transparente",
-  "Base de trovicel de 3 mm", "Acrílico de 6 mm con corte láser".
 - NO inventes colores, acabados, medidas ni características que no estén en el nombre.
 - Si el nombre ya es claro para un cliente, déjalo casi igual.
 Responde solo con el JSON pedido, un elemento por cada número que te di.`;

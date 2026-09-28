@@ -280,6 +280,7 @@ export function AsistenteCotizacion({
                   {formatoMoneda(primeraVariante.unitario)}
                 </p>
                 <p className="text-muted-foreground">Subtotal {formatoMoneda(primeraVariante.subtotal)}</p>
+                <ComposicionDelCosto desglose={primeraVariante.desglose} irAOperacion={() => irAlPaso(PASO.operacion)} />
               </div>
             )}
 
@@ -332,6 +333,42 @@ function AvisoPendiente({
         <Button type="button" size="sm" variant="outline" onClick={() => irAlPaso(pendiente.paso)}>
           Ir a {PASOS[pendiente.paso]} <ChevronRight />
         </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * De qué se compone el costo: materiales contra operación (diseño, producción, instalación, viajes).
+ * Así se nota enseguida cuando la operación pesa más que el trabajo. Es interno: no sale al cliente.
+ */
+function ComposicionDelCosto({
+  desglose,
+  irAOperacion,
+}: {
+  desglose: { materiales: string; consumibles: string; costoTotal: string };
+  irAOperacion: () => void;
+}) {
+  const materiales = Number(desglose.materiales) + Number(desglose.consumibles);
+  const operacion = Math.max(Number(desglose.costoTotal) - materiales, 0);
+  return (
+    <div className="space-y-1 border-t pt-2 text-xs">
+      <p className="text-muted-foreground">De qué se compone el costo:</p>
+      <p className="flex justify-between gap-2">
+        <span>Materiales</span>
+        <span>{formatoMoneda(materiales.toFixed(2))}</span>
+      </p>
+      <p className="flex justify-between gap-2">
+        <span>Operación y mano de obra</span>
+        <span>{formatoMoneda(operacion.toFixed(2))}</span>
+      </p>
+      {operacion > materiales && (
+        <p className="rounded-md bg-accent/10 p-2 text-foreground">
+          La operación pesa más que los materiales. Si es solo suministro, revisa diseño, instalación y viáticos.{" "}
+          <button type="button" onClick={irAOperacion} className="font-medium underline underline-offset-2">
+            Ir a Operación
+          </button>
+        </p>
       )}
     </div>
   );

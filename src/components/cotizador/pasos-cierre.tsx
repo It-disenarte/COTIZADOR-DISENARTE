@@ -103,7 +103,17 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
           <label className="flex items-center gap-2 text-sm font-medium">
             <Checkbox
               checked={op.instalacion.incluye}
-              onChange={(e) => editarOperacion({ instalacion: { ...op.instalacion, incluye: e.target.checked } })}
+              onChange={(e) => {
+                const incluye = e.target.checked;
+                // Al activarla por primera vez propone la cuadrilla de siempre (2 personas, 1 día), con sus viáticos.
+                const vacia = Number(op.instalacion.personas) === 0 && Number(op.instalacion.dias) === 0;
+                editarOperacion({
+                  instalacion: incluye && vacia ? { ...op.instalacion, incluye, personas: "2", dias: "1" } : { ...op.instalacion, incluye },
+                  ...(incluye && vacia && Number(op.viaticos.personas) === 0
+                    ? { viaticos: { ...op.viaticos, personas: "2", dias: "1" } }
+                    : {}),
+                });
+              }}
             />
             Incluye instalación
           </label>

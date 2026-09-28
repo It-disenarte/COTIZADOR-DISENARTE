@@ -66,15 +66,17 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
       // Casi siempre basta con una opción: se crea de una vez para que la tabla reciba insumos.
       opciones: [opcionNueva(1)],
       tiempoEstimado: "5-7 días",
-      incluyeEnvio: true,
+      // Una cotización nueva empieza sin operación (ni envío, diseño, instalación o viáticos): se agrega
+      // en el paso Operación cuando aplica. Antes venía llena y un letrero suelto cargaba una cuadrilla.
+      incluyeEnvio: false,
       sitio: { retiroGraficosPrevios: false, notasSuperficie: "" },
       operacion: {
         trabajoEnInstalacionesDisenarte: false,
-        diasDiseno: "1",
+        diasDiseno: "0",
         disenoMontoManual: "",
         produccion: { personas: "0", dias: "0" },
-        instalacion: { incluye: true, personas: "2", dias: "1", escalaPorPieza: false },
-        viaticos: { tipo: "local", personas: "2", dias: "1", montoDiaManual: "" },
+        instalacion: { incluye: false, personas: "0", dias: "0", escalaPorPieza: false },
+        viaticos: { tipo: "local", personas: "0", dias: "0", montoDiaManual: "" },
         hospedaje: { incluye: false, noches: "0", costoNoche: "0" },
         traslado: { kmPorTrayecto: "0", modo: "diario", viajesRedondos: "", rendimientoKmL: "", casetasPorViaje: "0" },
         extras: [],

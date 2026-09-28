@@ -147,6 +147,9 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   completa y dicen qué falta.
 - El precio se recalcula **en vivo en el navegador** con el mismo motor del servidor.
 - Se guarda solo al cambiar de paso.
+- Una cotización **nueva empieza sin operación** (sin envío, diseño, instalación ni viáticos); al marcar
+  "Incluye instalación" propone 2 personas × 1 día. El precio en vivo muestra **materiales contra operación** y
+  avisa cuando la operación pesa más.
 - El PDF se genera al momento, **nunca se guarda en disco**.
 
 ---
