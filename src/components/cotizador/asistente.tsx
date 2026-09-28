@@ -3,6 +3,7 @@
 import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useAvisos } from "@/components/avisos";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
@@ -48,7 +49,7 @@ export function AsistenteCotizacion({
   const [guardando, setGuardando] = useState(false);
   /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const avisar = useAvisos();
   const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
   const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
   const [autorizadaEn, setAutorizadaEn] = useState<string | null>(autorizada);
@@ -57,8 +58,8 @@ export function AsistenteCotizacion({
   useEffect(() => {
     llamarApi<{ snapshot: Snapshot }>("/api/catalogo/snapshot", "GET")
       .then((datos) => setSnapshot(datos.snapshot))
-      .catch(() => setMensaje({ tipo: "error", texto: "No se pudo cargar el catálogo." }));
-  }, []);
+      .catch(() => avisar({ tipo: "error", texto: "No se pudo cargar el catálogo. Recarga la página." }));
+  }, [avisar]);
 
   // Lo primero que falta (con el paso donde se captura) o el resultado, si ya se puede calcular.
   const { resultado, pendiente } = useMemo((): { resultado: ReturnType<typeof calcular> | null; pendiente: Pendiente | null } => {
@@ -76,27 +77,28 @@ export function AsistenteCotizacion({
   }, [borrador.entrada, snapshot]);
 
   /** Guarda el borrador y devuelve su id (null si faltan datos o falló). */
-  async function guardar({ avisar = true } = {}): Promise<string | null> {
+  async function guardar({ avisar: avisarAlUsuario = true } = {}): Promise<string | null> {
     if (!borrador.titulo.trim() || !borrador.cliente.nombreContacto.trim()) {
-      if (avisar) setMensaje({ tipo: "error", texto: "El título y el contacto del cliente son obligatorios." });
+      if (avisarAlUsuario) avisar({ tipo: "error", texto: "Para guardar, captura el título y el contacto del cliente en el paso Datos." });
       return null;
     }
     setGuardando(true);
-    setMensaje(null);
     try {
       const cuerpo = cuerpoParaGuardar(borrador);
+      type Respuesta = { id: string; folio: string; clienteId: string };
       const respuesta = borrador.id
-        ? await llamarApi<{ id: string; folio: string }>(`/api/cotizaciones/${borrador.id}`, "PUT", cuerpo)
-        : await llamarApi<{ id: string; folio: string }>("/api/cotizaciones", "POST", cuerpo);
+        ? await llamarApi<Respuesta>(`/api/cotizaciones/${borrador.id}`, "PUT", cuerpo)
+        : await llamarApi<Respuesta>("/api/cotizaciones", "POST", cuerpo);
 
-      setBorrador((b) => ({ ...b, id: respuesta.id, folio: respuesta.folio }));
+      // El id del cliente se guarda también: sin él, cada autoguardado creaba otra copia del cliente.
+      setBorrador((b) => ({ ...b, id: respuesta.id, folio: respuesta.folio, cliente: { ...b.cliente, id: respuesta.clienteId } }));
       setGuardadoEn(`Guardado ${new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`);
-      if (avisar) setMensaje({ tipo: "ok", texto: `Borrador guardado con folio ${respuesta.folio}.` });
+      if (avisarAlUsuario) avisar({ tipo: "ok", texto: `Borrador guardado con folio ${respuesta.folio}.` });
       if (!borrador.id) window.history.replaceState(null, "", `/cotizaciones/${respuesta.id}`);
       router.refresh();
       return respuesta.id;
     } catch (error) {
-      setMensaje({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo guardar." });
+      avisar({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo guardar." });
       return null;
     } finally {
       setGuardando(false);
@@ -118,10 +120,10 @@ export function AsistenteCotizacion({
         {},
       );
       setAutorizadaEn(fecha);
-      setMensaje({ tipo: "ok", texto: "Análisis autorizado. Ya puedes generar la propuesta para el cliente." });
+      avisar({ tipo: "ok", texto: "Análisis autorizado. Ya puedes generar la propuesta para el cliente." });
       router.refresh();
     } catch (error) {
-      setMensaje({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo autorizar." });
+      avisar({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo autorizar." });
     } finally {
       setOcupado(null);
     }
@@ -135,14 +137,14 @@ export function AsistenteCotizacion({
     const alertas = resultado?.alertas.length ?? 0;
     if (alertas > 0 && !alertasConfirmadas) {
       setAlertasConfirmadas(true);
-      setMensaje({
-        tipo: "error",
+      avisar({
+        tipo: "advertencia",
         texto: `Hay ${alertas} alerta${alertas === 1 ? "" : "s"} sin revisar. Vuelve a presionar "Generar PDF" si quieres continuar de todos modos.`,
       });
       return;
     }
 
-    setMensaje({ tipo: "ok", texto: "Abriendo la vista previa en otra pestaña…" });
+    avisar({ tipo: "ok", texto: "Abriendo la vista previa en otra pestaña…" });
     // Vista previa en pestaña nueva; desde ahí se guarda o se imprime.
     window.open(`/api/cotizaciones/${id}/pdf?ver=1`, "_blank", "noopener");
   }
@@ -187,7 +189,6 @@ export function AsistenteCotizacion({
         </nav>
 
         {(guardando || ocupado) && <PantallaCarga mensaje={ocupado ?? "Guardando…"} />}
-        {mensaje && <Aviso tipo={mensaje.tipo}>{mensaje.texto}</Aviso>}
 
         {/* Punto de control del PNO-COM-01: sin autorización no se comunica ningún precio. */}
         {paso === PASOS.length - 1 && !autorizadaEn && (

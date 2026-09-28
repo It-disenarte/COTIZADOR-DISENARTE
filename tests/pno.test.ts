@@ -226,6 +226,24 @@ describe("Punto de control de la Fase 1: autorización antes de comunicar precio
     expect(fila.autorizadaEn).toBeNull();
   });
 
+  it("guardar sin cambios después de autorizar conserva la autorización (\"Generar PDF\" guarda antes de abrir)", async () => {
+    const cuerpo = cotizacionGandhi(recetaId);
+    const creada = await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo }), undefined);
+    const { id, clienteId } = await creada.json();
+    expect((await autorizar(id, cookieAdmin)).status).toBe(200);
+
+    // Como lo hace el asistente: vuelve a mandar lo mismo, ya con el id del cliente que creó.
+    const guardado = await rutaCotizacion.PUT(
+      peticion(`/api/cotizaciones/${id}`, { metodo: "PUT", cookie: cookieVentas, cuerpo: { ...cuerpo, cliente: { ...cuerpo.cliente, id: clienteId } } }),
+      ctxId(id),
+    );
+    expect(guardado.status).toBe(200);
+
+    const [fila] = await db.select().from(cotizaciones).where(eq(cotizaciones.id, id));
+    expect(fila.autorizadaEn).not.toBeNull();
+    expect((await pdf(id, cookieVentas)).status).toBe(200);
+  });
+
   it("si se edita después de autorizar, la autorización se cae y hay que revisarla otra vez", async () => {
     const id = await crearCotizacion(cotizacionGandhi(recetaId));
     await autorizar(id, cookieAdmin);

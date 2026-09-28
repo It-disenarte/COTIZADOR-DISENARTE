@@ -16,9 +16,11 @@ import {
 import { formatoMoneda } from "@/lib/formato";
 import {
   type ComponenteConcepto,
-  componentesDeReceta,
+  type ConsumoInsumo,
+  consumoDeInsumo,
   costoDeConcepto,
   ErrorMotor,
+  type FilaConId,
   type InsumoSnapshot,
   type OpcionCotizacion,
   type Snapshot,
@@ -35,8 +37,8 @@ type Props = {
 const sinClave = <T,>(objeto: Record<string, T>, clave: string): Record<string, T> =>
   Object.fromEntries(Object.entries(objeto).filter(([k]) => k !== clave));
 
-/** Lo que se arrastra del catálogo: un insumo suelto o una plantilla (receta) completa. */
-type Arrastre = { tipo: "insumo" | "plantilla"; id: string };
+/** Lo que se arrastra del catálogo: el id de un insumo. */
+type Arrastre = { tipo: "insumo"; id: string };
 const TIPO_ARRASTRE = "application/x-disenarte-catalogo";
 
 const UNIDAD_CORTA: Record<string, string> = {
@@ -87,16 +89,10 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
     editarOpcionActiva((o) => ({ ...o, materiales: { ...o.materiales, [filaId]: transformar(o.materiales[filaId] ?? []) } }));
 
   function agregarDelCatalogo(arrastre: Arrastre, filaId: string) {
-    if (!snapshot) return;
-    let nuevos: ComponenteConcepto[] = [];
-    if (arrastre.tipo === "insumo") {
-      const insumo = snapshot.insumos[arrastre.id];
-      if (insumo) nuevos = [{ insumoId: insumo.id, modo: modoInicial(insumo), cantidad: "1" }];
-    } else {
-      const receta = snapshot.recetas[arrastre.id];
-      if (receta) nuevos = componentesDeReceta(receta);
-    }
-    if (nuevos.length) editarMateriales(filaId, (lista) => [...lista, ...nuevos]);
+    const insumo = snapshot?.insumos[arrastre.id];
+    if (!insumo) return;
+    // Por defecto la cantidad es automática (según las medidas); se puede cambiar a "total a mano".
+    editarMateriales(filaId, (lista) => [...lista, { insumoId: insumo.id, modo: modoInicial(insumo), cantidad: "1" }]);
     setFilaElegida(filaId);
   }
 
@@ -336,13 +332,15 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
                         >
                           {componentes.length === 0 && (
                             <span className="px-1 py-1 text-xs text-muted-foreground">
-                              Arrastra aquí insumos o una plantilla
+                              Arrastra aquí los insumos de este concepto
                             </span>
                           )}
                           {componentes.map((c, k) => (
                             <ChipInsumo
                               key={`${c.insumoId}-${k}`}
                               componente={c}
+                              fila={fila}
+                              snapshot={snapshot}
                               nombre={snapshot?.insumos[c.insumoId]?.nombre ?? "Insumo"}
                               alCambiar={(cambios) =>
                                 editarMateriales(fila.id, (lista) => lista.map((x, n) => (n === k ? { ...x, ...cambios } : x)))
@@ -429,11 +427,14 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
             />
           </div>
           <p className="px-3 pb-3 text-xs text-muted-foreground">
-            Cada área es una columna de cantidades; toca su nombre para cambiarlo. Si el material se cobra por pieza,
-            deja ancho y alto en 0. Para rotulación, pon los metros lineales del escaneo en el insumo (“ml por
-            pieza”).
+            Cada área es una columna de cantidades; toca su nombre para cambiarlo. La cantidad de cada insumo se
+            calcula sola con las medidas (“auto por m²”); si prefieres escribir cuánto se necesita, cámbialo a “total
+            a mano” (p. ej. 2 láminas). Si el material se cobra por pieza, deja ancho y alto en 0. Para rotulación,
+            pon los metros lineales del escaneo (“ml por pieza”).
           </p>
         </Card>
+
+        {opcion && snapshot && <ResumenInsumos opcion={opcion} filas={filas} snapshot={snapshot} />}
 
         {pegado !== null && (
           <Card>
@@ -475,43 +476,82 @@ export function PasoLevantamiento({ borrador, cambiar, snapshot }: Props) {
   );
 }
 
+/** Qué significa la cantidad en cada forma de consumo (se muestra junto a la casilla). */
+function unidadDeCantidad(modo: ModoComponente, insumo: InsumoSnapshot | undefined): string {
+  if (modo === "por_m2") return "× área";
+  if (modo === "por_ml") return "ml c/u";
+  if (modo === "por_pieza") return "c/u";
+  return UNIDAD_TOTAL[insumo?.unidadCosto ?? ""] ?? "unidades";
+}
+
+/** Unidad de la cantidad total escrita a mano: como se compra (tarjetas: por pieza). */
+const UNIDAD_TOTAL: Record<string, string> = {
+  m2: "m²",
+  ml: "ml",
+  lamina: "láminas",
+  pieza: "piezas",
+  minuto: "min",
+  ciento: "piezas",
+  millar: "piezas",
+  persona: "personas",
+};
+
+const numeroCorto = (valor: number) => valor.toLocaleString("es-MX", { maximumFractionDigits: 2 });
+
 function ChipInsumo({
   componente,
+  fila,
+  snapshot,
   nombre,
   alCambiar,
   alQuitar,
 }: {
   componente: ComponenteConcepto;
+  fila: FilaConId;
+  snapshot: Snapshot | null;
   nombre: string;
   alCambiar: (cambios: Partial<ComponenteConcepto>) => void;
   alQuitar: () => void;
 }) {
+  const insumo = snapshot?.insumos[componente.insumoId];
+  let consumo: ConsumoInsumo | null = null;
+  let error: string | null = null;
+  if (snapshot) {
+    try {
+      consumo = consumoDeInsumo(componente, fila, snapshot);
+    } catch (e) {
+      error = e instanceof ErrorMotor ? e.message : "Revisa la cantidad.";
+    }
+  }
+
   return (
     <div className="grid gap-1 rounded-md bg-primary/10 py-1 pl-2 pr-1 text-xs text-primary">
       <div className="flex items-center justify-between gap-1">
         <span className="font-medium">{nombre}</span>
-        <button
-          type="button"
-          onClick={alQuitar}
-          aria-label={`Quitar ${nombre}`}
-          className="rounded p-0.5 hover:bg-primary/15"
-        >
+        <button type="button" onClick={alQuitar} aria-label={`Quitar ${nombre}`} className="rounded p-0.5 hover:bg-primary/15">
           <X className="size-3.5" />
         </button>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <input
           inputMode="decimal"
           value={txt(componente.cantidad)}
           onChange={(e) => alCambiar({ cantidad: e.target.value })}
           aria-label={`Cantidad de ${nombre}`}
-          title="Cuánto se usa: 1 = una capa del área, o los metros lineales / piezas por pieza"
+          title={
+            componente.modo === "fijo"
+              ? "Cuánto se necesita en total para este concepto, en la unidad en que se compra"
+              : componente.modo === "por_m2"
+                ? "Se calcula con las medidas: 1 = cubre el área del concepto una vez"
+                : "Cuánto lleva cada pieza"
+          }
           className="h-6 w-14 rounded border border-input bg-card px-1 text-foreground"
         />
+        <span className="text-muted-foreground">{unidadDeCantidad(componente.modo, insumo)}</span>
         <select
           value={componente.modo}
           onChange={(e) => alCambiar({ modo: e.target.value as ModoComponente })}
-          aria-label={`Cómo se consume ${nombre}`}
+          aria-label={`Cómo se calcula la cantidad de ${nombre}`}
           className="h-6 rounded border border-input bg-card px-1 text-foreground"
         >
           {MODOS_COMPONENTE.map((m) => (
@@ -521,7 +561,90 @@ function ChipInsumo({
           ))}
         </select>
       </div>
+      {consumo && (
+        <p className="text-muted-foreground">
+          = {numeroCorto(consumo.cantidad.toNumber())} {consumo.unidad} · {formatoMoneda(consumo.costo.toFixed(2))}
+        </p>
+      )}
+      {error && <p className="max-w-56 text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * Suma de cada insumo en todos los conceptos de la opción: cuánto se usa en total y cuánto
+ * cuesta. Es interno (sirve también como lista de compra); en el PDF nunca salen costos.
+ */
+function ResumenInsumos({ opcion, filas, snapshot }: { opcion: OpcionCotizacion; filas: FilaConId[]; snapshot: Snapshot }) {
+  const totales = new Map<string, { cantidad: number; unidad: string; costo: number }>();
+  for (const fila of filas) {
+    for (const componente of opcion.materiales[fila.id] ?? []) {
+      try {
+        const consumo = consumoDeInsumo(componente, fila, snapshot);
+        const actual = totales.get(consumo.insumoId) ?? { cantidad: 0, unidad: consumo.unidad, costo: 0 };
+        totales.set(consumo.insumoId, {
+          cantidad: actual.cantidad + consumo.cantidad.toNumber(),
+          unidad: actual.unidad,
+          costo: actual.costo + consumo.costo.toNumber(),
+        });
+      } catch {
+        // El insumo con datos incompletos ya muestra su aviso en la tabla.
+      }
+    }
+  }
+  if (totales.size === 0) return null;
+
+  const renglones = [...totales.entries()]
+    .map(([id, t]) => ({ id, nombre: snapshot.insumos[id]?.nombre ?? "Insumo", ...t }))
+    .sort((a, b) => b.costo - a.costo);
+  const total = renglones.reduce((s, r) => s + r.costo, 0);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="px-4 pt-4">
+        <h3 className="text-sm font-medium">Insumos de {opcion.nombre || "la opción"}</h3>
+        <p className="text-xs text-muted-foreground">
+          La suma de cada insumo en todos los conceptos, en la unidad en que se compra. Sirve también como lista de
+          compra. Es solo para uso interno: el PDF nunca muestra costos.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="mt-3 w-full text-sm">
+          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2 font-medium">Insumo</th>
+              <th className="px-4 py-2 text-right font-medium">Total</th>
+              <th className="px-4 py-2 text-right font-medium">Costo</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {renglones.map((r) => (
+              <tr key={r.id}>
+                <td className="px-4 py-2">{r.nombre}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-right">
+                  {numeroCorto(r.cantidad)} {r.unidad}
+                  {r.unidad === "láminas" && r.cantidad % 1 > 0 && (
+                    <span className="block text-xs text-muted-foreground">se compran {Math.ceil(r.cantidad)}</span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2 text-right">{formatoMoneda(r.costo.toFixed(2))}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-muted/40 font-medium">
+            <tr>
+              <td className="px-4 py-2" colSpan={2}>
+                Total de materiales
+              </td>
+              <td className="whitespace-nowrap px-4 py-2 text-right">{formatoMoneda(total.toFixed(2))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p className="px-4 py-2 text-xs text-muted-foreground">
+        Sin consumibles ni operación: esos se suman en el precio (paso Resumen).
+      </p>
+    </Card>
   );
 }
 
@@ -536,12 +659,9 @@ function PanelCatalogo({
 }) {
   const [busqueda, setBusqueda] = useState("");
 
-  const { plantillas, grupos } = useMemo(() => {
+  const grupos = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     const coincide = (texto: string) => texto.toLowerCase().includes(q);
-    const plantillas = Object.values(snapshot?.recetas ?? {}).filter(
-      (r) => !r.archivado && r.componentes.length > 0 && coincide(r.nombre),
-    );
     const grupos = new Map<string, InsumoSnapshot[]>();
     for (const insumo of Object.values(snapshot?.insumos ?? {})) {
       if (insumo.archivado || !coincide(insumo.nombre)) continue;
@@ -549,10 +669,10 @@ function PanelCatalogo({
       grupos.set(categoria, [...(grupos.get(categoria) ?? []), insumo]);
     }
     for (const lista of grupos.values()) lista.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-    return { plantillas, grupos: [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b, "es")) };
+    return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
   }, [snapshot, busqueda]);
 
-  const item = (arrastre: Arrastre, nombre: string, detalle: string, plantilla = false) => (
+  const item = (arrastre: Arrastre, nombre: string, detalle: string) => (
     <div
       key={`${arrastre.tipo}-${arrastre.id}`}
       draggable
@@ -560,10 +680,7 @@ function PanelCatalogo({
         e.dataTransfer.setData(TIPO_ARRASTRE, JSON.stringify(arrastre));
         e.dataTransfer.effectAllowed = "copy";
       }}
-      className={cn(
-        "flex cursor-grab items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs hover:border-primary",
-        plantilla && "border-l-[3px] border-l-turquesa",
-      )}
+      className="flex cursor-grab items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs hover:border-primary"
     >
       <GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
@@ -603,21 +720,13 @@ function PanelCatalogo({
             <Input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar insumo o plantilla"
+              placeholder="Buscar insumo"
               aria-label="Buscar en el catálogo"
               className="h-9 pl-8"
             />
           </div>
           {!snapshot && <p className="text-xs text-muted-foreground">Cargando catálogo…</p>}
           <div className="max-h-[32rem] space-y-1.5 overflow-y-auto pr-1">
-            {plantillas.length > 0 && (
-              <>
-                <p className="pt-1 text-[11px] uppercase tracking-wide text-muted-foreground">Plantillas</p>
-                {plantillas.map((r) =>
-                  item({ tipo: "plantilla", id: r.id }, r.nombre, `${r.componentes.length} insumos`, true),
-                )}
-              </>
-            )}
             {grupos.map(([categoria, lista]) => (
               <div key={categoria} className="space-y-1.5">
                 <p className="pt-2 text-[11px] uppercase tracking-wide text-muted-foreground">{categoria}</p>
@@ -632,7 +741,7 @@ function PanelCatalogo({
                 )}
               </div>
             ))}
-            {snapshot && plantillas.length === 0 && grupos.length === 0 && (
+            {snapshot && grupos.length === 0 && (
               <p className="text-xs text-muted-foreground">Nada coincide con “{busqueda}”.</p>
             )}
           </div>

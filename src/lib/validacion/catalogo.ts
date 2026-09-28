@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "@/lib/catalogo/constantes";
-import { decimal, decimalOpcional, textoOpcional, textoRequerido, Uuid } from "./comunes";
+import { UNIDADES_COSTO, ZONAS } from "@/lib/catalogo/constantes";
+import { decimalOpcional, textoOpcional, textoRequerido } from "./comunes";
 
 // Insumos ------------------------------------------------------------------------------------
 
@@ -30,28 +30,6 @@ export const ActualizarInsumo = z
   .partial()
   .superRefine(reglasInsumo);
 export type ActualizarInsumo = z.infer<typeof ActualizarInsumo>;
-
-// Recetas ------------------------------------------------------------------------------------
-
-export const Componente = z.object({
-  insumoId: Uuid,
-  modo: z.enum(MODOS_COMPONENTE),
-  cantidad: decimal({ min: 0 }).refine((v) => Number(v) > 0, { error: "La cantidad debe ser mayor a 0." }),
-});
-
-const camposReceta = {
-  nombre: textoRequerido(200, "Escribe el nombre."),
-  familia: z.enum(FAMILIAS_RECETA),
-  descripcionPdf: textoOpcional(1000),
-  pctMerma: decimal({ min: 0, max: 1, maxExclusivo: true }),
-  componentes: z.array(Componente).min(1, { error: "Agrega al menos un componente." }).max(30),
-};
-
-export const CrearReceta = z.object(camposReceta);
-export type CrearReceta = z.infer<typeof CrearReceta>;
-
-export const ActualizarReceta = z.object({ ...camposReceta, archivado: z.boolean() }).partial();
-export type ActualizarReceta = z.infer<typeof ActualizarReceta>;
 
 // Parámetros ---------------------------------------------------------------------------------
 

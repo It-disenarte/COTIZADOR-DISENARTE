@@ -67,6 +67,15 @@ async function generarFolio(tx: Tx, fecha = new Date()): Promise<string> {
   return `${prefijo}-${String(total + 1).padStart(2, "0")}`;
 }
 
+/** JSON con las llaves en orden: la base (jsonb) no conserva el orden, así que se compara por contenido. */
+function jsonEstable(valor: unknown): string {
+  return JSON.stringify(valor, (_llave, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
+}
+
 type Calculo = { resultado: ResultadoCotizacion | null; pendiente: string | null };
 
 /**
@@ -115,7 +124,7 @@ export async function guardarCotizacion(
   actor: UsuarioSesion | null,
   datos: GuardarCotizacion,
   id?: string,
-): Promise<{ id: string; folio: string; version: number } & Calculo> {
+): Promise<{ id: string; folio: string; version: number; clienteId: string } & Calculo> {
   requirePermiso(actor, "cotizaciones.propias");
   const snapshot = await obtenerSnapshot(actor);
   // Siempre se guarda en la forma actual, aunque llegue en la anterior (pestaña abierta de antes).
@@ -143,7 +152,7 @@ export async function guardarCotizacion(
         precios: snapshot,
         resultado,
       });
-      return { id: cotizacion.id, folio: cotizacion.folio, version: 1, resultado, pendiente };
+      return { id: cotizacion.id, folio: cotizacion.folio, version: 1, clienteId, resultado, pendiente };
     }
 
     exigirUuid(id, "Cotización");
@@ -152,17 +161,34 @@ export async function guardarCotizacion(
     requireVerCotizacion(actor, { vendedorId: existente.vendedorId });
     exigirEditable(existente);
 
-    // Cualquier cambio invalida la autorización anterior: los precios ya no son los revisados.
+    // Sin vendedor elegido, la cotización sigue siendo de quien la hizo (no de quien la edita).
+    const vendedorFinal = datos.vendedorId && tienePermiso(actor, "cotizaciones.ver_todas") ? datos.vendedorId : existente.vendedorId;
+
+    // Cualquier cambio invalida la autorización: los precios ya no son los revisados. Pero guardar sin
+    // cambios (p. ej. "Generar PDF" guarda antes de abrir) no la toca: antes la borraba y el PDF fallaba.
+    const [anterior] = await tx
+      .select({ entrada: cotizacionVersiones.entrada, resultado: cotizacionVersiones.resultado })
+      .from(cotizacionVersiones)
+      .where(and(eq(cotizacionVersiones.cotizacionId, id), eq(cotizacionVersiones.version, existente.versionActual)));
+    const sinCambios =
+      !!anterior &&
+      existente.titulo === campos.titulo &&
+      (existente.solicitante ?? null) === campos.solicitante &&
+      existente.clienteId === campos.clienteId &&
+      existente.vendedorId === vendedorFinal &&
+      jsonEstable(anterior.entrada) === jsonEstable(entrada) &&
+      jsonEstable(anterior.resultado) === jsonEstable(resultado);
+
     await tx
       .update(cotizaciones)
-      .set({ ...campos, vendedorId, autorizadaPor: null, autorizadaEn: null })
+      .set({ ...campos, vendedorId: vendedorFinal, ...(sinCambios ? {} : { autorizadaPor: null, autorizadaEn: null }) })
       .where(eq(cotizaciones.id, id));
     await tx
       .update(cotizacionVersiones)
       .set({ entrada, precios: snapshot, resultado, creadaPor: actor.id })
       .where(and(eq(cotizacionVersiones.cotizacionId, id), eq(cotizacionVersiones.version, existente.versionActual)));
 
-    return { id, folio: existente.folio, version: existente.versionActual, resultado, pendiente };
+    return { id, folio: existente.folio, version: existente.versionActual, clienteId, resultado, pendiente };
   });
 }
 

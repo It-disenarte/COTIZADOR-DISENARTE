@@ -133,38 +133,83 @@ function costoPorMl(insumo: InsumoSnapshot): Decimal {
   return costo;
 }
 
-/** Costo de los insumos de un concepto, según sus piezas y sus m². */
-function materialesDeConcepto(componentes: ComponenteConcepto[], snapshot: Snapshot, piezas: Decimal, areaM2: Decimal): Decimal {
-  const importes = componentes.map((componente) => {
-    const insumo = snapshot.insumos[componente.insumoId];
-    if (!insumo) throw new ErrorMotor("Un insumo del concepto ya no existe en el catálogo.", "INSUMO_INEXISTENTE");
-    const cantidad = d(componente.cantidad);
+/** Cuánto se consume de un insumo en un concepto, en su unidad de compra, y cuánto cuesta. */
+export type ConsumoInsumo = { insumoId: string; cantidad: Decimal; unidad: string; costo: Decimal };
 
-    switch (componente.modo) {
-      case "por_m2":
-        return areaM2.times(costoPorM2(insumo)).times(cantidad);
-      case "por_ml":
-        return piezas.times(cantidad).times(costoPorMl(insumo));
-      case "por_pieza":
-        return piezas.times(costoPorPieza(insumo)).times(cantidad);
-      case "fijo":
-        return costoPorPieza(insumo).times(cantidad);
+/** Unidad en la que se cuenta lo consumido. Tarjetas: el costo se reparte por pieza (ver costoPorPieza). */
+const UNIDAD_CONSUMO: Record<string, string> = {
+  m2: "m²",
+  ml: "ml",
+  lamina: "láminas",
+  pieza: "piezas",
+  minuto: "min",
+  ciento: "piezas",
+  millar: "piezas",
+  persona: "personas",
+};
+
+function consumoDeComponente(componente: ComponenteConcepto, snapshot: Snapshot, piezas: Decimal, areaM2: Decimal): ConsumoInsumo {
+  const insumo = snapshot.insumos[componente.insumoId];
+  if (!insumo) throw new ErrorMotor("Un insumo del concepto ya no existe en el catálogo.", "INSUMO_INEXISTENTE");
+  const cantidad = d(vacio(componente.cantidad) ? 0 : componente.cantidad);
+  const unidad = UNIDAD_CONSUMO[insumo.unidadCosto ?? ""] ?? "unidades";
+  const base = { insumoId: insumo.id };
+
+  switch (componente.modo) {
+    case "por_m2": {
+      // Automático: el área del concepto (ancho × alto × piezas) por la cantidad (1 = una capa).
+      const m2 = areaM2.times(cantidad);
+      const costo = m2.times(costoPorM2(insumo));
+      // Se expresa como se compra: láminas o metros del rollo (costoPorM2 ya validó área y ancho).
+      if (insumo.unidadCosto === "lamina") return { ...base, cantidad: m2.div(d(insumo.areaLaminaM2)), unidad: "láminas", costo };
+      if (insumo.unidadCosto === "ml") return { ...base, cantidad: m2.div(d(insumo.anchoUtilM)), unidad: "ml", costo };
+      return { ...base, cantidad: m2, unidad: "m²", costo };
     }
-  });
-  return suma(importes);
+    case "por_ml": {
+      const ml = piezas.times(cantidad);
+      return { ...base, cantidad: ml, unidad: "ml", costo: ml.times(costoPorMl(insumo)) };
+    }
+    case "por_pieza": {
+      const total = piezas.times(cantidad);
+      return { ...base, cantidad: total, unidad, costo: total.times(costoPorPieza(insumo)) };
+    }
+    case "fijo":
+      // Cantidad total escrita a mano, en la unidad en que se compra (2 láminas, 6 ml…).
+      return { ...base, cantidad, unidad, costo: cantidad.times(costoPorPieza(insumo)) };
+  }
 }
 
+/** Costo de los insumos de un concepto, según sus piezas y sus m². */
+function materialesDeConcepto(componentes: ComponenteConcepto[], snapshot: Snapshot, piezas: Decimal, areaM2: Decimal): Decimal {
+  return suma(componentes.map((c) => consumoDeComponente(c, snapshot, piezas, areaM2).costo));
+}
+
+const medidasDe = (fila: Pick<FilaLevantamiento, "anchoM" | "altoM" | "cantidades">) => {
+  const valor = (v: unknown) => d(vacio(v) ? 0 : (v as never));
+  const piezas = suma(fila.cantidades.map(valor));
+  return { piezas, areaM2: piezas.times(valor(fila.anchoM)).times(valor(fila.altoM)) };
+};
+
 /**
- * Costo de materiales de un concepto, para mostrarlo en la tabla del levantamiento mientras se
- * captura. Lanza ErrorMotor si a un insumo le falta un dato (el asistente muestra el mensaje).
+ * Consumo de un insumo dentro de un concepto, para mostrarlo en la tabla del levantamiento
+ * mientras se captura. Lanza ErrorMotor si al insumo le falta un dato (el asistente lo muestra).
  */
+export function consumoDeInsumo(
+  componente: ComponenteConcepto,
+  fila: Pick<FilaLevantamiento, "anchoM" | "altoM" | "cantidades">,
+  snapshot: Snapshot,
+): ConsumoInsumo {
+  const { piezas, areaM2 } = medidasDe(fila);
+  return consumoDeComponente(componente, snapshot, piezas, areaM2);
+}
+
+/** Costo de materiales de un concepto (la suma de sus insumos). */
 export function costoDeConcepto(
   componentes: ComponenteConcepto[],
   fila: Pick<FilaLevantamiento, "anchoM" | "altoM" | "cantidades">,
   snapshot: Snapshot,
 ): Decimal {
-  const piezas = suma(fila.cantidades.map((c) => d(vacio(c) ? 0 : c)));
-  const areaM2 = piezas.times(d(vacio(fila.anchoM) ? 0 : fila.anchoM)).times(d(vacio(fila.altoM) ? 0 : fila.altoM));
+  const { piezas, areaM2 } = medidasDe(fila);
   return materialesDeConcepto(componentes, snapshot, piezas, areaM2);
 }
 

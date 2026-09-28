@@ -10,9 +10,9 @@ export const PERMISOS = {
   "cotizaciones.ver_todas": ["admin", "agente_admin"],
   /** Autorizar el análisis de costos antes de comunicar precios (PNO-COM-01, punto de control Fase 1) */
   "cotizaciones.autorizar": ["admin", "agente_admin"],
-  /** Ver insumos, recetas, parámetros y costos */
+  /** Ver insumos, parámetros y costos */
   "catalogo.ver": ["admin", "agente_admin", "ventas"],
-  /** Agregar, editar y archivar insumos, recetas y parámetros */
+  /** Agregar, editar y archivar insumos y parámetros */
   "catalogo.editar": ["admin", "agente_admin"],
   /** Dar de alta y editar clientes: se capturan dentro del asistente de cotización, sin pantalla propia */
   "clientes.gestionar": ["admin", "agente_admin", "ventas"],

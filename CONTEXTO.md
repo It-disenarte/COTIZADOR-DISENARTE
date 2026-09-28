@@ -94,7 +94,7 @@ src/
     login, configuracion-inicial, cambiar-password
   components/
     cotizador/        asistente de 6 pasos y sus piezas (IA, km, fotos, mensajes, checklist)
-    catalogo/         insumos, recetas, parámetros, importación de costos
+    catalogo/         insumos, parámetros, importación de costos
     ui/               botones, inputs, cards… (sin librería externa)
   lib/
     motor/            CÁLCULO. Puro, sin base de datos. El corazón del sistema.
@@ -126,9 +126,13 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - **Cada concepto lleva sus propios insumos**: se arrastran del catálogo a la fila (o se elige la fila y se
   presiona +). El costo de cada concepto sale de sus insumos y cada uno tiene **su propio precio unitario** y su
   fila en el PDF. Producción y, si se prorratea, la operación se reparten según el costo de cada concepto.
-- Formas de consumo de un insumo: por m², **metros lineales por pieza** (rotulación: los metros salen del escaneo
-  de la unidad), por pieza o una sola vez.
-- Las **recetas** del catálogo ahora son **plantillas**: llenan una fila con varios insumos de un golpe.
+- La cantidad de cada insumo es **automática por medidas** (`por_m2`: ancho × alto × piezas) o se escribe
+  **a mano como total** (`fijo` = "total a mano", p. ej. 2 láminas). También hay **metros lineales por pieza**
+  (rotulación: los metros salen del escaneo) y **por pieza**. Cada insumo muestra lo que calculó, en su unidad de
+  compra (`consumoDeInsumo` en el motor), y debajo de la tabla hay un **resumen de insumos** de la opción (total
+  y costo por insumo; interno, nunca sale en el PDF).
+- **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
+  base, sin pantalla, solo para convertir las cotizaciones anteriores.
 - Una **opción** es una página del PDF. Casi siempre hay una; si el cliente quiere comparar materiales se agrega
   otra (copia los insumos de la actual). El precio manual se captura por concepto.
 - Las cotizaciones anteriores (una receta por opción) se convierten solas al abrirlas o calcularlas
@@ -158,6 +162,7 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Margen de error absorbe indirectos | No hay merma explícita; todo va en el 30% |
 | Sin "petición de acción" en la propuesta | El dueño la quitó (sept. 2026) aunque el PNO la menciona; no sale en PDF ni mensajes |
 | Sin escenario "piloto y volumen" en pantalla | El dueño lo quitó (sept. 2026); el motor lo sigue calculando para cotizaciones anteriores |
+| Sin recetas | El dueño las quitó (sept. 2026): cada concepto lleva sus insumos directamente; las tablas quedan solo para cotizaciones anteriores |
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
 | Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |
 
@@ -243,7 +248,7 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 
 **Datos que el dueño debe capturar** (la especificación prohíbe inventarlos):
 
-- Costo real del corte láser: ¿$5.08 o $50.81 por minuto? Cambia todas las recetas de acrílico y MDF.
+- Costo real del corte láser: ¿$5.08 o $50.81 por minuto? Cambia el costo de los insumos de acrílico y MDF.
 - Precio de la gasolina Magna (hay alerta si tiene más de 7 días sin actualizarse).
 - Costo del estireno cal. 20 y cal. 40, y del vinil fotoluminiscente.
 - Rendimiento real de la Mazda CX-30 (quedó 14 km/L como punto de partida).

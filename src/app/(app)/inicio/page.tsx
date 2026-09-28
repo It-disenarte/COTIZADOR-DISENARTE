@@ -7,8 +7,8 @@ const DESCRIPCION_PERMISO: Record<Permiso, string> = {
   "cotizaciones.propias": "Crear, editar y descargar tus cotizaciones",
   "cotizaciones.ver_todas": "Ver cotizaciones de todas las cuentas",
   "cotizaciones.autorizar": "Autorizar el análisis de costos antes de enviar una propuesta",
-  "catalogo.ver": "Consultar insumos, recetas y parámetros",
-  "catalogo.editar": "Editar insumos, recetas y parámetros",
+  "catalogo.ver": "Consultar insumos y parámetros",
+  "catalogo.editar": "Editar insumos y parámetros",
   "clientes.gestionar": "Dar de alta clientes desde la cotización",
   "usuarios.gestionar": "Crear, editar y desactivar cuentas",
 };

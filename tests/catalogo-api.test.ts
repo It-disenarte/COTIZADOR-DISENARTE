@@ -14,8 +14,6 @@ const rutaUsuarios = await import("@/app/api/usuarios/route");
 const rutaCuentaPassword = await import("@/app/api/cuenta/password/route");
 const rutaInsumos = await import("@/app/api/insumos/route");
 const rutaInsumo = await import("@/app/api/insumos/[id]/route");
-const rutaRecetas = await import("@/app/api/recetas/route");
-const rutaReceta = await import("@/app/api/recetas/[id]/route");
 const rutaParametros = await import("@/app/api/parametros/route");
 const rutaParametro = await import("@/app/api/parametros/[clave]/route");
 const rutaClientes = await import("@/app/api/clientes/route");
@@ -102,22 +100,6 @@ describe("Datos semilla de la especificación", () => {
     expect(vinil).toMatchObject({ unidadCosto: "ml", costo: "106.1500", anchoUtilM: "1.2200" });
   });
 
-  it("la receta de rotulación reproduce el caso del Versa: $400 por m² más insumos por unidad", async () => {
-    const res = await rutaRecetas.GET(peticion("/api/recetas", { cookie: cookieAdmin }), undefined);
-    const { recetas: lista } = await res.json();
-    const rotulacion = lista.find((r: { nombre: string }) => r.nombre === "Corte de vinil (rotulación)");
-
-    expect(rotulacion.pctMerma).toBe("0.0000");
-    const porM2 = rotulacion.componentes.find((c: { modo: string }) => c.modo === "por_m2");
-    const porPieza = rotulacion.componentes.find((c: { modo: string }) => c.modo === "por_pieza");
-    expect(porM2.insumo).toMatchObject({ nombre: "Corte de vinil", costo: "400.0000" });
-    expect(porPieza.insumo).toMatchObject({ nombre: "Insumos de aplicación en rotulación", costo: "200.0000" });
-
-    // 12 m² × $400 + $200 = $5,000 de materiales para una unidad.
-    const materiales = 12 * Number(porM2.insumo.costo) + Number(porPieza.insumo.costo);
-    expect(materiales).toBe(5000);
-  });
-
   it("ninguna receta lleva merma explícita", async () => {
     const todas = await db.select().from(recetas);
     expect(todas.every((r) => Number(r.pctMerma) === 0)).toBe(true);
@@ -148,24 +130,12 @@ describe("Datos semilla de la especificación", () => {
     expect(valor("iva")).toBe("0.1600");
   });
 
-  it("la receta de trovicel del Excel trae sus tres componentes", async () => {
-    const res = await rutaRecetas.GET(peticion("/api/recetas", { cookie: cookieAdmin }), undefined);
-    const { recetas: lista } = await res.json();
-    const trovicel = lista.find((r: { nombre: string }) => r.nombre === "Trovicel 3 mm + vinil de corte + transfer");
-    expect(trovicel.componentes.map((c: { insumo: { nombre: string } }) => c.insumo.nombre).sort()).toEqual([
-      "Papel transfer",
-      "Trovicel 3 mm",
-      "Vinil de corte 1.22",
-    ]);
-    expect(trovicel.componentes.every((c: { modo: string }) => c.modo === "por_m2")).toBe(true);
-  });
 });
 
 describe("Criterio de la fase 2: ventas ve todo sin poder editar", () => {
-  it("ventas puede consultar las tres pestañas del catálogo", async () => {
+  it("ventas puede consultar las pestañas del catálogo", async () => {
     for (const [ruta, nombre] of [
       [rutaInsumos, "insumos"],
-      [rutaRecetas, "recetas"],
       [rutaParametros, "parametros"],
     ] as const) {
       const res = await ruta.GET(peticion("/api", { cookie: cookieVentas }), undefined);
@@ -174,9 +144,8 @@ describe("Criterio de la fase 2: ventas ve todo sin poder editar", () => {
     }
   });
 
-  it("ventas recibe 403 al crear o editar insumos, recetas y parámetros", async () => {
+  it("ventas recibe 403 al crear o editar insumos y parámetros", async () => {
     const [{ id: insumoId }] = await db.select({ id: insumos.id }).from(insumos).limit(1);
-    const [{ id: recetaId }] = await db.select({ id: recetas.id }).from(recetas).limit(1);
 
     const respuestas = await Promise.all([
       rutaInsumos.POST(peticion("/api/insumos", { metodo: "POST", cookie: cookieVentas, cuerpo: insumoValido }), undefined),
@@ -184,16 +153,12 @@ describe("Criterio de la fase 2: ventas ve todo sin poder editar", () => {
         peticion(`/api/insumos/${insumoId}`, { metodo: "PATCH", cookie: cookieVentas, cuerpo: { costo: "1" } }),
         ctxId(insumoId),
       ),
-      rutaReceta.PATCH(
-        peticion(`/api/recetas/${recetaId}`, { metodo: "PATCH", cookie: cookieVentas, cuerpo: { nombre: "Hackeada" } }),
-        ctxId(recetaId),
-      ),
       rutaParametro.PATCH(
         peticion("/api/parametros/margen", { metodo: "PATCH", cookie: cookieVentas, cuerpo: { valor: "0.9" } }),
         { params: Promise.resolve({ clave: "margen" }) },
       ),
     ]);
-    expect(respuestas.map((r) => r.status)).toEqual([403, 403, 403, 403]);
+    expect(respuestas.map((r) => r.status)).toEqual([403, 403, 403]);
 
     const [margen] = await db.select().from(parametros).where(eq(parametros.clave, "margen"));
     expect(margen.valor).toBe("0.3000");
@@ -258,83 +223,6 @@ describe("Edición del catálogo por agente_admin", () => {
     expect(res.status).toBe(200);
     const [gasolina] = await db.select().from(parametros).where(eq(parametros.clave, "precio_gasolina_litro"));
     expect(gasolina.valor).toBe("24.5000");
-  });
-});
-
-describe("Recetas", () => {
-  let recetaId = "";
-  let insumoArchivadoId = "";
-
-  beforeAll(async () => {
-    const [{ id }] = await db.select({ id: insumos.id }).from(insumos).where(eq(insumos.archivado, true)).limit(1);
-    insumoArchivadoId = id;
-  });
-
-  it("crea una receta con sus componentes", async () => {
-    const [trovicel] = await db.select().from(insumos).where(eq(insumos.nombre, "Trovicel 6 mm"));
-    const [vinil] = await db.select().from(insumos).where(eq(insumos.nombre, "Vinil de corte 1.22"));
-    const res = await rutaRecetas.POST(
-      peticion("/api/recetas", {
-        metodo: "POST",
-        cookie: cookieAgente,
-        cuerpo: {
-          nombre: "Receta de prueba",
-          familia: "tablero",
-          descripcionPdf: "Tablero de prueba.",
-          pctMerma: "0.1",
-          componentes: [
-            { insumoId: trovicel.id, modo: "por_m2", cantidad: "1" },
-            { insumoId: vinil.id, modo: "por_pieza", cantidad: "2" },
-          ],
-        },
-      }),
-      undefined,
-    );
-    expect(res.status).toBe(201);
-    const { receta } = await res.json();
-    recetaId = receta.id;
-    expect(receta.componentes).toHaveLength(2);
-    expect(receta.componentes.find((c: { modo: string }) => c.modo === "por_pieza").cantidad).toBe("2.0000");
-  });
-
-  it("rechaza recetas sin componentes o con un insumo archivado", async () => {
-    const sinComponentes = await rutaRecetas.POST(
-      peticion("/api/recetas", {
-        metodo: "POST",
-        cookie: cookieAgente,
-        cuerpo: { nombre: "Vacía", familia: "tablero", descripcionPdf: "", pctMerma: "0", componentes: [] },
-      }),
-      undefined,
-    );
-    expect(sinComponentes.status).toBe(400);
-
-    const conArchivado = await rutaReceta.PATCH(
-      peticion(`/api/recetas/${recetaId}`, {
-        metodo: "PATCH",
-        cookie: cookieAgente,
-        cuerpo: { componentes: [{ insumoId: insumoArchivadoId, modo: "por_m2", cantidad: "1" }] },
-      }),
-      ctxId(recetaId),
-    );
-    expect(conArchivado.status).toBe(400);
-    expect((await conArchivado.json()).codigo).toBe("INSUMO_ARCHIVADO");
-  });
-
-  it("reemplaza los componentes al editar", async () => {
-    const [vinil] = await db.select().from(insumos).where(eq(insumos.nombre, "Vinil de corte 1.22"));
-    const res = await rutaReceta.PATCH(
-      peticion(`/api/recetas/${recetaId}`, {
-        metodo: "PATCH",
-        cookie: cookieAgente,
-        cuerpo: { pctMerma: "0.2", componentes: [{ insumoId: vinil.id, modo: "por_m2", cantidad: "1" }] },
-      }),
-      ctxId(recetaId),
-    );
-    expect(res.status).toBe(200);
-    const { receta } = await res.json();
-    expect(receta.pctMerma).toBe("0.2000");
-    expect(receta.componentes).toHaveLength(1);
-    expect(receta.componentes[0].insumo.nombre).toBe("Vinil de corte 1.22");
   });
 });
 

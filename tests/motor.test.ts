@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcular, ErrorMotor, type EntradaCotizacion, type Snapshot } from "@/lib/motor";
+import { calcular, consumoDeInsumo, ErrorMotor, type EntradaCotizacion, type Snapshot } from "@/lib/motor";
 
 // Catálogo mínimo con los precios de operación de la ficha.
 const INSUMOS = {
@@ -510,5 +510,37 @@ describe("Insumos por concepto: cada concepto con su propio precio", () => {
     expect(nueva.variantes[0].total).toBe(anterior.variantes[0].total);
     expect(anterior.nombre).toBe("Corte de vinil (rotulación)");
     expect(anterior.id).toBe("rotulacion"); // sus fotos siguen ligadas por el id de la receta
+  });
+});
+
+describe("Cantidad de cada insumo: automática por medidas o total a mano", () => {
+  const fila = { anchoM: "1.22", altoM: "1.22", cantidades: [2] }; // 2 piezas de 1.22 × 1.22 = 2.9768 m²
+
+  it("automática: el trovicel se expresa en láminas y cuesta lo mismo que antes", () => {
+    const consumo = consumoDeInsumo({ insumoId: "lamina", modo: "por_m2", cantidad: "1" }, fila, snapshot({}));
+    expect(consumo.unidad).toBe("láminas");
+    expect(consumo.cantidad.toNumber()).toBeCloseTo(1, 4); // 2.9768 m² = una lámina de 2.9768 m²
+    expect(consumo.costo.toFixed(2)).toBe("228.79");
+  });
+
+  it("automática: el vinil en rollo se expresa en metros lineales", () => {
+    const consumo = consumoDeInsumo({ insumoId: "rollo", modo: "por_m2", cantidad: "1" }, fila, snapshot({}));
+    expect(consumo.unidad).toBe("ml");
+    expect(consumo.cantidad.toFixed(2)).toBe("2.44"); // 2.9768 m² ÷ 1.22 m de ancho
+  });
+
+  it("total a mano: 2 láminas cuestan 2 láminas, sin importar las medidas", () => {
+    const consumo = consumoDeInsumo({ insumoId: "lamina", modo: "fijo", cantidad: "2" }, fila, snapshot({}));
+    expect(consumo).toMatchObject({ unidad: "láminas" });
+    expect(consumo.costo.toFixed(2)).toBe("457.58");
+
+    const entrada = entradaVersa(1);
+    entrada.operacion.instalacion.incluye = false;
+    entrada.operacion.disenoMontoManual = "0";
+    entrada.levantamiento.filas = [{ id: "letrero", concepto: "Letrero", ...fila }];
+    entrada.opciones = [
+      { id: "o1", nombre: "Opción 1", materiales: { letrero: [{ insumoId: "lamina", modo: "fijo", cantidad: "2" }] } },
+    ];
+    expect(calcular(entrada, snapshot({})).opciones[0].variantes[0].desglose.materiales).toBe("457.58");
   });
 });

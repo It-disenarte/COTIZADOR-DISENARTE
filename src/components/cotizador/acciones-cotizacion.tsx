@@ -3,6 +3,7 @@
 import { FileDown, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAvisos } from "@/components/avisos";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { llamarApi } from "@/lib/utils";
 
@@ -17,17 +18,17 @@ export function BotonEliminar({ id, folio, alEliminar }: { id: string; folio: st
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const avisar = useAvisos();
 
   async function eliminar() {
     setOcupado(true);
-    setError(null);
     try {
       await llamarApi(`/api/cotizaciones/${id}`, "DELETE");
+      avisar({ tipo: "ok", texto: `Se eliminó ${folio}.` });
       if (alEliminar === "volver") router.push("/cotizaciones");
       else router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo eliminar.");
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo eliminar." });
       setOcupado(false);
       setConfirmando(false);
     }
@@ -56,7 +57,6 @@ export function BotonEliminar({ id, folio, alEliminar }: { id: string; folio: st
           <Trash2 className="size-3.5" /> Eliminar
         </button>
       )}
-      {error && <p className="mt-1 w-full text-xs text-destructive">{error}</p>}
     </>
   );
 }
@@ -67,11 +67,10 @@ export function BotonEliminar({ id, folio, alEliminar }: { id: string; folio: st
  */
 export function BotonPdf({ id }: { id: string }) {
   const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const avisar = useAvisos();
 
   async function descargar() {
     setOcupado(true);
-    setError(null);
     try {
       const res = await fetch(`/api/cotizaciones/${id}/pdf`);
       if (!res.ok) {
@@ -86,7 +85,7 @@ export function BotonPdf({ id }: { id: string }) {
       enlace.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el PDF.");
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo generar el PDF." });
     } finally {
       setOcupado(false);
     }
@@ -98,7 +97,6 @@ export function BotonPdf({ id }: { id: string }) {
       <button type="button" onClick={descargar} disabled={ocupado} className={claseBoton} title="Descargar la propuesta">
         <FileDown className="size-3.5" /> PDF
       </button>
-      {error && <p className="mt-1 w-full max-w-xs text-left text-xs text-destructive">{error}</p>}
     </>
   );
 }

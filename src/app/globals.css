@@ -119,3 +119,23 @@
     animation-duration: 1ms;
   }
 }
+
+/* Avisos flotantes: entran desde abajo. */
+@keyframes aparecer-aviso {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.aparecer-aviso {
+  animation: aparecer-aviso 200ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aparecer-aviso {
+    animation-duration: 1ms;
+  }
+}

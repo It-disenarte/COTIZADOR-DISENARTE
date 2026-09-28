@@ -3,6 +3,7 @@
 import { Copy, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAvisos } from "@/components/avisos";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { llamarApi } from "@/lib/utils";
 
@@ -10,16 +11,15 @@ import { llamarApi } from "@/lib/utils";
 export function BotonDuplicar({ id, folio }: { id: string; folio: string }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const avisar = useAvisos();
 
   async function duplicar() {
     setOcupado(true);
-    setError(null);
     try {
       const copia = await llamarApi<{ id: string }>(`/api/cotizaciones/${id}/duplicar`, "POST", {});
       router.push(`/cotizaciones/${copia.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo duplicar.");
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo duplicar." });
       setOcupado(false);
     }
   }
@@ -36,7 +36,6 @@ export function BotonDuplicar({ id, folio }: { id: string; folio: string }) {
       >
         {ocupado ? <Loader2 className="size-3.5 animate-spin" /> : <Copy className="size-3.5" />} Duplicar
       </button>
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </>
   );
 }

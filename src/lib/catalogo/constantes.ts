@@ -38,14 +38,14 @@ export const ETIQUETA_MODO: Record<ModoComponente, string> = {
   por_m2: "Por m²",
   por_ml: "Metros lineales por pieza",
   por_pieza: "Por pieza",
-  fijo: "Fijo (una vez)",
+  fijo: "Cantidad total (a mano)",
 };
 /** Versión corta, para los chips de la tabla del levantamiento. */
 export const ETIQUETA_MODO_CORTA: Record<ModoComponente, string> = {
-  por_m2: "por m²",
+  por_m2: "auto por m²",
   por_ml: "ml por pieza",
   por_pieza: "por pieza",
-  fijo: "una vez",
+  fijo: "total a mano",
 };
 
 export const ESTADOS_COTIZACION = ["borrador", "enviada", "ganada", "perdida"] as const;
