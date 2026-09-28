@@ -14,6 +14,8 @@ const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial
 const { nombreArchivo } = await import("@/lib/pdf/documento");
 const rutaCotizaciones = await import("@/app/api/cotizaciones/route");
 const rutaPdf = await import("@/app/api/cotizaciones/[id]/pdf/route");
+const rutaCotizacion = await import("@/app/api/cotizaciones/[id]/route");
+const { formatoMoneda } = await import("@/lib/formato");
 const rutaAutorizar = await import("@/app/api/cotizaciones/[id]/autorizar/route");
 
 /** El PNO-COM-01 exige autorizar el análisis antes de generar la propuesta (Fase 1). */
@@ -99,6 +101,19 @@ beforeAll(async () => {
 });
 
 describe("Criterio de la fase 5: el PDF de la propuesta", () => {
+  it("cada concepto sale en su fila con su propio precio unitario", async () => {
+    const abierta = await rutaCotizacion.GET(peticion(`/api/cotizaciones/${cotizacionId}`, { cookie }), ctxId(cotizacionId));
+    const { cotizacion } = await abierta.json();
+    const filas: { concepto: string; unitario: string }[] = cotizacion.resultado.opciones[0].variantes[0].filas;
+    expect(filas.map((f) => f.concepto)).toEqual(["Señalamiento 20 × 30 cm", "Señalamiento 30 × 40 cm"]);
+    // Piezas de distinto tamaño, distinto precio: ya no es un promedio.
+    expect(filas[0].unitario).not.toBe(filas[1].unitario);
+
+    const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
+    const { texto } = await textoDelPdf(new Uint8Array(await res.arrayBuffer()));
+    for (const fila of filas) expect(texto).toContain(`${formatoMoneda(fila.unitario)} MXN`);
+  });
+
   it("se descarga como PDF con la nomenclatura del despacho", async () => {
     const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
     expect(res.status).toBe(200);

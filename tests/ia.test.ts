@@ -291,7 +291,7 @@ describe("Utilidades", () => {
     const actual = {
       areas: ["CENDI", "Primaria"],
       filas: [
-        { concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2", "24"] },
+        { id: "salida", concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2", "24"] },
         { concepto: "", anchoM: "0", altoM: "0", cantidades: ["", ""] },
       ],
     };
@@ -302,8 +302,9 @@ describe("Utilidades", () => {
     expect(fusionarLevantamiento(actual, nuevo)).toEqual({
       areas: ["CENDI", "Primaria", "Secundaria"],
       filas: [
-        { concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2", "24", ""] },
-        { concepto: "EXTINTOR", anchoM: "0.2", altoM: "0.25", cantidades: ["", "6", "13"] },
+        // El concepto que ya estaba conserva su id (y con él sus insumos); el nuevo recibe uno.
+        { id: "salida", concepto: "SALIDA", anchoM: "0.2", altoM: "0.4", cantidades: ["2", "24", ""] },
+        { id: expect.any(String), concepto: "EXTINTOR", anchoM: "0.2", altoM: "0.25", cantidades: ["", "6", "13"] },
       ],
     });
   });

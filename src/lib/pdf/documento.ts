@@ -106,7 +106,7 @@ export async function generarPdf(datos: DatosPdf): Promise<Uint8Array> {
 
   consolidado(lienzo, datos);
   for (const opcion of datos.resultado.opciones) {
-    const imagen = await incrustarImagen(doc, datos.imagenes?.get(opcion.recetaId));
+    const imagen = await incrustarImagen(doc, datos.imagenes?.get(opcion.id ?? opcion.recetaId));
     for (const variante of opcion.variantes) {
       paginaDeOpcion(lienzo, datos, opcion.nombre, opcion.descripcionPdf, variante, imagen);
     }
@@ -273,10 +273,10 @@ function consolidado(lienzo: Lienzo, datos: DatosPdf) {
   lienzo.texto(`Área total de producción: ${levantamiento.areaM2} m²`, { tamano: 9, color: COLOR.suave });
 }
 
-const columnasCotizacion = (): Columna[] => [
+const columnasCotizacion = (tituloConcepto = "Resumen de alcance"): Columna[] => [
   { titulo: "Cantidad", ancho: 66, alineacion: "centro" },
   { titulo: "Tiempo estimado", ancho: 76, alineacion: "centro" },
-  { titulo: "Resumen de alcance", ancho: 190 },
+  { titulo: tituloConcepto, ancho: 190 },
   { titulo: "Costo unitario", ancho: 76, alineacion: "centro" },
   { titulo: "Subtotal", ancho: 88, alineacion: "centro" },
 ];
@@ -311,15 +311,28 @@ function paginaDeOpcion(
   }
   if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
 
+  // Con un solo concepto, el alcance va dentro de su fila, como en el diseño de Canva. Con varios,
+  // cada concepto lleva su fila y su precio, y el alcance pasa arriba de la tabla.
+  const variosConceptos = (variante.conceptos?.length ?? 1) > 1;
+  if (variosConceptos) {
+    for (const parrafo of alcance) lienzo.texto(parrafo.texto, { tamano: 9, negrita: parrafo.negrita });
+    lienzo.espacio(10);
+  }
+
   const filas: Celda[][] = variante.filas.map((fila, i) => [
     fila.cantidad,
     tiempo,
-    i === 0 ? alcance : [{ texto: fila.concepto, negrita: true }],
+    i === 0 && !variosConceptos ? alcance : [{ texto: fila.concepto, negrita: true }],
     [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
     `${formatoMoneda(fila.subtotal)} MXN`,
   ]);
 
-  tabla(lienzo, columnasCotizacion(), filas, { estilo: "reticula", tamano: 8.8, alturaMinima: 70, centrarVertical: true });
+  tabla(lienzo, columnasCotizacion(variosConceptos ? "Concepto" : undefined), filas, {
+    estilo: "reticula",
+    tamano: 8.8,
+    alturaMinima: variosConceptos ? 32 : 70,
+    centrarVertical: true,
+  });
   bloqueTotales(lienzo, variante);
   cierreDeCotizacion(lienzo, datos);
 

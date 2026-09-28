@@ -205,8 +205,8 @@ export const cotizacionVersiones = pgTable(
     entrada: jsonb("entrada").notNull(),
     /** Snapshot de insumos, recetas y parámetros usados */
     precios: jsonb("precios").notNull(),
-    /** Salida completa del motor */
-    resultado: jsonb("resultado").notNull(),
+    /** Salida completa del motor. null mientras el borrador está incompleto y no se puede calcular. */
+    resultado: jsonb("resultado"),
     /** Llamadas a Gemini, supuestos y links (fase 7) */
     trazabilidad: jsonb("trazabilidad"),
     pdfPath: text("pdf_path"),

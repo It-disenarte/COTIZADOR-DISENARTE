@@ -41,6 +41,8 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       anchoUtilM: i.anchoUtilM,
       areaLaminaM2: i.areaLaminaM2,
       requiereRevision: i.requiereRevision,
+      categoria: i.categoria,
+      archivado: i.archivado,
     };
   }
 
@@ -52,6 +54,7 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       familia: r.familia,
       descripcionPdf: r.descripcionPdf,
       pctMerma: r.pctMerma,
+      archivado: r.archivado,
       componentes: componentes
         .filter((c) => c.recetaId === r.id)
         .map((c) => ({ insumoId: c.insumoId, modo: c.modo, cantidad: c.cantidad })),

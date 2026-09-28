@@ -78,10 +78,13 @@ export async function borrarImagen(actor: UsuarioSesion | null, cotizacionId: st
   if (borradas.length === 0) noEncontrado("Imagen");
 }
 
-/** Imágenes de las opciones de una cotización, listas para el PDF (por id de receta). */
+/**
+ * Imágenes de las opciones de una cotización, listas para el PDF, por id de opción. En las
+ * cotizaciones anteriores la opción se identificaba por el id de su receta.
+ */
 export async function imagenesParaPdf(
   cotizacionId: string,
-  opciones: { recetaId: string; imagenId?: string | null }[],
+  opciones: { id?: string; recetaId?: string; imagenId?: string | null }[],
 ): Promise<Map<string, ImagenPdf>> {
   const ids = opciones.map((o) => o.imagenId).filter((id): id is string => !!id);
   if (ids.length === 0) return new Map();
@@ -95,7 +98,8 @@ export async function imagenesParaPdf(
   const salida = new Map<string, ImagenPdf>();
   for (const opcion of opciones) {
     const fila = opcion.imagenId ? porId.get(opcion.imagenId) : undefined;
-    if (fila) salida.set(opcion.recetaId, { bytes: new Uint8Array(fila.datos), tipo: fila.tipo });
+    const clave = opcion.id ?? opcion.recetaId;
+    if (fila && clave) salida.set(clave, { bytes: new Uint8Array(fila.datos), tipo: fila.tipo });
   }
   return salida;
 }

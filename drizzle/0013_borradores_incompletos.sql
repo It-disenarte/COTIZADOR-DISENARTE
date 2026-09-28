@@ -1,0 +1,1 @@
+ALTER TABLE "cotizacion_versiones" ALTER COLUMN "resultado" DROP NOT NULL;

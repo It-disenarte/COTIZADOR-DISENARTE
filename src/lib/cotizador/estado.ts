@@ -1,5 +1,25 @@
 import type { Zona } from "@/lib/catalogo/constantes";
-import type { EntradaCotizacion } from "@/lib/motor";
+import type { EntradaNormalizada, FilaConId, OpcionCotizacion } from "@/lib/motor";
+
+/** Id corto para conceptos y opciones. No necesita ser global: solo único dentro de la cotización. */
+export const nuevoId = (): string => Math.random().toString(36).slice(2, 10);
+
+export const opcionNueva = (numero: number): OpcionCotizacion => ({
+  id: nuevoId(),
+  nombre: `Opción ${numero}`,
+  descripcion: "",
+  imagenId: null,
+  materiales: {},
+  preciosManuales: {},
+});
+
+export const filaNueva = (areas: number): FilaConId => ({
+  id: nuevoId(),
+  concepto: "",
+  anchoM: "0",
+  altoM: "0",
+  cantidades: Array.from({ length: areas }, () => ""),
+});
 
 /** Todo lo que el asistente tiene en pantalla. Los números viajan como texto. */
 export type BorradorCotizacion = {
@@ -20,7 +40,7 @@ export type BorradorCotizacion = {
     zona: Zona;
     notas: string;
   };
-  entrada: EntradaCotizacion;
+  entrada: EntradaNormalizada;
 };
 
 export const clienteVacio = (): BorradorCotizacion["cliente"] => ({
@@ -47,9 +67,10 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
     entrada: {
       levantamiento: {
         areas: ["General"],
-        filas: [{ concepto: "", anchoM: "0", altoM: "0", cantidades: [""] }],
+        filas: [filaNueva(1)],
       },
-      opciones: [],
+      // Casi siempre basta con una opción: se crea de una vez para que la tabla reciba insumos.
+      opciones: [opcionNueva(1)],
       tiempoEstimado: "5-7 días",
       incluyeEnvio: true,
       sitio: { retiroGraficosPrevios: false, notasSuperficie: "" },
@@ -83,7 +104,7 @@ export function cuerpoParaGuardar(borrador: BorradorCotizacion) {
 }
 
 /** Pega desde Excel: concepto, ancho, alto y luego una cantidad por área. */
-export function filasDesdeTsv(texto: string, areas: number): EntradaCotizacion["levantamiento"]["filas"] {
+export function filasDesdeTsv(texto: string, areas: number): FilaConId[] {
   return texto
     .split(/\r?\n/)
     .map((linea) => linea.split("\t").map((c) => c.trim()))
@@ -92,6 +113,7 @@ export function filasDesdeTsv(texto: string, areas: number): EntradaCotizacion["
       const [concepto = "", ancho = "", alto = "", ...cantidades] = celdas;
       const normalizado = (v: string) => v.replace(",", ".").replace(/[^\d.]/g, "");
       return {
+        id: nuevoId(),
         concepto,
         anchoM: normalizado(ancho),
         altoM: normalizado(alto),
@@ -100,13 +122,15 @@ export function filasDesdeTsv(texto: string, areas: number): EntradaCotizacion["
     });
 }
 
-type Levantamiento = EntradaCotizacion["levantamiento"];
+type Levantamiento = EntradaNormalizada["levantamiento"];
+/** Lo que lee la IA: filas todavía sin id. */
+type LevantamientoLeido = { areas: string[]; filas: (Omit<FilaConId, "id"> & { id?: string })[] };
 
 /**
  * Agrega a la tabla actual lo que leyó la IA. Las áreas se juntan por nombre (sin
  * importar mayúsculas); un área nueva agrega columna. Las filas vacías se descartan.
  */
-export function fusionarLevantamiento(actual: Levantamiento, nuevo: Levantamiento): Levantamiento {
+export function fusionarLevantamiento(actual: LevantamientoLeido, nuevo: LevantamientoLeido): Levantamiento {
   const areas = [...actual.areas];
   const columnaDe = (nombre: string) => {
     const existente = areas.findIndex((a) => a.trim().toLowerCase() === nombre.trim().toLowerCase());
@@ -116,11 +140,12 @@ export function fusionarLevantamiento(actual: Levantamiento, nuevo: Levantamient
   };
   const destinos = nuevo.areas.map(columnaDe);
 
-  const conCantidad = (f: Levantamiento["filas"][number]) =>
+  const conCantidad = (f: Omit<FilaConId, "id">) =>
     txt(f.concepto).trim() !== "" || f.cantidades.some((c) => num(c) > 0);
 
   const filasActuales = actual.filas.filter(conCantidad).map((f) => ({
     ...f,
+    id: f.id ?? nuevoId(),
     cantidades: areas.map((_, i) => txt(f.cantidades[i])),
   }));
   const filasNuevas = nuevo.filas.map((f) => {
@@ -128,7 +153,7 @@ export function fusionarLevantamiento(actual: Levantamiento, nuevo: Levantamient
     destinos.forEach((columna, j) => {
       cantidades[columna] = txt(f.cantidades[j]);
     });
-    return { concepto: f.concepto, anchoM: f.anchoM, altoM: f.altoM, cantidades };
+    return { id: nuevoId(), concepto: f.concepto, anchoM: f.anchoM, altoM: f.altoM, cantidades };
   });
 
   return { areas, filas: [...filasActuales, ...filasNuevas] };

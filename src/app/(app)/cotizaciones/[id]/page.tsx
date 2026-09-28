@@ -6,18 +6,19 @@ import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge } from "@/components/ui";
 import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
 import { clienteVacio, type BorradorCotizacion } from "@/lib/cotizador/estado";
-import type { EntradaCotizacion } from "@/lib/motor";
+import { type EntradaCotizacion, normalizarEntrada } from "@/lib/motor";
 import { tienePermiso } from "@/lib/permisos";
 import { requireSesion } from "@/lib/sesion";
 import { obtenerCotizacion } from "@/lib/servicios/cotizaciones";
 import { datosDelAsistente } from "@/lib/servicios/cotizador-datos";
+import { obtenerSnapshot } from "@/lib/servicios/snapshot";
 
 export default async function PaginaCotizacion({ params }: PageProps<"/cotizaciones/[id]">) {
   const { usuario } = await requireSesion(await headers());
   const { id } = await params;
 
   const cotizacion = await obtenerCotizacion(usuario, id).catch(() => notFound());
-  const { recetas, clientes, vendedores } = await datosDelAsistente(usuario);
+  const [{ clientes, vendedores }, snapshot] = await Promise.all([datosDelAsistente(usuario), obtenerSnapshot(usuario)]);
 
   const inicial: BorradorCotizacion = {
     id: cotizacion.id,
@@ -39,11 +40,12 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
           notas: cotizacion.cliente.notas ?? "",
         }
       : clienteVacio(),
-    entrada: cotizacion.entrada as EntradaCotizacion,
+    // Las cotizaciones anteriores (una receta por opción) se abren ya con los insumos en cada concepto.
+    entrada: normalizarEntrada(cotizacion.entrada as EntradaCotizacion, snapshot),
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-[96rem] space-y-6">
       <header className="space-y-1">
         <Link href="/cotizaciones" className="text-sm text-muted-foreground hover:underline">
           ← Mis cotizaciones
@@ -64,7 +66,6 @@ export default async function PaginaCotizacion({ params }: PageProps<"/cotizacio
         usuarioId={usuario.id}
         vendedores={vendedores}
         puedeElegirVendedor={tienePermiso(usuario, "cotizaciones.ver_todas")}
-        recetas={recetas}
         clientes={clientes}
         inicial={inicial}
         puedeAutorizar={tienePermiso(usuario, "cotizaciones.autorizar")}

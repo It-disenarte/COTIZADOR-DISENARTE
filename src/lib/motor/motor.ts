@@ -1,14 +1,18 @@
 import { PIEZAS_POR_UNIDAD } from "@/lib/catalogo/constantes";
 import { CERO, d, type Decimal, money, round2, suma } from "./numeros";
+import { type EntradaNormalizada, type FilaConId, normalizarEntrada } from "./normalizar";
 import {
   type Alerta,
+  type ComponenteConcepto,
+  type ConceptoResultado,
   type Desglose,
   type EntradaCotizacion,
   ErrorMotor,
+  type FilaLevantamiento,
   type FilaPdf,
   type InsumoSnapshot,
+  type OpcionCotizacion,
   type OpcionResultado,
-  type RecetaSnapshot,
   type ResultadoCotizacion,
   type ReventaResultado,
   type Snapshot,
@@ -26,7 +30,7 @@ const elegir = (valor: unknown, respaldo: unknown): Decimal => d((vacio(valor) ?
 // Levantamiento (6.2)
 // ---------------------------------------------------------------------------
 
-function calcularLevantamiento(entrada: EntradaCotizacion) {
+function calcularLevantamiento(entrada: EntradaNormalizada) {
   const { areas, filas } = entrada.levantamiento;
 
   const detalle = filas.map((fila) => {
@@ -48,6 +52,7 @@ function calcularLevantamiento(entrada: EntradaCotizacion) {
   return {
     piezas,
     areaM2,
+    detalle,
     resumen: {
       piezas: piezas.toString(),
       areaM2: money(areaM2),
@@ -114,16 +119,30 @@ function costoPorPieza(insumo: InsumoSnapshot): Decimal {
   return porPresentacion ? costo.div(porPresentacion) : costo;
 }
 
-function materialesDeReceta(receta: RecetaSnapshot, snapshot: Snapshot, areaM2: Decimal, piezas: Decimal): Decimal {
-  const merma = d(receta.pctMerma);
-  const importes = receta.componentes.map((componente) => {
+/** Rotulación (PNO 9): el vinil se vende por metro lineal y los metros salen del escaneo de la unidad. */
+function costoPorMl(insumo: InsumoSnapshot): Decimal {
+  const costo = exigirCosto(insumo);
+  if (insumo.unidadCosto !== "ml") {
+    throw new ErrorMotor(
+      `"${insumo.nombre}" se compra por ${insumo.unidadCosto ?? "unidad sin definir"}, no por metro lineal. Cámbialo a "por m²" o "por pieza".`,
+      "UNIDAD_INCOMPATIBLE",
+    );
+  }
+  return costo;
+}
+
+/** Costo de los insumos de un concepto, según sus piezas y sus m². */
+function materialesDeConcepto(componentes: ComponenteConcepto[], snapshot: Snapshot, piezas: Decimal, areaM2: Decimal): Decimal {
+  const importes = componentes.map((componente) => {
     const insumo = snapshot.insumos[componente.insumoId];
-    if (!insumo) throw new ErrorMotor("Un insumo de la receta ya no existe en el catálogo.", "INSUMO_INEXISTENTE");
+    if (!insumo) throw new ErrorMotor("Un insumo del concepto ya no existe en el catálogo.", "INSUMO_INEXISTENTE");
     const cantidad = d(componente.cantidad);
 
     switch (componente.modo) {
       case "por_m2":
-        return areaM2.times(costoPorM2(insumo)).times(cantidad).times(merma.plus(1));
+        return areaM2.times(costoPorM2(insumo)).times(cantidad);
+      case "por_ml":
+        return piezas.times(cantidad).times(costoPorMl(insumo));
       case "por_pieza":
         return piezas.times(costoPorPieza(insumo)).times(cantidad);
       case "fijo":
@@ -131,6 +150,20 @@ function materialesDeReceta(receta: RecetaSnapshot, snapshot: Snapshot, areaM2: 
     }
   });
   return suma(importes);
+}
+
+/**
+ * Costo de materiales de un concepto, para mostrarlo en la tabla del levantamiento mientras se
+ * captura. Lanza ErrorMotor si a un insumo le falta un dato (el asistente muestra el mensaje).
+ */
+export function costoDeConcepto(
+  componentes: ComponenteConcepto[],
+  fila: Pick<FilaLevantamiento, "anchoM" | "altoM" | "cantidades">,
+  snapshot: Snapshot,
+): Decimal {
+  const piezas = suma(fila.cantidades.map((c) => d(vacio(c) ? 0 : c)));
+  const areaM2 = piezas.times(d(vacio(fila.anchoM) ? 0 : fila.anchoM)).times(d(vacio(fila.altoM) ? 0 : fila.altoM));
+  return materialesDeConcepto(componentes, snapshot, piezas, areaM2);
 }
 
 // ---------------------------------------------------------------------------
@@ -248,36 +281,51 @@ function factorPrecio(margen: Decimal, pctError: Decimal, aplicaError: boolean):
   return conError.div(d(1).minus(margen));
 }
 
-export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): ResultadoCotizacion {
+export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot): ResultadoCotizacion {
+  const entrada = normalizarEntrada(entradaCapturada, snapshot);
   const p = snapshot.parametros;
-  const { piezas, areaM2, resumen } = calcularLevantamiento(entrada);
+  const { piezas, detalle, resumen } = calcularLevantamiento(entrada);
   if (piezas.lte(0)) throw new ErrorMotor("El levantamiento no tiene piezas.", "SIN_PIEZAS");
+  if (entrada.opciones.length === 0) throw new ErrorMotor("Agrega al menos una opción.", "SIN_OPCIONES");
 
   const margen = elegir(entrada.ajustes.margen, p.margen);
   const pctError = d(p.pctMargenError);
   const iva = d(p.iva);
   const alertasGenerales: Alerta[] = [];
 
+  // Un concepto sin piezas no se cotiza (p. ej. una fila que se dejó a medias).
+  const conPiezas = detalle.filter((f) => f.piezas.gt(0));
+
   const opciones: OpcionResultado[] = entrada.opciones.map((opcion) => {
-    const receta = snapshot.recetas[opcion.recetaId];
-    if (!receta) throw new ErrorMotor("La receta seleccionada ya no existe.", "RECETA_INEXISTENTE");
-
-    for (const componente of receta.componentes) {
-      const insumo = snapshot.insumos[componente.insumoId];
-      if (insumo?.requiereRevision) {
-        alertasGenerales.push({
-          codigo: "INSUMO_POR_REVISAR",
-          mensaje: `El insumo "${insumo.nombre}" está marcado como "Por revisar".`,
-        });
+    const porConcepto: CostoConcepto[] = conPiezas.map((f) => {
+      const componentes = opcion.materiales[f.fila.id] ?? [];
+      if (componentes.length === 0) {
+        throw new ErrorMotor(
+          `"${f.fila.concepto || "Concepto sin nombre"}" no tiene insumos en "${opcion.nombre}". Agrégaselos en el paso Levantamiento.`,
+          "CONCEPTO_SIN_INSUMOS",
+        );
       }
-    }
+      for (const componente of componentes) {
+        const insumo = snapshot.insumos[componente.insumoId];
+        if (insumo?.requiereRevision) {
+          alertasGenerales.push({
+            codigo: "INSUMO_POR_REVISAR",
+            mensaje: `El insumo "${insumo.nombre}" está marcado como "Por revisar".`,
+          });
+        }
+      }
+      const materiales = materialesDeConcepto(componentes, snapshot, f.piezas, f.areaM2);
+      const consumibles = entrada.ajustes.aplicaConsumibles ? materiales.times(d(p.pctConsumibles)) : CERO;
+      return { fila: f.fila, piezas: f.piezas, materiales, consumibles, directo: materiales.plus(consumibles) };
+    });
 
-    const materiales = materialesDeReceta(receta, snapshot, areaM2, piezas);
-    const consumibles = entrada.ajustes.aplicaConsumibles ? materiales.times(d(p.pctConsumibles)) : CERO;
+    const materiales = suma(porConcepto.map((c) => c.materiales));
+    const consumibles = suma(porConcepto.map((c) => c.consumibles));
     const produccion = d(entrada.operacion.produccion.personas)
       .times(d(entrada.operacion.produccion.dias))
       .times(d(p.tarifaInstaladorDia));
-    const extrasPorPieza = suma(entrada.operacion.extras.filter((e) => e.escala === "por_pieza").map((e) => d(e.monto))).times(piezas);
+    const extrasPorPiezaUnitario = suma(entrada.operacion.extras.filter((e) => e.escala === "por_pieza").map((e) => d(e.monto)));
+    const extrasPorPieza = extrasPorPiezaUnitario.times(piezas);
 
     // Unidades del proyecto completo, para amortizar el diseño (PNO-COM-01, 7.2.13 y 8.3).
     const unidadesVolumen = d(elegir(entrada.presentacion.unidadesVolumen, 0));
@@ -302,7 +350,7 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
                 amortizarDisenoEntre: unidadesVolumen,
               },
             ]
-          : [{ clave: "unica", etiqueta: receta.nombre, incluirInstalacion: true }];
+          : [{ clave: "unica", etiqueta: opcion.nombre, incluirInstalacion: true }];
 
     if (entrada.presentacion.modalidades === "piloto_y_volumen" && unidadesVolumen.lte(1)) {
       throw new ErrorMotor(
@@ -312,13 +360,11 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
     }
 
     const variantes = modalidades.map(({ clave, etiqueta, incluirInstalacion, amortizarDisenoEntre }) => {
-      const instalacionPorPieza =
+      const instalacionPorPiezaUnitario =
         incluirInstalacion && entrada.operacion.instalacion.incluye && entrada.operacion.instalacion.escalaPorPieza === true
-          ? d(entrada.operacion.instalacion.personas)
-              .times(d(entrada.operacion.instalacion.dias))
-              .times(d(p.tarifaInstaladorDia))
-              .times(piezas)
+          ? d(entrada.operacion.instalacion.personas).times(d(entrada.operacion.instalacion.dias)).times(d(p.tarifaInstaladorDia))
           : CERO;
+      const instalacionPorPieza = instalacionPorPiezaUnitario.times(piezas);
 
       const variable = suma([materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza]);
       const fijos = calcularFijos(entrada, snapshot, incluirInstalacion, amortizarDisenoEntre);
@@ -327,10 +373,24 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
         fijos,
         desglose: armarDesglose({ materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza, variable }, fijos),
       };
-      return calcularVariante({ clave, etiqueta, receta, entrada, costos, piezas, margen, pctError, iva, snapshot, opcion });
+      return calcularVariante({
+        clave,
+        etiqueta,
+        opcion,
+        entrada,
+        costos,
+        porConcepto,
+        porPiezaUnitario: instalacionPorPiezaUnitario.plus(extrasPorPiezaUnitario),
+        produccion,
+        piezas,
+        margen,
+        pctError,
+        iva,
+        snapshot,
+      });
     });
 
-    return { recetaId: receta.id, nombre: receta.nombre, descripcionPdf: receta.descripcionPdf, variantes };
+    return { id: opcion.id, recetaId: opcion.id, nombre: opcion.nombre, descripcionPdf: opcion.descripcion ?? null, variantes };
   });
 
   // Alertas de operación (6.8)
@@ -362,51 +422,77 @@ export function calcular(entrada: EntradaCotizacion, snapshot: Snapshot): Result
   };
 }
 
+type CostoConcepto = { fila: FilaConId; piezas: Decimal; materiales: Decimal; consumibles: Decimal; directo: Decimal };
+
 function calcularVariante(args: {
   clave: Variante["clave"];
   etiqueta: string;
-  receta: RecetaSnapshot;
-  entrada: EntradaCotizacion;
+  opcion: OpcionCotizacion;
+  entrada: EntradaNormalizada;
   costos: Costos;
+  porConcepto: CostoConcepto[];
+  /** Instalación y extras que se cobran por pieza: cada concepto paga los de sus piezas. */
+  porPiezaUnitario: Decimal;
+  produccion: Decimal;
   piezas: Decimal;
   margen: Decimal;
   pctError: Decimal;
   iva: Decimal;
   snapshot: Snapshot;
-  opcion: EntradaCotizacion["opciones"][number];
 }): Variante {
-  const { clave, etiqueta, receta, entrada, costos, piezas, margen, pctError, iva, snapshot, opcion } = args;
+  const { clave, etiqueta, opcion, entrada, costos, porConcepto, porPiezaUnitario, produccion, piezas, margen, pctError, iva, snapshot } =
+    args;
   const p = snapshot.parametros;
   const alertas: Alerta[] = [];
   const factor = factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError);
-
   const prorratear = entrada.presentacion.operacionProrrateada;
-  const precioPiezas = prorratear ? costos.variable.plus(costos.fijos.total).times(factor) : costos.variable.times(factor);
-  const unitarioCalculado = precioPiezas.div(piezas);
 
-  const manual = opcion.precioUnitarioManual;
-  let unitario = unitarioCalculado;
-  if (manual != null && manual !== "") {
-    unitario = d(manual);
-    const desvio = unitarioCalculado.gt(0) ? unitario.minus(unitarioCalculado).abs().div(unitarioCalculado) : CERO;
-    if (desvio.gt(d(p.alertaDesvioPrecio))) {
-      alertas.push({
-        codigo: "DESVIO_PRECIO",
-        mensaje: `El unitario capturado se desvía ${desvio.times(100).toDecimalPlaces(1)}% del calculado (${money(unitarioCalculado)}).`,
-      });
+  // Lo que no es de un concepto en particular (producción y, si se prorratea, la operación) se
+  // reparte según el costo directo de cada concepto. Si todo costara cero, según sus piezas.
+  const directoTotal = suma(porConcepto.map((c) => c.directo));
+  const compartido = prorratear ? produccion.plus(costos.fijos.total) : produccion;
+  const costoDe = (c: CostoConcepto) => {
+    const peso = directoTotal.gt(0) ? c.directo.div(directoTotal) : c.piezas.div(piezas);
+    return c.directo.plus(porPiezaUnitario.times(c.piezas)).plus(compartido.times(peso));
+  };
+
+  const conceptos: ConceptoResultado[] = porConcepto.map((c) => {
+    const costo = costoDe(c);
+    const unitarioCalculado = costo.times(factor).div(c.piezas);
+    const nombre = c.fila.concepto || opcion.nombre;
+
+    const manual = opcion.preciosManuales?.[c.fila.id];
+    let unitario = unitarioCalculado;
+    if (!vacio(manual)) {
+      unitario = d(manual as never);
+      const desvio = unitarioCalculado.gt(0) ? unitario.minus(unitarioCalculado).abs().div(unitarioCalculado) : CERO;
+      if (desvio.gt(d(p.alertaDesvioPrecio))) {
+        alertas.push({
+          codigo: "DESVIO_PRECIO",
+          mensaje: `El unitario capturado de "${nombre}" se desvía ${desvio.times(100).toDecimalPlaces(1)}% del calculado (${money(unitarioCalculado)}).`,
+        });
+      }
     }
-  }
 
-  // Redondeo final: la tabla del PDF debe cuadrar al multiplicar.
-  const unitarioMostrado = round2(unitario);
-  const filas: FilaPdf[] = [
-    {
-      concepto: receta.nombre,
-      cantidad: piezas.toString(),
+    // Redondeo final: la tabla del PDF debe cuadrar al multiplicar.
+    const unitarioMostrado = round2(unitario);
+    return {
+      filaId: c.fila.id,
+      concepto: nombre,
+      piezas: c.piezas.toString(),
+      costo: money(c.directo),
+      unitarioCalculado: unitarioCalculado.toDecimalPlaces(4).toString(),
       unitario: unitarioMostrado.toFixed(2),
-      subtotal: money(unitarioMostrado.times(piezas)),
-    },
-  ];
+      subtotal: money(unitarioMostrado.times(c.piezas)),
+    };
+  });
+
+  const filas: FilaPdf[] = conceptos.map((c) => ({
+    concepto: c.concepto,
+    cantidad: c.piezas,
+    unitario: c.unitario,
+    subtotal: c.subtotal,
+  }));
 
   if (!prorratear && costos.fijos.total.gt(0)) {
     const precioOperacion = round2(costos.fijos.total.times(factor));
@@ -432,15 +518,19 @@ function calcularVariante(args: {
     });
   }
 
+  // Unitario de la opción: con un solo concepto es el suyo; con varios, el promedio.
+  const subtotalConceptos = suma(conceptos.map((c) => d(c.subtotal)));
+  const unitarioCalculado = suma(porConcepto.map((c) => costoDe(c).times(factor))).div(piezas);
+  const unitario = conceptos.length === 1 ? d(conceptos[0].unitario) : round2(subtotalConceptos.div(piezas));
+
   const escenarios = p.escenariosMargen.map((escenario) => {
     const factorEscenario = factorPrecio(d(escenario), pctError, entrada.ajustes.aplicaMargenError);
-    const base = prorratear ? costos.variable.plus(costos.fijos.total) : costos.variable;
-    const unitarioEscenario = round2(base.times(factorEscenario).div(piezas));
+    const subtotalEscenario = suma(porConcepto.map((c) => round2(costoDe(c).times(factorEscenario).div(c.piezas)).times(c.piezas)));
     const operacionAparte = prorratear ? CERO : round2(costos.fijos.total.times(factorEscenario));
     return {
       margen: d(escenario).toString(),
-      unitario: unitarioEscenario.toFixed(2),
-      subtotal: money(unitarioEscenario.times(piezas).plus(operacionAparte)),
+      unitario: round2(subtotalEscenario.div(piezas)).toFixed(2),
+      subtotal: money(subtotalEscenario.plus(operacionAparte)),
     };
   });
 
@@ -449,8 +539,9 @@ function calcularVariante(args: {
     etiqueta,
     desglose: costos.desglose,
     unitarioCalculado: unitarioCalculado.toDecimalPlaces(4).toString(),
-    unitario: unitarioMostrado.toFixed(2),
+    unitario: unitario.toFixed(2),
     filas,
+    conceptos,
     subtotal: subtotal.toFixed(2),
     descuento: money(descuento),
     iva: ivaMonto.toFixed(2),
@@ -465,7 +556,7 @@ function calcularVariante(args: {
 // Reventa (6.7): markup sin margen de venta ni margen de error
 // ---------------------------------------------------------------------------
 
-function calcularReventa(entrada: EntradaCotizacion, snapshot: Snapshot, alertas: Alerta[]): ReventaResultado {
+function calcularReventa(entrada: EntradaNormalizada, snapshot: Snapshot, alertas: Alerta[]): ReventaResultado {
   const p = snapshot.parametros;
   const items = entrada.reventa.map((articulo) => {
     const unitario = round2(d(articulo.precioReferencia).times(d(p.pctReventa).plus(1)));

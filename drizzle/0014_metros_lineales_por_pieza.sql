@@ -1,0 +1,1 @@
+ALTER TYPE "public"."modo_componente" ADD VALUE 'por_ml' BEFORE 'por_pieza';

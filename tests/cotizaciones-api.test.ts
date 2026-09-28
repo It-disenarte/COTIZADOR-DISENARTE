@@ -227,31 +227,88 @@ describe("Permisos sobre cotizaciones", () => {
   });
 });
 
-describe("Validaciones del asistente", () => {
-  it("rechaza una cotización sin opciones de material o sin título", async () => {
-    const sinOpciones = cotizacionGandhi(recetaEstireno);
-    sinOpciones.entrada.opciones = [];
-    expect(
-      (await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo: sinOpciones }), undefined))
-        .status,
-    ).toBe(400);
+describe("Borradores: se guardan con los datos del paso 1", () => {
+  const guardarNueva = (cuerpo: unknown) =>
+    rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo }), undefined);
 
-    const sinTitulo = { ...cotizacionGandhi(recetaEstireno), titulo: "" };
-    expect(
-      (await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo: sinTitulo }), undefined))
-        .status,
-    ).toBe(400);
+  /** Lo que tiene el asistente recién abierto, con solo el paso 1 capturado. */
+  function soloPaso1() {
+    const cuerpo = cotizacionGandhi(recetaEstireno);
+    cuerpo.entrada.levantamiento = { areas: [""], filas: [{ concepto: "", anchoM: "", altoM: "", cantidades: [""] }] };
+    cuerpo.entrada.opciones = [];
+    cuerpo.entrada.operacion.diasDiseno = "";
+    cuerpo.entrada.reventa = [{ nombre: "", precioReferencia: "", cantidad: "", link: "", verificado: false }];
+    return cuerpo;
+  }
+
+  it("guarda sin levantamiento ni materiales y avisa qué falta para calcular", async () => {
+    const res = await guardarNueva(soloPaso1());
+    expect(res.status).toBe(201);
+    const datos = await res.json();
+    expect(datos.folio).toMatch(/^COT-/);
+    expect(datos.resultado).toBeNull();
+    expect(datos.pendiente).toMatch(/^Levantamiento: Nombra el área/);
+
+    // Al abrirlo de nuevo, vuelve tal cual se dejó para seguir capturando.
+    const abierta = await rutaCotizacion.GET(peticion(`/api/cotizaciones/${datos.id}`, { cookie: cookieVentas }), ctxId(datos.id));
+    const { cotizacion } = await abierta.json();
+    expect(cotizacion.resultado).toBeNull();
+    expect(cotizacion.entrada.opciones).toEqual([]);
+    expect(cotizacion.entrada.levantamiento.filas[0].concepto).toBe("");
   });
 
-  it("no guarda nada si el catálogo tiene datos incompletos", async () => {
-    const [sinCosto] = await db.select().from(recetas).where(eq(recetas.nombre, "Estireno cal. 40 + fotoluminiscente"));
-    const antes = await db.select().from(cotizaciones);
+  it("en la lista, un borrador incompleto sale sin total", async () => {
+    const { id } = await (await guardarNueva(soloPaso1())).json();
+    const res = await rutaCotizaciones.GET(peticion("/api/cotizaciones", { cookie: cookieVentas }), undefined);
+    const { cotizaciones: lista } = await res.json();
+    expect(lista.find((c: { id: string }) => c.id === id).total).toBeNull();
+  });
 
+  it("al completarlo, el mismo borrador ya calcula el precio", async () => {
+    const { id } = await (await guardarNueva(soloPaso1())).json();
+    const res = await rutaCotizacion.PUT(
+      peticion(`/api/cotizaciones/${id}`, { metodo: "PUT", cookie: cookieVentas, cuerpo: cotizacionGandhi(recetaEstireno) }),
+      ctxId(id),
+    );
+    const datos = await res.json();
+    expect(datos.pendiente).toBeNull();
+    expect(datos.resultado.levantamiento.piezas).toBe("169");
+  });
+
+  it("sigue exigiendo el título y rechaza números mal escritos", async () => {
+    expect((await guardarNueva({ ...soloPaso1(), titulo: "" })).status).toBe(400);
+
+    const malEscrito = soloPaso1();
+    malEscrito.entrada.levantamiento.filas[0].anchoM = "dos metros";
+    expect((await guardarNueva(malEscrito)).status).toBe(400);
+  });
+
+  it("si al catálogo le falta un costo, guarda el borrador y dice cuál insumo es", async () => {
+    const [sinCosto] = await db.select().from(recetas).where(eq(recetas.nombre, "Estireno cal. 40 + fotoluminiscente"));
+    const res = await guardarNueva(cotizacionGandhi(sinCosto.id));
+    expect(res.status).toBe(201);
+    const datos = await res.json();
+    expect(datos.resultado).toBeNull();
+    expect(datos.pendiente).toMatch(/costo/i);
+  });
+});
+
+describe("Cotizaciones con la forma anterior (una receta por opción)", () => {
+  it("se guardan ya convertidas: cada concepto con los insumos de la receta", async () => {
     const res = await rutaCotizaciones.POST(
-      peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo: cotizacionGandhi(sinCosto.id) }),
+      peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo: cotizacionGandhi(recetaEstireno) }),
       undefined,
     );
-    expect(res.status).toBe(400);
-    expect((await db.select().from(cotizaciones)).length).toBe(antes.length);
+    const { id } = await res.json();
+    const [version] = await db.select().from(cotizacionVersiones).where(eq(cotizacionVersiones.cotizacionId, id));
+    const entrada = version.entrada as {
+      levantamiento: { filas: { id: string }[] };
+      opciones: { id: string; nombre: string; materiales: Record<string, unknown[]> }[];
+    };
+
+    const [opcion] = entrada.opciones;
+    expect(opcion.id).toBe(recetaEstireno);
+    expect(opcion.nombre).toBe("Estireno cal. 40 + impresión");
+    for (const fila of entrada.levantamiento.filas) expect(opcion.materiales[fila.id]).toHaveLength(2);
   });
 });

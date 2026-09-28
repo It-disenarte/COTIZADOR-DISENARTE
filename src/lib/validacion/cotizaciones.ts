@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ESTADOS_COTIZACION } from "@/lib/catalogo/constantes";
 import { textoOpcional, textoRequerido, Uuid } from "./comunes";
 import { CrearCliente } from "./catalogo";
-import { EntradaCotizacion } from "./cotizacion";
+import { EntradaBorrador } from "./cotizacion";
 
 /** El cliente se captura dentro de la cotización; si ya existe se reutiliza y se actualiza. */
 export const ClienteCotizacion = CrearCliente.partial({ zona: true }).extend({
@@ -16,7 +16,8 @@ export const GuardarCotizacion = z.object({
   /** Quién cotiza. Solo admin y agente_admin pueden elegir a alguien más. */
   vendedorId: Uuid.optional(),
   cliente: ClienteCotizacion,
-  entrada: EntradaCotizacion,
+  /** Se guarda aunque esté incompleta: la validación completa se exige al autorizar. */
+  entrada: EntradaBorrador,
 });
 export type GuardarCotizacion = z.infer<typeof GuardarCotizacion>;
 

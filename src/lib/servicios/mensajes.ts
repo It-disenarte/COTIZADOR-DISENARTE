@@ -2,7 +2,7 @@ import { ErrorHttp } from "@/lib/errores";
 import { type DatosMensajes, type Mensajes, redactarMensajes } from "@/lib/ia/mensajes";
 import type { EntradaCotizacion } from "@/lib/motor";
 import type { UsuarioSesion } from "@/lib/permisos";
-import { obtenerCotizacion } from "./cotizaciones";
+import { exigirResultado, obtenerCotizacion } from "./cotizaciones";
 
 /**
  * Redacta el correo (Fase 2) y el mensaje de WhatsApp (Fase 3) de una cotización.
@@ -20,7 +20,7 @@ export async function mensajesDeCotizacion(actor: UsuarioSesion | null, id: stri
   }
 
   const entrada = cotizacion.entrada as EntradaCotizacion;
-  const { resultado } = cotizacion;
+  const resultado = exigirResultado(cotizacion);
 
   const datos: DatosMensajes = {
     folio: cotizacion.folio,

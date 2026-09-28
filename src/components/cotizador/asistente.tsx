@@ -4,20 +4,21 @@ import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, ShieldCheck,
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
-import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar } from "@/lib/cotizador/estado";
+import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
 import { formatoMoneda } from "@/lib/formato";
 import { calcular, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
-import { type ClienteOpcion, PasoDatos, PasoLevantamiento, PasoMateriales, type RecetaOpcion } from "./pasos-captura";
+import { PasoLevantamiento } from "./paso-levantamiento";
+import { PasoOpciones } from "./paso-opciones";
+import { type ClienteOpcion, PasoDatos } from "./pasos-captura";
 import { PasoOperacion, PasoResumen, PasoReventa } from "./pasos-cierre";
 
-const PASOS = ["Datos", "Levantamiento", "Materiales", "Operación", "Reventa", "Resumen"] as const;
+const PASOS = ["Datos", "Levantamiento y materiales", "Opciones y fotos", "Operación", "Reventa", "Resumen"] as const;
 
 type Props = {
   usuarioId: string;
   vendedores: { id: string; nombre: string }[];
   puedeElegirVendedor: boolean;
-  recetas: RecetaOpcion[];
   clientes: ClienteOpcion[];
   inicial?: BorradorCotizacion;
   /** Quien puede autorizar el análisis de costos (PNO-COM-01, Fase 1). */
@@ -30,14 +31,17 @@ export function AsistenteCotizacion({
   usuarioId,
   vendedores,
   puedeElegirVendedor,
-  recetas,
   clientes,
   inicial,
   puedeAutorizar,
   autorizada = null,
 }: Props) {
   const router = useRouter();
-  const [borrador, setBorrador] = useState<BorradorCotizacion>(inicial ?? borradorInicial(usuarioId));
+  const [borrador, setBorrador] = useState<BorradorCotizacion>(() => {
+    const base = inicial ?? borradorInicial(usuarioId);
+    // Siempre hay al menos una opción, para que la tabla del levantamiento reciba insumos.
+    return base.entrada.opciones.length ? base : { ...base, entrada: { ...base.entrada, opciones: [opcionNueva(1)] } };
+  });
   const [paso, setPaso] = useState(0);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -133,8 +137,8 @@ export function AsistenteCotizacion({
   }
 
   async function irAlPaso(destino: number) {
-    // Autoguardado al cambiar de paso, una vez que hay lo mínimo para guardar.
-    if (borrador.titulo.trim() && borrador.cliente.nombreContacto.trim() && borrador.entrada.opciones.length > 0) {
+    // Autoguardado al cambiar de paso en cuanto están los datos del paso 1; lo demás puede ir incompleto.
+    if (borrador.titulo.trim() && borrador.cliente.nombreContacto.trim()) {
       await guardar({ avisar: false });
     }
     setPaso(Math.min(Math.max(destino, 0), PASOS.length - 1));
@@ -148,7 +152,8 @@ export function AsistenteCotizacion({
   const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+    // En el paso 2 la tabla y el catálogo necesitan el ancho: el precio en vivo pasa abajo hasta pantallas grandes.
+    <div className={cn("grid gap-6", paso === 1 ? "2xl:grid-cols-[minmax(0,1fr)_20rem]" : "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
       <div className="space-y-6">
         <nav className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
           {PASOS.map((nombre, i) => (
@@ -189,14 +194,9 @@ export function AsistenteCotizacion({
             puedeElegirVendedor={puedeElegirVendedor}
           />
         )}
-        {paso === 1 && <PasoLevantamiento borrador={borrador} cambiar={cambiar} />}
+        {paso === 1 && <PasoLevantamiento borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
         {paso === 2 && (
-          <PasoMateriales
-            borrador={borrador}
-            cambiar={cambiar}
-            recetas={recetas}
-            asegurarGuardado={() => guardar({ avisar: true })}
-          />
+          <PasoOpciones borrador={borrador} cambiar={cambiar} asegurarGuardado={() => guardar({ avisar: true })} />
         )}
         {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
         {paso === 4 && <PasoReventa borrador={borrador} cambiar={cambiar} />}
@@ -237,7 +237,7 @@ export function AsistenteCotizacion({
         </div>
       </div>
 
-      <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+      <aside className={cn("space-y-4", paso === 1 ? "2xl:sticky 2xl:top-6 2xl:self-start" : "lg:sticky lg:top-6 lg:self-start")}>
         <Card>
           <CardContent className="space-y-3 pt-6">
             <div>
@@ -252,7 +252,7 @@ export function AsistenteCotizacion({
             )}
 
             {!errorCalculo && !primeraVariante && (
-              <p className="text-sm text-muted-foreground">Elige una opción de material y captura el levantamiento.</p>
+              <p className="text-sm text-muted-foreground">Captura el levantamiento y ponle insumos a cada concepto.</p>
             )}
 
             {primeraVariante && (
@@ -261,7 +261,10 @@ export function AsistenteCotizacion({
                 <p className="text-muted-foreground">
                   {resultado?.levantamiento.piezas} piezas · {resultado?.levantamiento.areaM2} m²
                 </p>
-                <p className="text-muted-foreground">Unitario {formatoMoneda(primeraVariante.unitario)}</p>
+                <p className="text-muted-foreground">
+                  {(primeraVariante.conceptos?.length ?? 1) > 1 ? "Unitario promedio" : "Unitario"}{" "}
+                  {formatoMoneda(primeraVariante.unitario)}
+                </p>
                 <p className="text-muted-foreground">Subtotal {formatoMoneda(primeraVariante.subtotal)}</p>
               </div>
             )}
@@ -269,7 +272,7 @@ export function AsistenteCotizacion({
             {resultado && resultado.opciones.length > 1 && (
               <div className="space-y-1 border-t pt-2 text-xs">
                 {resultado.opciones.map((o) => (
-                  <p key={o.recetaId} className="flex justify-between gap-2">
+                  <p key={o.id ?? o.recetaId} className="flex justify-between gap-2">
                     <span className="truncate text-muted-foreground">{o.nombre}</span>
                     <span>{formatoMoneda(o.variantes.at(-1)?.total ?? "0")}</span>
                   </p>

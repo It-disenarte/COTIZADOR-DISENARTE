@@ -718,8 +718,8 @@ export function PasoResumen({
       )}
 
       {resultado.opciones.map((opcion) =>
-        opcion.variantes.map((v) => (
-          <Card key={`${opcion.recetaId}-${v.clave}`}>
+        opcion.variantes.map((v, indiceVariante) => (
+          <Card key={`${opcion.id ?? opcion.recetaId}-${v.clave}`}>
             <CardContent className="space-y-4 pt-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
@@ -761,9 +761,10 @@ export function PasoResumen({
                     {v.filas.map((f, i) => (
                       <div key={i} className="flex justify-between gap-2">
                         <span className="text-muted-foreground">
+                          {v.filas.length > 1 && <span className="text-foreground">{f.concepto}: </span>}
                           {f.cantidad} × {formatoMoneda(f.unitario)}
                         </span>
-                        <span>{formatoMoneda(f.subtotal)}</span>
+                        <span className="whitespace-nowrap">{formatoMoneda(f.subtotal)}</span>
                       </div>
                     ))}
                     <Renglon etiqueta="Subtotal" valor={v.subtotal} />
@@ -792,24 +793,36 @@ export function PasoResumen({
                 </div>
               </div>
 
-              <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
-                <Campo
-                  etiqueta="Precio unitario manual"
-                  ayuda={`Calculado: ${formatoMoneda(v.unitarioCalculado)}`}
-                  valor={txt(borrador.entrada.opciones.find((o) => o.recetaId === opcion.recetaId)?.precioUnitarioManual ?? "")}
-                  alCambiar={(valor) =>
-                    cambiar((b) => ({
-                      ...b,
-                      entrada: {
-                        ...b.entrada,
-                        opciones: b.entrada.opciones.map((o) =>
-                          o.recetaId === opcion.recetaId ? { ...o, precioUnitarioManual: valor } : o,
-                        ),
-                      },
-                    }))
-                  }
-                />
-              </div>
+              {/* El precio manual es por concepto y vale para todas las modalidades: se captura una vez. */}
+              {indiceVariante === 0 && (v.conceptos?.length ?? 0) > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-sm font-medium">Precio unitario manual</p>
+                  <p className="text-xs text-muted-foreground">
+                    Opcional, por concepto. Déjalo vacío para usar el calculado; si se aleja mucho, aparece una alerta.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {v.conceptos?.map((c) => (
+                      <Campo
+                        key={c.filaId}
+                        etiqueta={c.concepto}
+                        ayuda={`Calculado: ${formatoMoneda(c.unitarioCalculado)}`}
+                        valor={txt(borrador.entrada.opciones.find((o) => o.id === opcion.id)?.preciosManuales?.[c.filaId] ?? "")}
+                        alCambiar={(valor) =>
+                          cambiar((b) => ({
+                            ...b,
+                            entrada: {
+                              ...b.entrada,
+                              opciones: b.entrada.opciones.map((o) =>
+                                o.id === opcion.id ? { ...o, preciosManuales: { ...o.preciosManuales, [c.filaId]: valor } } : o,
+                              ),
+                            },
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )),

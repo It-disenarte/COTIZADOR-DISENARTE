@@ -2,7 +2,7 @@ import { ErrorHttp } from "@/lib/errores";
 import type { EntradaCotizacion } from "@/lib/motor";
 import { type DatosPdf, generarPdf, nombreArchivo } from "@/lib/pdf/documento";
 import type { UsuarioSesion } from "@/lib/permisos";
-import { obtenerCotizacion } from "./cotizaciones";
+import { exigirResultado, obtenerCotizacion } from "./cotizaciones";
 import { imagenesParaPdf } from "./imagenes";
 
 /**
@@ -45,7 +45,7 @@ export async function pdfDeCotizacion(
       : null,
     incluyeEnvio: entrada?.incluyeEnvio ?? false,
     sitio: entrada?.sitio ?? null,
-    resultado: cotizacion.resultado,
+    resultado: exigirResultado(cotizacion),
     imagenes: await imagenesParaPdf(cotizacion.id, entrada?.opciones ?? []),
   };
 

@@ -408,3 +408,107 @@ describe("Reventa y alertas", () => {
     expect(alertas.some((a) => a.codigo === "GASOLINA_DESACTUALIZADA")).toBe(true);
   });
 });
+
+describe("Insumos por concepto: cada concepto con su propio precio", () => {
+  /** Un letrero de 1 × 1 m en vinil y diez placas por pieza, sin operación, con 30% de margen. */
+  function entradaDosConceptos(): EntradaCotizacion {
+    const entrada = entradaVersa(1);
+    entrada.operacion.instalacion.incluye = false;
+    entrada.operacion.disenoMontoManual = "0";
+    entrada.ajustes.margen = "0.30";
+    entrada.levantamiento.filas = [
+      { id: "letrero", concepto: "Letrero", anchoM: "1", altoM: "1", cantidades: [2] },
+      { id: "placa", concepto: "Placa", anchoM: "0", altoM: "0", cantidades: [10] },
+    ];
+    entrada.opciones = [
+      {
+        id: "o1",
+        nombre: "Opción 1",
+        materiales: {
+          letrero: [{ insumoId: "vinil", modo: "por_m2", cantidad: "1" }],
+          placa: [{ insumoId: "aplicacion", modo: "por_pieza", cantidad: "1" }],
+        },
+      },
+    ];
+    return entrada;
+  }
+
+  it("da una fila por concepto con su unitario real, no un promedio", () => {
+    const v = calcular(entradaDosConceptos(), snapshot({})).opciones[0].variantes[0];
+    // Letrero: 2 m² × $400 = $800 ÷ 0.70 ÷ 2 piezas. Placa: 10 × $200 = $2,000 ÷ 0.70 ÷ 10.
+    expect(v.filas).toEqual([
+      { concepto: "Letrero", cantidad: "2", unitario: "571.43", subtotal: "1142.86" },
+      { concepto: "Placa", cantidad: "10", unitario: "285.71", subtotal: "2857.10" },
+    ]);
+    expect(v.desglose.materiales).toBe("2800.00");
+  });
+
+  it("reparte la operación según el costo de cada concepto", () => {
+    const entrada = entradaDosConceptos();
+    entrada.operacion.disenoMontoManual = "1400";
+    const v = calcular(entrada, snapshot({})).opciones[0].variantes[0];
+    // El letrero es 2/7 del costo directo: se lleva $400 del diseño; la placa, $1,000.
+    expect(v.filas[0].unitario).toBe("857.14"); // ($800 + $400) ÷ 0.70 ÷ 2
+    expect(v.filas[1].unitario).toBe("428.57"); // ($2,000 + $1,000) ÷ 0.70 ÷ 10
+  });
+
+  it("rotulación: cobra los metros lineales del escaneo por cada unidad", () => {
+    const entrada = entradaVersa(3);
+    entrada.levantamiento.filas = [{ id: "unidad", concepto: "Rotulación camioneta", anchoM: "0", altoM: "0", cantidades: [3] }];
+    entrada.opciones = [
+      { id: "o1", nombre: "Vinil de corte", materiales: { unidad: [{ insumoId: "rollo", modo: "por_ml", cantidad: "6" }] } },
+    ];
+    const v = calcular(entrada, snapshot({})).opciones[0].variantes[0];
+    expect(v.desglose.materiales).toBe("1910.70"); // 3 unidades × 6 ml × $106.15
+  });
+
+  it("no acepta metros lineales de un insumo que no se compra por metro lineal", () => {
+    const entrada = entradaDosConceptos();
+    (entrada.opciones[0] as { materiales: Record<string, unknown> }).materiales.placa = [
+      { insumoId: "vinil", modo: "por_ml", cantidad: "2" },
+    ];
+    expect(() => calcular(entrada, snapshot({}))).toThrow(/metro lineal/);
+  });
+
+  it("pide insumos para cada concepto con piezas y dice cuál falta", () => {
+    const entrada = entradaDosConceptos();
+    (entrada.opciones[0] as { materiales: Record<string, unknown> }).materiales = {
+      letrero: [{ insumoId: "vinil", modo: "por_m2", cantidad: "1" }],
+    };
+    expect(() => calcular(entrada, snapshot({}))).toThrow(/"Placa" no tiene insumos/);
+  });
+
+  it("ignora los conceptos que se dejaron sin piezas", () => {
+    const entrada = entradaDosConceptos();
+    entrada.levantamiento.filas.push({ id: "vacio", concepto: "", anchoM: "0", altoM: "0", cantidades: [""] });
+    expect(calcular(entrada, snapshot({})).opciones[0].variantes[0].filas).toHaveLength(2);
+  });
+
+  it("el precio manual es por concepto y avisa si se aleja del calculado", () => {
+    const entrada = entradaDosConceptos();
+    (entrada.opciones[0] as { preciosManuales?: Record<string, string> }).preciosManuales = { placa: "400" };
+    const v = calcular(entrada, snapshot({})).opciones[0].variantes[0];
+    expect(v.filas[1].unitario).toBe("400.00");
+    expect(v.filas[0].unitario).toBe("571.43");
+    expect(v.alertas.some((a) => a.codigo === "DESVIO_PRECIO" && a.mensaje.includes("Placa"))).toBe(true);
+  });
+
+  it("una cotización anterior (una receta por opción) da el mismo precio que con insumos por concepto", () => {
+    const anterior = calcular(entradaVersa(4), snapshot(RECETA_ROTULACION)).opciones[0];
+
+    const actual = entradaVersa(4);
+    actual.levantamiento.filas = [{ ...actual.levantamiento.filas[0], id: "versa" }];
+    actual.opciones = [
+      {
+        id: "o1",
+        nombre: "Corte de vinil (rotulación)",
+        materiales: { versa: RECETA_ROTULACION.rotulacion.componentes.map((c) => ({ ...c })) },
+      },
+    ];
+    const nueva = calcular(actual, snapshot(RECETA_ROTULACION)).opciones[0];
+
+    expect(nueva.variantes[0].total).toBe(anterior.variantes[0].total);
+    expect(anterior.nombre).toBe("Corte de vinil (rotulación)");
+    expect(anterior.id).toBe("rotulacion"); // sus fotos siguen ligadas por el id de la receta
+  });
+});

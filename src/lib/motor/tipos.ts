@@ -14,6 +14,10 @@ export type InsumoSnapshot = {
   anchoUtilM: string | null;
   areaLaminaM2: string | null;
   requiereRevision: boolean;
+  /** Para agrupar el catálogo en el asistente. Las cotizaciones viejas no lo traen. */
+  categoria?: string;
+  /** Archivado: ya no se ofrece en el asistente, pero las cotizaciones que lo usan siguen calculando. */
+  archivado?: boolean;
 };
 
 export type ComponenteSnapshot = { insumoId: string; modo: ModoComponente; cantidad: string };
@@ -25,6 +29,7 @@ export type RecetaSnapshot = {
   descripcionPdf: string | null;
   pctMerma: string;
   componentes: ComponenteSnapshot[];
+  archivado?: boolean;
 };
 
 export type ParametrosMotor = {
@@ -59,6 +64,8 @@ export type Snapshot = {
 // ---------------------------------------------------------------------------
 
 export type FilaLevantamiento = {
+  /** Identifica el concepto para ligarle sus insumos. Las cotizaciones viejas no lo traen. */
+  id?: string;
   concepto: string;
   anchoM: Numerico;
   altoM: Numerico;
@@ -97,10 +104,32 @@ export type Operacion = {
   extras: Extra[];
 };
 
+/** Un insumo dentro de un concepto: cuánto se usa y cómo (por m², ml por pieza, por pieza o una vez). */
+export type ComponenteConcepto = { insumoId: string; modo: ModoComponente; cantidad: Numerico };
+
+/**
+ * Una opción de precio: una página del PDF. Cada concepto del levantamiento lleva sus propios
+ * insumos dentro de la opción; si el cliente quiere comparar materiales, se agrega otra opción.
+ */
+export type OpcionCotizacion = {
+  id: string;
+  nombre: string;
+  /** Sale en el PDF, debajo del alcance. */
+  descripcion?: string | null;
+  /** No entra en el cálculo: es la foto que acompaña a la opción en el PDF. */
+  imagenId?: string | null;
+  /** Insumos de cada concepto, por id de fila del levantamiento. */
+  materiales: Record<string, ComponenteConcepto[]>;
+  /** Precio unitario capturado a mano, por id de fila. Vacío = el calculado. */
+  preciosManuales?: Record<string, Numerico | null>;
+};
+
+/** Forma anterior: una receta para todo el levantamiento. Se convierte sola al calcular. */
+export type OpcionAnterior = { recetaId: string; precioUnitarioManual?: Numerico | null; imagenId?: string | null };
+
 export type EntradaCotizacion = {
   levantamiento: Levantamiento;
-  /** imagenId no entra en el cálculo: es la foto que acompaña a la opción en el PDF. */
-  opciones: { recetaId: string; precioUnitarioManual?: Numerico | null; imagenId?: string | null }[];
+  opciones: (OpcionCotizacion | OpcionAnterior)[];
   /** Texto libre que sale en el PDF ("5-7 días"). No entra en el cálculo. */
   tiempoEstimado?: string | null;
   /** "Resumen de alcance" del PDF (concepto y un párrafo corto). No entra en el cálculo. */
@@ -162,10 +191,12 @@ export type Variante = {
   clave: "unica" | "A" | "B";
   etiqueta: string;
   desglose: Desglose;
-  /** Unitario sin redondear, para comparar contra un precio manual. */
+  /** Unitario promedio (subtotal de los conceptos ÷ piezas). El PDF usa el de cada concepto. */
   unitarioCalculado: string;
   unitario: string;
   filas: FilaPdf[];
+  /** Precio de cada concepto. Las cotizaciones anteriores no lo traen. */
+  conceptos?: ConceptoResultado[];
   subtotal: string;
   descuento: string;
   iva: string;
@@ -175,7 +206,23 @@ export type Variante = {
   alertas: Alerta[];
 };
 
+/** Precio de un concepto dentro de una variante (lo que sale como fila en el PDF). */
+export type ConceptoResultado = {
+  filaId: string;
+  concepto: string;
+  piezas: string;
+  /** Costo directo de sus insumos (con consumibles). */
+  costo: string;
+  /** Unitario sin redondear, para comparar contra un precio manual. */
+  unitarioCalculado: string;
+  unitario: string;
+  subtotal: string;
+};
+
 export type OpcionResultado = {
+  /** Id de la opción. */
+  id?: string;
+  /** Igual que id; se conserva el nombre porque así lo guardaron las cotizaciones anteriores. */
   recetaId: string;
   nombre: string;
   descripcionPdf: string | null;

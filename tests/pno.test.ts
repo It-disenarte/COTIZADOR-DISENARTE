@@ -211,6 +211,21 @@ describe("Punto de control de la Fase 1: autorización antes de comunicar precio
     expect(res.headers.get("content-type")).toBe("application/pdf");
   });
 
+  it("un borrador incompleto no se puede autorizar, y el aviso dice qué falta", async () => {
+    const incompleta = cotizacionGandhi(recetaId);
+    incompleta.entrada.opciones = [];
+    const id = await crearCotizacion(incompleta);
+
+    const res = await autorizar(id, cookieAdmin);
+    expect(res.status).toBe(409);
+    const cuerpo = await res.json();
+    expect(cuerpo.codigo).toBe("COTIZACION_INCOMPLETA");
+    expect(cuerpo.error).toContain("Opciones: Agrega al menos una opción de material.");
+
+    const [fila] = await db.select().from(cotizaciones).where(eq(cotizaciones.id, id));
+    expect(fila.autorizadaEn).toBeNull();
+  });
+
   it("si se edita después de autorizar, la autorización se cae y hay que revisarla otra vez", async () => {
     const id = await crearCotizacion(cotizacionGandhi(recetaId));
     await autorizar(id, cookieAdmin);
