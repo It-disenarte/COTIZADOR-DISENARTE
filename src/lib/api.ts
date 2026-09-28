@@ -14,7 +14,11 @@ export function respuestaError(error: unknown): NextResponse {
     );
   }
   console.error("[api] error no controlado", error);
-  return NextResponse.json({ error: "Error interno." }, { status: 500 });
+  // El detalle queda en el registro del servidor; al vendedor se le dice qué hacer.
+  return NextResponse.json(
+    { error: "Algo falló en el servidor y no se guardó el cambio. Intenta de nuevo; si se repite, avisa al administrador." },
+    { status: 500 },
+  );
 }
 
 /** Envuelve un route handler para convertir errores en respuestas JSON. */

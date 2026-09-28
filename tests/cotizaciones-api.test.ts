@@ -367,3 +367,30 @@ describe("Avisos y datos que llegan incompletos del navegador", () => {
     expect(formatoFechaHora(new Date("2026-09-28T17:34:00Z"))).toMatch(/11:34/);
   });
 });
+
+describe("Folios después de eliminar cotizaciones", () => {
+  it("una cotización nueva no repite el folio de otra aunque se haya borrado una del mismo día", async () => {
+    const crear = async () =>
+      (
+        await rutaCotizaciones.POST(
+          peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo: cotizacionGandhi(recetaEstireno) }),
+          undefined,
+        )
+      ).json() as Promise<{ id: string; folio: string }>;
+
+    const primera = await crear();
+    const segunda = await crear();
+    await crear();
+    // Se borra una de en medio: contar las que quedan daría un folio que ya existe.
+    await rutaCotizacion.DELETE(peticion(`/api/cotizaciones/${segunda.id}`, { metodo: "DELETE", cookie: cookieVentas }), ctxId(segunda.id));
+
+    const res = await rutaCotizaciones.POST(
+      peticion("/api/cotizaciones", { metodo: "POST", cookie: cookieVentas, cuerpo: cotizacionGandhi(recetaEstireno) }),
+      undefined,
+    );
+    expect(res.status).toBe(201);
+    const nueva = await res.json();
+    const numero = (folio: string) => Number(folio.split("-").at(-1));
+    expect(numero(nueva.folio)).toBeGreaterThan(numero(primera.folio) + 2);
+  });
+});

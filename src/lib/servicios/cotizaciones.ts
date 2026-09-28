@@ -60,11 +60,13 @@ export type CotizacionDetalle = {
 async function generarFolio(tx: Tx, fecha = new Date()): Promise<string> {
   const dia = fecha.toLocaleDateString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "2-digit", year: "numeric" });
   const prefijo = `COT-${dia.replaceAll("/", "")}`;
-  const [{ total }] = await tx
-    .select({ total: sql<number>`count(*)::int` })
+  // El siguiente es el número más alto del día + 1. Contar las que hay no sirve desde que se pueden
+  // eliminar: al borrar una de en medio, la cuenta repetía un folio existente y el guardado fallaba.
+  const [{ mayor }] = await tx
+    .select({ mayor: sql<number>`coalesce(max(split_part(${cotizaciones.folio}, '-', 3)::int), 0)` })
     .from(cotizaciones)
     .where(like(cotizaciones.folio, `${prefijo}-%`));
-  return `${prefijo}-${String(total + 1).padStart(2, "0")}`;
+  return `${prefijo}-${String(Number(mayor) + 1).padStart(2, "0")}`;
 }
 
 /** JSON con las llaves en orden: la base (jsonb) no conserva el orden, así que se compara por contenido. */
