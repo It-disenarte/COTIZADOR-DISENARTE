@@ -1,10 +1,9 @@
 "use client";
 
-import { ExternalLink, FileUp, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { FileUp, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
 import { reducirImagen } from "@/lib/cotizador/imagen";
-import { formatoMoneda } from "@/lib/formato";
 import { cn, llamarApi } from "@/lib/utils";
 
 /**
@@ -211,96 +210,6 @@ export function ImportarLevantamiento({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// Reventa -------------------------------------------------------------------------------------
-
-type PrecioEncontrado = {
-  nombre: string;
-  precioReferencia: string;
-  fuentes: { titulo: string; url: string }[];
-  notas: string | null;
-};
-
-export function BuscarPrecio({
-  nombre,
-  alAplicar,
-}: {
-  nombre: string;
-  alAplicar: (precio: { precioReferencia: string; link: string }) => void;
-}) {
-  const [buscando, setBuscando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [encontrado, setEncontrado] = useState<PrecioEncontrado | null>(null);
-
-  async function buscar() {
-    setBuscando(true);
-    setError(null);
-    setEncontrado(null);
-    try {
-      setEncontrado(await llamarApi<PrecioEncontrado>("/api/ia/reventa", "POST", { nombre }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo buscar el precio.");
-    } finally {
-      setBuscando(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2 sm:col-span-4">
-      <Button type="button" variant="outline" size="sm" onClick={buscar} disabled={buscando || !nombre.trim()}>
-        {buscando ? <Loader2 className="animate-spin" /> : <Sparkles />}
-        {buscando ? "Buscando precio…" : "Buscar precio con IA"}
-      </Button>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-
-      {encontrado && (
-        <div className="space-y-2 rounded-md border border-accent/60 p-3 text-sm">
-          <p>
-            <span className="font-medium">{encontrado.nombre}</span>:{" "}
-            {Number(encontrado.precioReferencia) > 0 ? (
-              <span className="font-semibold">{formatoMoneda(encontrado.precioReferencia)}</span>
-            ) : (
-              <span className="text-muted-foreground">no encontró un precio confiable</span>
-            )}
-          </p>
-          {encontrado.notas && <p className="text-xs text-muted-foreground">{encontrado.notas}</p>}
-          {encontrado.fuentes.length > 0 && (
-            <ul className="space-y-0.5 text-xs">
-              {encontrado.fuentes.map((f) => (
-                <li key={f.url}>
-                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                    <ExternalLink className="mr-1 inline size-3" />
-                    {f.titulo}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Queda como “sin verificar”: abre una fuente, confirma el precio y marca la casilla.
-          </p>
-          <div className="flex gap-2">
-            {Number(encontrado.precioReferencia) > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  alAplicar({ precioReferencia: encontrado.precioReferencia, link: encontrado.fuentes[0]?.url ?? "" });
-                  setEncontrado(null);
-                }}
-              >
-                Usar este precio
-              </Button>
-            )}
-            <Button type="button" variant="ghost" size="sm" onClick={() => setEncontrado(null)}>
-              Descartar
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 

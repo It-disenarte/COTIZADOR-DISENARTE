@@ -4,7 +4,7 @@ import { CheckCircle2, FileSpreadsheet, Loader2, Sparkles, TriangleAlert } from 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Aviso, Badge, Button, Card, CardContent, Checkbox, Input, Label, Select } from "@/components/ui";
-import { ETIQUETA_UNIDAD, UNIDADES_COSTO, type UnidadCosto } from "@/lib/catalogo/constantes";
+import { CATEGORIAS_INSUMO, ETIQUETA_UNIDAD, opcionesCategoria, UNIDADES_COSTO, type UnidadCosto } from "@/lib/catalogo/constantes";
 import { formatoMoneda } from "@/lib/formato";
 import type { PropuestaImportacion, RenglonPropuesto } from "@/lib/servicios/importacion-catalogo";
 import { cn, llamarApi } from "@/lib/utils";
@@ -28,7 +28,8 @@ function decisionInicial(r: RenglonPropuesto): Decision {
     destino: r.coincidencia?.insumoId ?? NUEVO,
     unidad: r.unidad ?? r.coincidencia?.unidadActual ?? "",
     nombre: r.nombre,
-    categoria: r.coincidencia?.categoria ?? (r.origen.seccion || "Importado"),
+    // Un insumo nuevo propone la categoría de la lista que aparezca en la sección del archivo; si no hay, se elige.
+    categoria: r.coincidencia?.categoria ?? (CATEGORIAS_INSUMO.find((c) => r.origen.seccion?.toLowerCase().includes(c.toLowerCase())) ?? ""),
   };
 }
 
@@ -268,12 +269,18 @@ export function ImportarCatalogo({ insumos }: { insumos: InsumoOpcion[] }) {
                                 onChange={(e) => editar(i, { nombre: e.target.value })}
                                 aria-label="Nombre del insumo nuevo"
                               />
-                              <Input
+                              <Select
                                 value={d.categoria}
                                 onChange={(e) => editar(i, { categoria: e.target.value })}
                                 aria-label="Categoría del insumo nuevo"
-                                placeholder="Categoría"
-                              />
+                              >
+                                {!d.categoria && <option value="">Elige la categoría…</option>}
+                                {opcionesCategoria(d.categoria).map((c) => (
+                                  <option key={c} value={c}>
+                                    {c}
+                                  </option>
+                                ))}
+                              </Select>
                             </div>
                           )}
                         </td>

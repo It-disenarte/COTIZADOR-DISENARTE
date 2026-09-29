@@ -1,11 +1,11 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAvisos } from "@/components/avisos";
+import { Modal } from "@/components/modal";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { Button, Checkbox, Input, Label, Select } from "@/components/ui";
-import { ETIQUETA_UNIDAD, UNIDADES_COSTO, type UnidadCosto } from "@/lib/catalogo/constantes";
+import { ETIQUETA_UNIDAD, opcionesCategoria, UNIDADES_COSTO, type UnidadCosto } from "@/lib/catalogo/constantes";
 import type { InsumoSnapshot } from "@/lib/motor";
 import { llamarApi } from "@/lib/utils";
 
@@ -15,7 +15,6 @@ export type InsumoGuardado = { id: string; nombre: string; unidadCosto: UnidadCo
 type Props = {
   /** Sin insumo = nuevo. */
   insumo: InsumoSnapshot | null;
-  categorias: string[];
   /** Concepto elegido en la tabla, para ofrecer agregarle el insumo nuevo. */
   conceptoElegido: string | null;
   alCerrar: () => void;
@@ -27,7 +26,7 @@ type Props = {
  * Se guarda en el catálogo, así que sirve para todas las cotizaciones que se hagan desde ahora;
  * las ya autorizadas conservan el precio con el que se autorizaron.
  */
-export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar, alGuardar }: Props) {
+export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alGuardar }: Props) {
   const avisar = useAvisos();
   const nuevo = insumo === null;
   const [guardando, setGuardando] = useState(false);
@@ -43,13 +42,6 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
     largoRolloM: insumo?.largoRolloM ?? "",
   });
   const editar = (cambios: Partial<typeof campos>) => setCampos((c) => ({ ...c, ...cambios }));
-
-  // Escape cierra, como cualquier ventana.
-  useEffect(() => {
-    const alTeclear = (e: KeyboardEvent) => e.key === "Escape" && alCerrar();
-    window.addEventListener("keydown", alTeclear);
-    return () => window.removeEventListener("keydown", alTeclear);
-  }, [alCerrar]);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -78,30 +70,14 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4" onClick={alCerrar}>
+    <Modal
+      titulo={nuevo ? "Nuevo insumo" : `Editar ${insumo.nombre}`}
+      descripcion="Se guarda en el catálogo: sirve para todas las cotizaciones desde ahora. Las ya autorizadas conservan su precio."
+      alCerrar={alCerrar}
+      className="max-w-lg"
+    >
       {guardando && <PantallaCarga mensaje="Guardando el insumo…" />}
-      <form
-        onSubmit={guardar}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="titulo-insumo"
-        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border bg-card p-5 shadow-xl"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 id="titulo-insumo" className="font-medium">
-              {nuevo ? "Nuevo insumo" : `Editar ${insumo.nombre}`}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Se guarda en el catálogo: sirve para todas las cotizaciones desde ahora. Las ya autorizadas conservan su
-              precio.
-            </p>
-          </div>
-          <button type="button" onClick={alCerrar} aria-label="Cerrar" className="rounded p-1 hover:bg-muted">
-            <X className="size-4" />
-          </button>
-        </div>
+      <form onSubmit={guardar} className="space-y-4">
 
         <div className="space-y-1.5">
           <Label htmlFor="insumo-nombre">Nombre</Label>
@@ -124,19 +100,15 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
 
         <div className="space-y-1.5">
           <Label htmlFor="insumo-categoria">Categoría</Label>
-          <Input
-            id="insumo-categoria"
-            list="categorias-insumo"
-            value={campos.categoria}
-            onChange={(e) => editar({ categoria: e.target.value })}
-            required
-          />
-          <datalist id="categorias-insumo">
-            {categorias.map((c) => (
-              <option key={c} value={c} />
+          <Select id="insumo-categoria" value={campos.categoria} onChange={(e) => editar({ categoria: e.target.value })} required>
+            {!campos.categoria && <option value="">Elige una…</option>}
+            {opcionesCategoria(insumo?.categoria).map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
-          </datalist>
-          <p className="text-xs text-muted-foreground">Agrupa el insumo en el catálogo; elige una existente o escribe otra.</p>
+          </Select>
+          <p className="text-xs text-muted-foreground">Agrupa el insumo en el catálogo del cotizador.</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -213,6 +185,6 @@ export function FormularioInsumo({ insumo, categorias, conceptoElegido, alCerrar
           </Button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

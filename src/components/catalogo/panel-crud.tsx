@@ -1,9 +1,12 @@
 "use client";
 
-import { Archive, ArchiveRestore, Pencil, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus, RefreshCw, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState, useTransition } from "react";
-import { Aviso, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
+import { useAvisos } from "@/components/avisos";
+import { Modal } from "@/components/modal";
+import { PantallaCarga } from "@/components/pantalla-carga";
+import { Button, Card, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { llamarApi } from "@/lib/utils";
 
 export type Campo = {
@@ -31,6 +34,10 @@ type Props<T extends { id: string }> = {
   archivable?: boolean;
   esArchivado?: (fila: T) => boolean;
   vacio?: string;
+  /** Título de la ventana del formulario: sin fila = alta nueva. */
+  tituloFormulario?: (fila?: T) => string;
+  /** Opciones de un select que dependen de la fila (p. ej. conservar una categoría antigua). */
+  opcionesDe?: (campo: string, fila?: T) => { valor: string; etiqueta: string }[] | undefined;
 };
 
 /**
@@ -49,11 +56,13 @@ export function PanelCrud<T extends { id: string }>({
   archivable = false,
   esArchivado = () => false,
   vacio = "Sin registros.",
+  tituloFormulario,
+  opcionesDe,
 }: Props<T>) {
   const router = useRouter();
   const [actualizando, iniciarTransicion] = useTransition();
   const [ocupado, setOcupado] = useState(false);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const avisar = useAvisos();
   const [busqueda, setBusqueda] = useState("");
   const [verArchivados, setVerArchivados] = useState(false);
   const [editando, setEditando] = useState<T | "nuevo" | null>(null);
@@ -74,14 +83,13 @@ export function PanelCrud<T extends { id: string }>({
     }
     const esNuevo = editando === "nuevo";
     setOcupado(true);
-    setMensaje(null);
     try {
       await llamarApi(esNuevo ? endpoint : `${endpoint}/${(editando as T).id}`, esNuevo ? "POST" : "PATCH", cuerpo);
-      setMensaje({ tipo: "ok", texto: esNuevo ? "Registro creado." : "Cambios guardados." });
+      avisar({ tipo: "ok", texto: esNuevo ? "Registro creado." : "Cambios guardados." });
       setEditando(null);
       iniciarTransicion(() => router.refresh());
     } catch (e) {
-      setMensaje({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo guardar." });
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo guardar." });
     } finally {
       setOcupado(false);
     }
@@ -90,13 +98,12 @@ export function PanelCrud<T extends { id: string }>({
   async function alternarArchivado(fila: T) {
     const archivar = !esArchivado(fila);
     setOcupado(true);
-    setMensaje(null);
     try {
       await llamarApi(`${endpoint}/${fila.id}`, "PATCH", { archivado: archivar });
-      setMensaje({ tipo: "ok", texto: archivar ? "Registro archivado." : "Registro restaurado." });
+      avisar({ tipo: "ok", texto: archivar ? "Registro archivado." : "Registro restaurado." });
       iniciarTransicion(() => router.refresh());
     } catch (e) {
-      setMensaje({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo archivar." });
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo archivar." });
     } finally {
       setOcupado(false);
     }
@@ -125,18 +132,20 @@ export function PanelCrud<T extends { id: string }>({
           </label>
         )}
         {puedeEditar && (
-          <Button variant={editando === "nuevo" ? "outline" : "accent"} onClick={() => setEditando(editando === "nuevo" ? null : "nuevo")}>
-            {editando === "nuevo" ? <X /> : <Plus />} {editando === "nuevo" ? "Cancelar" : etiquetaNueva}
+          <Button variant="accent" onClick={() => setEditando("nuevo")}>
+            <Plus /> {etiquetaNueva}
           </Button>
         )}
         {actualizando && <RefreshCw className="size-4 animate-spin text-muted-foreground" aria-label="Actualizando" />}
       </div>
 
-      {mensaje && <Aviso tipo={mensaje.tipo}>{mensaje.texto}</Aviso>}
+      {ocupado && <PantallaCarga mensaje="Guardando…" />}
 
       {editando && (
-        <Card>
-          <CardContent className="pt-6">
+        <Modal
+          titulo={tituloFormulario?.(editando === "nuevo" ? undefined : editando) ?? (editando === "nuevo" ? etiquetaNueva : "Editar")}
+          alCerrar={() => setEditando(null)}
+        >
             <form
               key={editando === "nuevo" ? "nuevo" : editando.id}
               onSubmit={guardar}
@@ -159,8 +168,9 @@ export function PanelCrud<T extends { id: string }>({
                           {campo.requerido && <span className="text-destructive"> *</span>}
                         </Label>
                         {campo.tipo === "select" ? (
-                          <Select id={id} name={campo.nombre} defaultValue={String(valor ?? "")}>
-                            {campo.opciones?.map((o) => (
+                          <Select id={id} name={campo.nombre} defaultValue={String(valor ?? "")} required={campo.requerido}>
+                            {campo.requerido && !valor && <option value="">Elige una…</option>}
+                            {(opcionesDe?.(campo.nombre, editando === "nuevo" ? undefined : editando) ?? campo.opciones)?.map((o) => (
                               <option key={o.valor} value={o.valor}>
                                 {o.etiqueta}
                               </option>
@@ -184,7 +194,7 @@ export function PanelCrud<T extends { id: string }>({
                   </div>
                 );
               })}
-              <div className="flex gap-2 sm:col-span-2">
+              <div className="flex justify-end gap-2 sm:col-span-2">
                 <Button type="submit" disabled={deshabilitado}>
                   Guardar
                 </Button>
@@ -193,8 +203,7 @@ export function PanelCrud<T extends { id: string }>({
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
+        </Modal>
       )}
 
       <Card className="overflow-hidden">

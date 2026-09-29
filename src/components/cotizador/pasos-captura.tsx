@@ -165,7 +165,13 @@ export function PasoDatos({
             </div>
             <div className="space-y-2">
               <Label htmlFor="telefono">Teléfono</Label>
-              <Input id="telefono" value={cliente.telefono} onChange={(e) => editarCliente({ telefono: e.target.value })} />
+              <Input
+                id="telefono"
+                inputMode="tel"
+                value={cliente.telefono}
+                onChange={(e) => editarCliente({ telefono: e.target.value })}
+                placeholder="427 100 41 83"
+              />
             </div>
             <div className="sm:col-span-2">
               <CampoDireccion

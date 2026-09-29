@@ -19,6 +19,35 @@ export const ETIQUETA_UNIDAD: Record<UnidadCosto, string> = {
   persona: "persona",
 };
 
+/**
+ * Categorías de los insumos: se eligen de esta lista para no inventar variantes ("Consumible" y
+ * "Consumibles" acababan como dos grupos). Agrupan el catálogo en el asistente.
+ */
+export const CATEGORIAS_INSUMO = [
+  "Acrílico",
+  "Consumibles",
+  "Corte láser",
+  "Herrajes",
+  "Impresión",
+  "Impresión JV33",
+  "Impresión UV",
+  "Rotulación",
+  "Señalética",
+  "Sustrato",
+  "Tableros",
+  "Vinil de corte",
+  "Vinil de muro",
+] as const;
+
+/**
+ * Opciones para elegir la categoría. Si un insumo trae una que no está en la lista (de antes o de una
+ * importación), se muestra también para no perderla hasta que alguien la cambie.
+ */
+export function opcionesCategoria(actual?: string | null): string[] {
+  const lista: string[] = [...CATEGORIAS_INSUMO];
+  return actual && !lista.includes(actual) ? [actual, ...lista] : lista;
+}
+
 /** Cuántas unidades de venta trae la presentación: un ciento son 100, un millar 1,000. */
 export const PIEZAS_POR_UNIDAD: Partial<Record<UnidadCosto, number>> = { ciento: 100, millar: 1000 };
 

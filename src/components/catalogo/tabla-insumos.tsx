@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui";
-import { ETIQUETA_UNIDAD, UNIDADES_COSTO } from "@/lib/catalogo/constantes";
+import { ETIQUETA_UNIDAD, opcionesCategoria, UNIDADES_COSTO } from "@/lib/catalogo/constantes";
 import { formatoMoneda, formatoNumero } from "@/lib/formato";
 import type { Insumo } from "@/lib/servicios/insumos";
 import { type Campo, PanelCrud } from "./panel-crud";
@@ -13,7 +13,15 @@ const CAMPOS: Campo[] = [
     etiqueta: "Nombre para el cliente",
     ayuda: "Cómo sale en la descripción de los conceptos del PDF. Vacío = se usa el nombre.",
   },
-  { nombre: "categoria", etiqueta: "Categoría", requerido: true, ayuda: "Ej. Vinil de corte, Sustrato, Impresión JV33." },
+  {
+    nombre: "categoria",
+    etiqueta: "Categoría",
+    requerido: true,
+    tipo: "select",
+    // Las opciones se arman con la categoría del insumo que se edita (ver opcionesDe).
+    opciones: [],
+    ayuda: "Agrupa el insumo en el catálogo del cotizador.",
+  },
   {
     nombre: "unidadCosto",
     etiqueta: "Unidad del costo",
@@ -43,6 +51,10 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
       esArchivado={(i) => i.archivado}
       texto={(i) => `${i.nombre} ${i.nombreCliente ?? ""} ${i.categoria} ${i.fuente ?? ""}`}
       campos={CAMPOS}
+      opcionesDe={(campo, i) =>
+        campo === "categoria" ? opcionesCategoria(i?.categoria).map((c) => ({ valor: c, etiqueta: c })) : undefined
+      }
+      tituloFormulario={(i) => (i ? `Editar ${i.nombre}` : "Nuevo insumo")}
       valores={(i) => ({
         nombre: i?.nombre ?? "",
         nombreCliente: i?.nombreCliente ?? "",

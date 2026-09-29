@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { textoOpcional, textoRequerido } from "./comunes";
 
-export const PedirPrecioReventa = z.object({
-  nombre: textoRequerido(200, "Escribe el nombre del artículo."),
-});
-
 export const PedirAlcance = z.object({
   titulo: textoRequerido(200, "Escribe el título de la cotización."),
   areas: z.array(z.string().trim().max(100)).max(50),

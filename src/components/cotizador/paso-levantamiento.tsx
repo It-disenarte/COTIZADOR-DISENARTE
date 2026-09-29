@@ -3,7 +3,7 @@
 import { ClipboardPaste, Copy, GripVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Button, Card, CardContent, Input, Textarea } from "@/components/ui";
+import { Button, Card, CardContent, Input, limpiarNumero, Textarea } from "@/components/ui";
 import type { ModoComponente } from "@/lib/catalogo/constantes";
 import {
   type BorradorCotizacion,
@@ -316,7 +316,7 @@ export function PasoLevantamiento({
                       </td>
                       <td className="px-2 py-2">
                         <Input
-                          className="h-9 w-[4.5rem]"
+                          className="h-9 w-18"
                           inputMode="decimal"
                           value={txt(fila.anchoM)}
                           onChange={(e) => editarFila(fila.id, { anchoM: e.target.value })}
@@ -325,7 +325,7 @@ export function PasoLevantamiento({
                       </td>
                       <td className="px-2 py-2">
                         <Input
-                          className="h-9 w-[4.5rem]"
+                          className="h-9 w-18"
                           inputMode="decimal"
                           value={txt(fila.altoM)}
                           onChange={(e) => editarFila(fila.id, { altoM: e.target.value })}
@@ -334,7 +334,7 @@ export function PasoLevantamiento({
                       </td>
                       <td className="px-2 py-2">
                         <Input
-                          className="h-9 w-[4.5rem]"
+                          className="h-9 w-18"
                           inputMode="numeric"
                           value={txt(fila.cantidades[0])}
                           onChange={(e) => editarFila(fila.id, { cantidades: [e.target.value] })}
@@ -505,7 +505,6 @@ export function PasoLevantamiento({
       {formulario && (
         <FormularioInsumo
           insumo={formulario.insumo}
-          categorias={[...new Set(Object.values(snapshot?.insumos ?? {}).map((i) => i.categoria).filter((c): c is string => !!c))].sort()}
           conceptoElegido={filas.length ? (filas.find((f) => f.id === destinoElegido())?.concepto ?? "") : null}
           alCerrar={() => setFormulario(null)}
           alGuardar={alGuardarInsumo}
@@ -579,7 +578,7 @@ function ChipInsumo({
     <input
       inputMode="decimal"
       value={txt(componente.cantidad)}
-      onChange={(e) => alCambiar({ cantidad: e.target.value })}
+      onChange={(e) => alCambiar({ cantidad: limpiarNumero(e.target.value, "decimal") })}
       aria-label={etiqueta}
       className="h-6 w-16 rounded border border-input bg-card px-1 text-foreground"
     />
@@ -907,7 +906,7 @@ function PanelCatalogo({
             />
           </div>
           {!snapshot && <p className="text-xs text-muted-foreground">Cargando catálogo…</p>}
-          <div className={cn("space-y-1.5 overflow-y-auto pr-1", enColumna ? "max-h-[calc(100vh-26rem)] min-h-40" : "max-h-[32rem]")}>
+          <div className={cn("space-y-1.5 overflow-y-auto pr-1", enColumna ? "max-h-[calc(100vh-26rem)] min-h-40" : "max-h-128")}>
             {grupos.map(([categoria, lista]) => (
               <div key={categoria} className="space-y-1.5">
                 <p className="pt-2 text-[11px] uppercase tracking-wide text-muted-foreground">{categoria}</p>

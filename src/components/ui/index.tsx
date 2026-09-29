@@ -38,8 +38,39 @@ export function Button({
 const claseCampo =
   "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
-export function Input({ className, ...props }: React.ComponentProps<"input">) {
-  return <input className={cn(claseCampo, className)} {...props} />;
+/**
+ * Deja solo lo que cabe en un campo numérico. "decimal": dígitos y un punto (la coma de miles se
+ * quita: "1,500.50" → "1500.50"). "numeric": solo dígitos. "tel": dígitos, espacios, +, - y paréntesis.
+ */
+export function limpiarNumero(valor: string, modo: "decimal" | "numeric" | "tel"): string {
+  if (modo === "tel") return valor.replace(/[^\d\s+()-]/g, "");
+  if (modo === "numeric") return valor.replace(/\D/g, "");
+  const [entero, ...resto] = valor.replace(/[^\d.]/g, "").split(".");
+  return resto.length ? `${entero}.${resto.join("")}` : entero;
+}
+
+/**
+ * Los campos marcados como numéricos (inputMode "decimal", "numeric" o "tel") no aceptan letras:
+ * se filtran al escribir o pegar, en toda la app.
+ */
+export function Input({ className, onChange, inputMode, ...props }: React.ComponentProps<"input">) {
+  const numerico = inputMode === "decimal" || inputMode === "numeric" || inputMode === "tel";
+  return (
+    <input
+      className={cn(claseCampo, className)}
+      inputMode={inputMode}
+      onChange={
+        numerico && onChange
+          ? (e) => {
+              const limpio = limpiarNumero(e.target.value, inputMode);
+              if (limpio !== e.target.value) e.target.value = limpio;
+              onChange(e);
+            }
+          : onChange
+      }
+      {...props}
+    />
+  );
 }
 
 export function Select({ className, ...props }: React.ComponentProps<"select">) {

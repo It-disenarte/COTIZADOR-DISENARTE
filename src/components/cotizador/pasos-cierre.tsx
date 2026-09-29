@@ -7,7 +7,7 @@ import { formatoFraccion, formatoMoneda } from "@/lib/formato";
 import type { ResultadoCotizacion, Snapshot } from "@/lib/motor";
 
 import { cn } from "@/lib/utils";
-import { BuscarPrecio, RedactarAlcance } from "./ia";
+import { RedactarAlcance } from "./ia";
 import { ListaVerificacion } from "./lista-verificacion";
 import { MensajesCliente } from "./mensajes-cliente";
 
@@ -461,75 +461,88 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
 export function PasoReventa({ borrador, cambiar }: Props) {
   const items = borrador.entrada.reventa;
   const editar = (nuevos: typeof items) => cambiar((b) => ({ ...b, entrada: { ...b.entrada, reventa: nuevos } }));
+  const editarItem = (i: number, cambios: Partial<(typeof items)[number]>) =>
+    editar(items.map((x, k) => (k === i ? { ...x, ...cambios } : x)));
 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-medium">Items de reventa</h3>
+        <h3 className="font-medium">Artículos de reventa</h3>
         <p className="text-sm text-muted-foreground">
-          Producto que no fabricamos: extintores, botiquines, detectores. En “Precio de referencia” pones lo que te
-          cuesta comprarlo (no lo que le vas a cobrar al cliente); la app le suma el 35% de utilidad sola.
+          Producto que no fabricamos y solo revendemos: extintores, botiquines, detectores. Salen en el PDF en la página
+          “Materiales adicionales”. Si la cotización no lleva ninguno, deja este paso vacío.
         </p>
       </div>
 
       {items.map((item, i) => (
         <Card key={i}>
-          <CardContent className="grid gap-3 pt-6 sm:grid-cols-[2fr_1fr_1fr_auto]">
-            <Input
-              value={item.nombre}
-              onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, nombre: e.target.value } : x)))}
-              placeholder="Detector de humo autónomo 9V"
-              aria-label={`Nombre del artículo ${i + 1}`}
-            />
-            <Input
-              inputMode="decimal"
-              value={txt(item.precioReferencia)}
-              onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, precioReferencia: e.target.value } : x)))}
-              placeholder="Precio de referencia"
-              aria-label={`Precio de referencia del artículo ${i + 1}`}
-            />
-            <Input
-              inputMode="numeric"
-              value={txt(item.cantidad)}
-              onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, cantidad: e.target.value } : x)))}
-              placeholder="Cantidad"
-              aria-label={`Cantidad del artículo ${i + 1}`}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              title="Quitar artículo"
-              onClick={() => editar(items.filter((_, k) => k !== i))}
-            >
-              <Trash2 />
-            </Button>
-            <Input
-              className="sm:col-span-3"
-              value={item.link ?? ""}
-              onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, link: e.target.value } : x)))}
-              placeholder="Link de la fuente (Mercado Libre, proveedor…)"
-              aria-label={`Link del artículo ${i + 1}`}
-            />
-            <div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={item.verificado}
-                  onChange={(e) => editar(items.map((x, k) => (k === i ? { ...x, verificado: e.target.checked } : x)))}
-                />
-                Precio verificado
-              </label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Márcalo cuando confirmaste el precio hoy en la fuente. Si lo dejas sin marcar, sale una alerta antes
-                de generar el PDF.
-              </p>
+          <CardContent className="space-y-4 pt-6">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium">Artículo {i + 1}</p>
+              <Button type="button" variant="ghost" size="icon" title="Quitar artículo" onClick={() => editar(items.filter((_, k) => k !== i))}>
+                <Trash2 />
+              </Button>
             </div>
-            <BuscarPrecio
-              nombre={item.nombre}
-              alAplicar={({ precioReferencia, link }) =>
-                editar(items.map((x, k) => (k === i ? { ...x, precioReferencia, link, verificado: false } : x)))
-              }
-            />
+
+            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <Label htmlFor={`reventa-nombre-${i}`}>Artículo</Label>
+                <Input
+                  id={`reventa-nombre-${i}`}
+                  value={item.nombre}
+                  onChange={(e) => editarItem(i, { nombre: e.target.value })}
+                  placeholder="Detector de humo autónomo 9V"
+                />
+                <p className="text-xs text-muted-foreground">Así sale en el PDF: escríbelo como lo reconoce el cliente.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`reventa-cantidad-${i}`}>Cantidad</Label>
+                <Input
+                  id={`reventa-cantidad-${i}`}
+                  inputMode="decimal"
+                  value={txt(item.cantidad)}
+                  onChange={(e) => editarItem(i, { cantidad: e.target.value })}
+                  placeholder="1"
+                />
+                <p className="text-xs text-muted-foreground">Cuántas piezas se le venden.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`reventa-precio-${i}`}>Lo que nos cuesta (c/u)</Label>
+                <Input
+                  id={`reventa-precio-${i}`}
+                  inputMode="decimal"
+                  value={txt(item.precioReferencia)}
+                  onChange={(e) => editarItem(i, { precioReferencia: e.target.value })}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Precio de compra por pieza, sin IVA. La app le suma la utilidad de reventa sola.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)]">
+              <div className="space-y-1.5">
+                <Label htmlFor={`reventa-link-${i}`}>Dónde se compra (opcional)</Label>
+                <Input
+                  id={`reventa-link-${i}`}
+                  value={item.link ?? ""}
+                  onChange={(e) => editarItem(i, { link: e.target.value })}
+                  placeholder="https://… (Mercado Libre, proveedor)"
+                />
+                <p className="text-xs text-muted-foreground">Link de la fuente del precio, para volver a revisarlo. No sale en el PDF.</p>
+              </div>
+              <div className="space-y-1.5 md:pt-7">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={item.verificado} onChange={(e) => editarItem(i, { verificado: e.target.checked })} />
+                  Precio verificado hoy
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Márcalo cuando confirmaste el precio en la fuente. Si lo dejas sin marcar, sale una alerta antes de
+                  generar el PDF.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -537,9 +550,9 @@ export function PasoReventa({ borrador, cambiar }: Props) {
       <Button
         type="button"
         variant="outline"
-        onClick={() => editar([...items, { nombre: "", precioReferencia: "0", cantidad: "1", link: "", verificado: false }])}
+        onClick={() => editar([...items, { nombre: "", precioReferencia: "", cantidad: "1", link: "", verificado: false }])}
       >
-        <Plus /> Agregar item de reventa
+        <Plus /> Agregar artículo de reventa
       </Button>
     </div>
   );

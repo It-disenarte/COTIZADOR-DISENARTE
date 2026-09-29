@@ -140,6 +140,9 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - Desde el catálogo del paso 2, quien edita el catálogo puede **crear un insumo nuevo** o **editar uno** (p. ej. si
   cambió el precio) sin salir de la cotización (`formulario-insumo.tsx`). Se guarda en el catálogo y los precios se
   recalculan al momento; las cotizaciones autorizadas conservan el suyo. Ventas ve el catálogo sin esos botones.
+- Las **categorías de los insumos** se eligen de una lista fija (`CATEGORIAS_INSUMO` en `src/lib/catalogo/constantes.ts`)
+  en el catálogo, en el asistente y en la importación; una categoría antigua fuera de la lista se sigue mostrando hasta
+  que se cambie. Crear y editar insumos (catálogo y asistente) se hace en una ventana (`src/components/modal.tsx`).
 - **Rollo completo** (unidad `rollo`): se captura el precio del rollo, su ancho útil y su largo (`largo_rollo_m`);
   el motor lo lleva a costo por metro y por m² y cobra solo lo usado. El resumen de insumos dice cuántos rollos comprar.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
@@ -151,7 +154,13 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - Un **borrador** se guarda con solo los datos del paso 1; autorizar, el PDF y los mensajes exigen la cotización
   completa y dicen qué falta.
 - El precio se recalcula **en vivo en el navegador** con el mismo motor del servidor.
-- Se guarda solo al cambiar de paso.
+- **Guardado automático:** dos segundos después de la última edición (en cuanto hay título y contacto), sin
+  pantalla de carga; el pie del precio en vivo dice "Cambios sin guardar… / Guardando… / Guardado 3:41" o el error
+  con "Intentar de nuevo". Solo guarda si alguien editó (abrir una cotización autorizada no la toca) y las
+  escrituras van una a la vez (el primer guardado no se duplica). Si se cierra la pestaña con cambios, el navegador
+  pregunta. Al cambiar de paso se guarda lo que falte.
+- Los campos numéricos (inputMode `decimal`, `numeric`, `tel`) no aceptan letras: lo filtra `Input` en
+  `src/components/ui` (`limpiarNumero`), en toda la app.
 - Una cotización **nueva empieza sin operación** (sin envío, diseño, instalación ni viáticos); al marcar
   "Incluye instalación" propone 2 personas × 1 día. El precio en vivo muestra **materiales contra operación** y
   avisa cuando la operación pesa más.
@@ -179,6 +188,7 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Sin columnas por área | El dueño prefiere un concepto por área; las cotizaciones de antes se abren con un concepto por área (`separarAreasEnConceptos`) |
 | Sin recetas | El dueño las quitó (sept. 2026): cada concepto lleva sus insumos directamente; las tablas quedan solo para cotizaciones anteriores |
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
+| Sin búsqueda de precios de reventa con IA | El dueño la consideró irrelevante (sept. 2026): el precio de compra se captura a mano |
 | Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |
 
 ---
@@ -203,7 +213,7 @@ Detalles que costaron trabajo y conviene no volver a descubrir:
 
 ### Gemini (`src/lib/ia/`)
 
-Seis tareas: leer levantamiento, precio de reventa, redactar alcance, leer listas de costos, redactar el
+Cinco tareas: leer levantamiento, redactar alcance, leer listas de costos, redactar el
 mensaje para mandar la propuesta (correo o WhatsApp, cada uno con su botón) y proponer el **nombre para el
 cliente** de los insumos (Catálogo → Insumos → "Sugerir con IA"; se revisa antes de guardar). Reglas que ya están aplicadas:
 

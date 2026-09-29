@@ -21,7 +21,6 @@ const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial
 const { MODELO_PREDETERMINADO, extraerJson } = await import("@/lib/ia/gemini");
 const { agregarLevantamientoLeido, filasDesdeTsv, separarAreasEnConceptos } = await import("@/lib/cotizador/estado");
 const rutaLevantamiento = await import("@/app/api/ia/levantamiento/route");
-const rutaReventa = await import("@/app/api/ia/reventa/route");
 const rutaAlcance = await import("@/app/api/ia/alcance/route");
 const rutaUsuarios = await import("@/app/api/usuarios/route");
 const rutaCuentaPassword = await import("@/app/api/cuenta/password/route");
@@ -166,46 +165,6 @@ describe("9.1 Leer levantamiento", () => {
     const res = await subirLevantamiento(pdfFalso());
     expect(res.status).toBe(502);
     expect((await res.json()).error).toContain("captura a mano");
-  });
-});
-
-describe("9.2 Precio de referencia de reventa", () => {
-  it("usa búsqueda de Google y pone primero las fuentes que devolvió la búsqueda", async () => {
-    generar.mockResolvedValue(
-      respuesta(
-        "```json\n" +
-          JSON.stringify({
-            nombre: "Detector de humo 9V",
-            precioReferencia: 179.9,
-            fuentes: [{ titulo: "Otra tienda", url: "https://otra.mx/detector" }, { titulo: "sin link", url: "no-es-url" }],
-            notas: "Precio con IVA.",
-          }) +
-          "\n```",
-        { groundingMetadata: { groundingChunks: [{ web: { title: "homedepot.com.mx", uri: "https://homedepot.com.mx/detector" } }] } },
-      ),
-    );
-
-    const res = await rutaReventa.POST(
-      peticion("/api/ia/reventa", { metodo: "POST", cookie, cuerpo: { nombre: "Detector de humo autónomo 9V" } }),
-      undefined,
-    );
-    expect(res.status).toBe(200);
-    const precio = await res.json();
-    expect(precio.precioReferencia).toBe("179.9");
-    expect(precio.notas).toBe("Precio con IVA.");
-    expect(precio.fuentes.map((f: { url: string }) => f.url)).toEqual([
-      "https://homedepot.com.mx/detector",
-      "https://otra.mx/detector",
-    ]);
-
-    const [llamada] = generar.mock.calls[0] as [{ config: { tools: unknown[] } }];
-    expect(llamada.config.tools).toEqual([{ googleSearch: {} }]);
-  });
-
-  it("valida que venga el nombre del artículo", async () => {
-    const res = await rutaReventa.POST(peticion("/api/ia/reventa", { metodo: "POST", cookie, cuerpo: { nombre: "" } }), undefined);
-    expect(res.status).toBe(400);
-    expect(generar).not.toHaveBeenCalled();
   });
 });
 

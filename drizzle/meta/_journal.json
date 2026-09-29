@@ -120,6 +120,13 @@
       "when": 1790635611002,
       "tag": "0016_rollo_completo",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790699417841,
+      "tag": "0017_unificar_categoria_consumibles",
+      "breakpoints": true
     }
   ]
 }

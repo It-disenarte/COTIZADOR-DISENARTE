@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
-import { consultarGemini, type Fuente } from "./gemini";
+import { consultarGemini } from "./gemini";
 
 // 9.1 Leer levantamiento ----------------------------------------------------------------------
 
@@ -118,71 +118,6 @@ export async function leerLevantamiento(
     throw new ErrorHttp(502, "La IA no encontró piezas en el archivo. Revisa que sea el levantamiento correcto.", "IA_SIN_FILAS");
   }
   return { areas, filas, notas: datos.notas, modelo };
-}
-
-// 9.2 Precio de referencia de reventa ---------------------------------------------------------
-
-const ReventaIa = z.object({
-  nombre: z.string().trim().min(1).max(200),
-  precioReferencia: z.number().min(0).max(10_000_000),
-  fuentes: z.array(z.object({ titulo: z.string().max(300), url: z.string().max(2000) })).max(10),
-  notas: z.string().max(500).optional(),
-});
-
-const ESQUEMA_REVENTA = {
-  type: "object",
-  properties: {
-    nombre: { type: "string", description: "Nombre claro del artículo encontrado." },
-    precioReferencia: { type: "number", description: "Precio unitario en pesos mexicanos; 0 si no lo encontraste." },
-    fuentes: {
-      type: "array",
-      items: { type: "object", properties: { titulo: { type: "string" }, url: { type: "string" } }, required: ["titulo", "url"] },
-    },
-    notas: { type: "string", description: "Aclaraciones: si el precio incluye IVA, presentación, rango de precios." },
-  },
-  required: ["nombre", "precioReferencia", "fuentes"],
-};
-
-const INSTRUCCIONES_REVENTA = `Buscas el precio de compra de un artículo que Diseñarte México revende (extintores, botiquines, detectores, lámparas de emergencia, etc.).
-Usa la búsqueda de Google para encontrar precios actuales en tiendas o proveedores de México, en pesos mexicanos (MXN).
-- precioReferencia: precio unitario típico de lo que encontraste (si hay varios, uno representativo, no el más caro ni el más barato).
-- Si no encuentras un precio confiable, pon 0 y explícalo en notas. No inventes precios ni links.
-- En notas di si el precio incluye IVA y cualquier diferencia con lo que se pidió (presentación, capacidad).
-Responde solo con el JSON pedido.`;
-
-export async function precioDeReventa(
-  actor: UsuarioSesion | null,
-  articulo: { nombre: string },
-): Promise<{ nombre: string; precioReferencia: string; fuentes: Fuente[]; notas: string | null; modelo: string }> {
-  requirePermiso(actor, "cotizaciones.propias");
-
-  const { datos, fuentes: fuentesBusqueda, modelo } = await consultarGemini({
-    actor,
-    tarea: "reventa",
-    instrucciones: INSTRUCCIONES_REVENTA,
-    partes: [{ text: `Artículo: ${articulo.nombre}` }],
-    esquemaJson: ESQUEMA_REVENTA,
-    esquemaZod: ReventaIa,
-    busqueda: true,
-    resumenEntrada: { nombre: articulo.nombre },
-  });
-
-  // Primero las fuentes que devolvió la búsqueda de Google (son las verificables); luego
-  // las que mencione el modelo y sean links http(s), sin repetir.
-  const vistas = new Set<string>();
-  const fuentes = [...fuentesBusqueda, ...datos.fuentes]
-    .filter((f) => /^https?:\/\//i.test(f.url))
-    .filter((f) => (vistas.has(f.url) ? false : (vistas.add(f.url), true)))
-    .slice(0, 5)
-    .map((f) => ({ titulo: f.titulo || new URL(f.url).hostname, url: f.url }));
-
-  return {
-    nombre: datos.nombre,
-    precioReferencia: numeroTexto(datos.precioReferencia, 2),
-    fuentes,
-    notas: datos.notas?.trim() || null,
-    modelo,
-  };
 }
 
 // 9.3 Redactar alcance ------------------------------------------------------------------------
