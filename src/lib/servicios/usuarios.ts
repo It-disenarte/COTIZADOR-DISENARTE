@@ -108,11 +108,18 @@ export async function actualizarUsuario(
     }
   }
 
+  // El correo es con lo que se inicia sesión: no puede repetirse en otra cuenta.
+  if (cambios.email !== undefined && cambios.email !== antes.email) {
+    const [otra] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.email, cambios.email));
+    if (otra && otra.id !== id) throw new ErrorHttp(409, "Ya existe otra cuenta con ese correo.", "CORREO_DUPLICADO");
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(usuarios)
       .set({
         ...(cambios.nombre !== undefined && { name: cambios.nombre }),
+        ...(cambios.email !== undefined && { email: cambios.email }),
         ...(cambios.rol !== undefined && { rol: cambios.rol }),
         ...(cambios.activo !== undefined && { activo: cambios.activo }),
       })

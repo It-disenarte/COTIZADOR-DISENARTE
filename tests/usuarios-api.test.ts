@@ -308,3 +308,31 @@ describe("Caso 5 — permisos por rol en la API", () => {
     });
   });
 });
+
+describe("El admin edita nombre y correo de una cuenta", () => {
+  const editar = (id: string, cuerpo: unknown, cookie = cookieAdmin) =>
+    rutaUsuario.PATCH(peticion(`/api/usuarios/${id}`, { metodo: "PATCH", cookie, cuerpo }), ctxId(id));
+
+  it("con el correo nuevo entra con la misma contraseña; con el anterior ya no", async () => {
+    const cuenta = await cuentaLista("ventas", "correo-viejo@disenartemx.com");
+    const res = await editar(cuenta.id, { nombre: "Luis Molina", email: "Correo-Nuevo@DisenarteMX.com " });
+    expect(res.status).toBe(200);
+    expect((await res.json()).usuario).toMatchObject({ nombre: "Luis Molina", email: "correo-nuevo@disenartemx.com" });
+
+    expect((await intentarIniciarSesion("correo-nuevo@disenartemx.com", cuenta.password)).ok).toBe(true);
+    expect((await intentarIniciarSesion("correo-viejo@disenartemx.com", cuenta.password)).ok).toBe(false);
+  });
+
+  it("no deja poner un correo que ya usa otra cuenta", async () => {
+    const una = await cuentaLista("ventas", "una@disenartemx.com");
+    await cuentaLista("ventas", "otra@disenartemx.com");
+    const res = await editar(una.id, { email: "otra@disenartemx.com" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).codigo).toBe("CORREO_DUPLICADO");
+  });
+
+  it("ventas no puede editar cuentas", async () => {
+    const cuenta = await cuentaLista("ventas", "ventas-edita@disenartemx.com");
+    expect((await editar(cuenta.id, { nombre: "Otro nombre" }, cuenta.cookie)).status).toBe(403);
+  });
+});

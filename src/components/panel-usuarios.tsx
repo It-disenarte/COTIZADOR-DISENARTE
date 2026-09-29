@@ -1,9 +1,11 @@
 "use client";
 
-import { KeyRound, Plus, RefreshCw, X } from "lucide-react";
+import { KeyRound, Pencil, Plus, RefreshCw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Aviso, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from "@/components/ui";
+import { useAvisos } from "@/components/avisos";
+import { Modal } from "@/components/modal";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from "@/components/ui";
 import { ETIQUETA_ROL } from "@/lib/permisos";
 import { PASSWORD_MIN, ROLES, type Rol } from "@/lib/roles";
 import { llamarApi } from "@/lib/utils";
@@ -28,21 +30,22 @@ function generarTemporal(): string {
 export function PanelUsuarios({ usuarios, idActual }: { usuarios: Usuario[]; idActual: string }) {
   const router = useRouter();
   const [actualizando, iniciarTransicion] = useTransition();
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const avisar = useAvisos();
+  /** Cuenta cuyos datos (nombre y correo) se están editando en la ventana. */
+  const [editando, setEditando] = useState<Usuario | null>(null);
   const [creando, setCreando] = useState(false);
   const [restableciendo, setRestableciendo] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
   async function ejecutar(accion: () => Promise<unknown>, exito: string) {
     setOcupado(true);
-    setMensaje(null);
     try {
       await accion();
-      setMensaje({ tipo: "ok", texto: exito });
+      avisar({ tipo: "ok", texto: exito });
       iniciarTransicion(() => router.refresh());
       return true;
     } catch (e) {
-      setMensaje({ tipo: "error", texto: e instanceof Error ? e.message : "Algo salió mal." });
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "Algo salió mal." });
       return false;
     } finally {
       setOcupado(false);
@@ -73,6 +76,29 @@ export function PanelUsuarios({ usuarios, idActual }: { usuarios: Usuario[]; idA
     if (ok) setRestableciendo(null);
   }
 
+  async function guardarDatos(evento: React.FormEvent<HTMLFormElement>, usuario: Usuario) {
+    evento.preventDefault();
+    const datos = new FormData(evento.currentTarget);
+    const nombre = String(datos.get("nombre") ?? "").trim();
+    const email = String(datos.get("email") ?? "").trim().toLowerCase();
+    // Solo se manda lo que cambió.
+    const cambios = {
+      ...(nombre !== usuario.nombre && { nombre }),
+      ...(email !== usuario.email && { email }),
+    };
+    if (Object.keys(cambios).length === 0) {
+      setEditando(null);
+      return;
+    }
+    const ok = await ejecutar(
+      () => llamarApi(`/api/usuarios/${usuario.id}`, "PATCH", cambios),
+      cambios.email
+        ? `Datos de ${nombre} guardados. Desde ahora inicia sesión con ${email}; su contraseña no cambió.`
+        : `Datos de ${nombre} guardados.`,
+    );
+    if (ok) setEditando(null);
+  }
+
   const deshabilitado = ocupado || actualizando;
 
   return (
@@ -83,8 +109,6 @@ export function PanelUsuarios({ usuarios, idActual }: { usuarios: Usuario[]; idA
         </Button>
         {actualizando && <RefreshCw className="size-4 animate-spin text-muted-foreground" aria-label="Actualizando" />}
       </div>
-
-      {mensaje && <Aviso tipo={mensaje.tipo}>{mensaje.texto}</Aviso>}
 
       {creando && (
         <Card>
@@ -186,6 +210,9 @@ export function PanelUsuarios({ usuarios, idActual }: { usuarios: Usuario[]; idA
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" disabled={deshabilitado} onClick={() => setEditando(u)}>
+                          <Pencil /> Editar
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -220,6 +247,39 @@ export function PanelUsuarios({ usuarios, idActual }: { usuarios: Usuario[]; idA
           </table>
         </div>
       </Card>
+
+      {editando && (
+        <Modal
+          titulo={`Editar a ${editando.nombre}`}
+          descripcion="La contraseña no cambia aquí: para eso está “Restablecer”."
+          alCerrar={() => setEditando(null)}
+          className="max-w-md"
+        >
+          <form onSubmit={(e) => guardarDatos(e, editando)} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="editar-nombre">Nombre</Label>
+              <Input id="editar-nombre" name="nombre" defaultValue={editando.nombre} required minLength={2} autoFocus />
+              <p className="text-xs text-muted-foreground">Sale como asesor comercial en las propuestas que cotice.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editar-email">Correo</Label>
+              <Input id="editar-email" name="email" type="email" defaultValue={editando.email} required />
+              <p className="text-xs text-muted-foreground">
+                Es con el que inicia sesión. Si lo cambias, avísale: desde ese momento entra con el correo nuevo y la
+                misma contraseña.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setEditando(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={deshabilitado}>
+                Guardar cambios
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
