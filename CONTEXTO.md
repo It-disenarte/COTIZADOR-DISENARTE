@@ -164,6 +164,9 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - Una cotización **nueva empieza sin operación** (sin envío, diseño, instalación ni viáticos); al marcar
   "Incluye instalación" propone 2 personas × 1 día. El precio en vivo muestra **materiales contra operación** y
   avisa cuando la operación pesa más.
+- El precio en vivo suma aparte la **reventa** ("+ Reventa" y "Total de la propuesta"); en el PDF sigue en su propia
+  página. Las **alertas** se abren con un clic: cada una dice qué hacer y lleva al paso donde se corrige
+  (`pasoDeAlerta` en `src/lib/cotizador/pasos.ts`).
 - El PDF se genera al momento, **nunca se guarda en disco**.
 
 ---

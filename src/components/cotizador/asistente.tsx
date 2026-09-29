@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAvisos } from "@/components/avisos";
 import { PantallaCarga } from "@/components/pantalla-carga";
-import { Aviso, Badge, Button, Card, CardContent } from "@/components/ui";
+import { Aviso, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
-import { PASO, PASOS, type Pendiente, pasoDeErrorMotor } from "@/lib/cotizador/pasos";
+import { PASO, PASOS, type Pendiente, pasoDeAlerta, pasoDeErrorMotor, QUE_HACER_ALERTA } from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
 import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
@@ -217,12 +217,12 @@ export function AsistenteCotizacion({
     const id = await guardar({ avisar: false });
     if (!id) return;
 
-    const alertas = resultado?.alertas.length ?? 0;
-    if (alertas > 0 && !alertasConfirmadas) {
+    const totalAlertas = alertas.length;
+    if (totalAlertas > 0 && !alertasConfirmadas) {
       setAlertasConfirmadas(true);
       avisar({
         tipo: "advertencia",
-        texto: `Hay ${alertas} alerta${alertas === 1 ? "" : "s"} sin revisar. Vuelve a presionar "Generar PDF" si quieres continuar de todos modos.`,
+        texto: `Hay ${totalAlertas} alerta${totalAlertas === 1 ? "" : "s"} sin revisar (las ves en el precio en vivo). Vuelve a presionar "Generar PDF" si quieres continuar de todos modos.`,
       });
       return;
     }
@@ -250,6 +250,13 @@ export function AsistenteCotizacion({
     setAutorizadaEn(null);
   };
   const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
+  // Todas las alertas: las generales y las de cada opción (margen bajo, precio a mano), sin repetir.
+  const todasLasAlertas = resultado
+    ? [...resultado.alertas, ...resultado.opciones.flatMap((o) => o.variantes.flatMap((v) => v.alertas))]
+    : [];
+  const alertas = todasLasAlertas.filter(
+    (a, i) => todasLasAlertas.findIndex((b) => b.codigo === a.codigo && b.mensaje === a.mensaje) === i,
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -392,11 +399,16 @@ export function AsistenteCotizacion({
               </div>
             )}
 
-            {resultado && resultado.alertas.length > 0 && (
-              <Badge variant="accent" className="block w-fit">
-                {resultado.alertas.length} alerta{resultado.alertas.length === 1 ? "" : "s"} por revisar
-              </Badge>
+            {resultado && resultado.reventa.items.length > 0 && primeraVariante && (
+              <ReventaEnVivo
+                total={resultado.reventa.total}
+                articulos={resultado.reventa.items.length}
+                totalOpcion={primeraVariante.total}
+                variasOpciones={resultado.opciones.length > 1}
+              />
             )}
+
+            {alertas.length > 0 && <ListaAlertas alertas={alertas} pasoActual={paso} irAlPaso={irAlPaso} />}
 
             <EstadoGuardado estado={autoguardado} guardadoEn={guardadoEn} reintentar={() => guardar({ avisar: true })} />
           </CardContent>
@@ -530,4 +542,82 @@ function EstadoGuardado({
     estado.estado === "guardando" ? "Guardando…" : estado.estado === "pendiente" ? "Cambios sin guardar…" : guardadoEn;
   if (!texto) return null;
   return <p className="border-t pt-2 text-xs text-muted-foreground">{texto}</p>;
+}
+
+/**
+ * La reventa se cotiza aparte (su propia utilidad y su página en el PDF) y es la misma para todas las
+ * opciones: aquí se ve junto al precio, sin mezclarla con él.
+ */
+function ReventaEnVivo({
+  total,
+  articulos,
+  totalOpcion,
+  variasOpciones,
+}: {
+  total: string;
+  articulos: number;
+  totalOpcion: string;
+  variasOpciones: boolean;
+}) {
+  return (
+    <div className="space-y-1 border-t pt-2 text-sm">
+      <p className="flex justify-between gap-2">
+        <span className="text-muted-foreground">
+          + Reventa ({articulos} artículo{articulos === 1 ? "" : "s"}, con IVA)
+        </span>
+        <span className="tabular-nums">{formatoMoneda(total)}</span>
+      </p>
+      <p className="flex justify-between gap-2 font-medium">
+        <span>Total de la propuesta{variasOpciones ? " (con la opción 1)" : ""}</span>
+        <span className="tabular-nums">{formatoMoneda((Number(totalOpcion) + Number(total)).toFixed(2))}</span>
+      </p>
+    </div>
+  );
+}
+
+/** Las alertas por revisar: al abrirlas dicen qué pasa, qué hacer y llevan al paso donde se corrige. */
+function ListaAlertas({
+  alertas,
+  pasoActual,
+  irAlPaso,
+}: {
+  alertas: { codigo: string; mensaje: string }[];
+  pasoActual: number;
+  irAlPaso: (paso: number) => void;
+}) {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setAbierta((a) => !a)}
+        aria-expanded={abierta}
+        className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent hover:bg-accent/25"
+      >
+        <TriangleAlert className="size-3.5" />
+        {alertas.length} alerta{alertas.length === 1 ? "" : "s"} por revisar
+        <ChevronRight className={cn("size-3.5 transition-transform", abierta && "rotate-90")} />
+      </button>
+      {abierta && (
+        <ul className="space-y-2">
+          {alertas.map((alerta, i) => {
+            const destino = pasoDeAlerta(alerta.codigo);
+            return (
+              <li key={i} className="space-y-1 rounded-md border border-accent/30 bg-accent/5 p-2 text-xs">
+                <p>{alerta.mensaje}</p>
+                {QUE_HACER_ALERTA[alerta.codigo] && <p className="text-muted-foreground">{QUE_HACER_ALERTA[alerta.codigo]}</p>}
+                {destino !== pasoActual ? (
+                  <button type="button" onClick={() => irAlPaso(destino)} className="font-medium text-accent underline underline-offset-2">
+                    Ir a {PASOS[destino]}
+                  </button>
+                ) : (
+                  <p className="font-medium text-accent">Está en este paso.</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
