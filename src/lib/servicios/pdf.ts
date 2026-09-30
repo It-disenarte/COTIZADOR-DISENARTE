@@ -1,5 +1,6 @@
 import { ErrorHttp } from "@/lib/errores";
-import type { EntradaCotizacion } from "@/lib/motor";
+import type { EntradaCotizacion, EntradaDigital, ResultadoCotizacion, ResultadoDigital } from "@/lib/motor";
+import { generarPdfDigital } from "@/lib/pdf/digital";
 import { type DatosPdf, generarPdf, nombreArchivo } from "@/lib/pdf/documento";
 import type { UsuarioSesion } from "@/lib/permisos";
 import { exigirResultado, obtenerCotizacion } from "./cotizaciones";
@@ -25,6 +26,32 @@ export async function pdfDeCotizacion(
     );
   }
 
+  if (cotizacion.tipo === "digital") {
+    const entrada = cotizacion.entrada as EntradaDigital;
+    const comunes = {
+      folio: cotizacion.folio,
+      titulo: cotizacion.titulo,
+      solicitante: cotizacion.solicitante,
+      asesor: cotizacion.vendedor,
+      cliente: cotizacion.cliente
+        ? { empresa: cotizacion.cliente.empresa, nombreContacto: cotizacion.cliente.nombreContacto, puesto: cotizacion.cliente.puesto }
+        : null,
+      fecha: cotizacion.actualizadoEn,
+    };
+    const archivo = await generarPdfDigital({
+      ...comunes,
+      tiempoEstimado: entrada.tiempoEstimado ?? null,
+      alcance: entrada.alcance ? { concepto: entrada.alcance.concepto ?? null, resumen: entrada.alcance.resumen ?? null } : null,
+      propuesta: entrada.propuesta
+        ? { ...entrada.propuesta, vigenciaDias: entrada.propuesta.vigenciaDias == null ? null : String(entrada.propuesta.vigenciaDias) }
+        : null,
+      resultado: exigirResultado(cotizacion) as ResultadoDigital,
+      // Con página web se agregan los entregables (accesos, dominio, correos) y la funcionalidad.
+      incluyeWeb: entrada.lineas.some((l) => l.cobro === "paquete" || /p[aá]gina|sitio|web|tienda/i.test(l.nombre)),
+    });
+    return { archivo, nombre: nombreArchivo(comunes) };
+  }
+
   const entrada = cotizacion.entrada as EntradaCotizacion;
 
   const datos: DatosPdf = {
@@ -45,7 +72,7 @@ export async function pdfDeCotizacion(
       : null,
     incluyeEnvio: entrada?.incluyeEnvio ?? false,
     sitio: entrada?.sitio ?? null,
-    resultado: exigirResultado(cotizacion),
+    resultado: exigirResultado(cotizacion) as ResultadoCotizacion,
     imagenes: await imagenesParaPdf(cotizacion.id, entrada?.opciones ?? []),
   };
 

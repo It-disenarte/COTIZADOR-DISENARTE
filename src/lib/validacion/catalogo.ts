@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UNIDADES_COSTO, ZONAS } from "@/lib/catalogo/constantes";
+import { COBROS_DIGITALES, UNIDADES_COSTO, ZONAS } from "@/lib/catalogo/constantes";
 import { decimalOpcional, textoOpcional, textoRequerido, Uuid } from "./comunes";
 
 // Insumos ------------------------------------------------------------------------------------
@@ -41,6 +41,27 @@ export const GuardarNombresCliente = z.object({
     .max(300),
 });
 export type GuardarNombresCliente = z.infer<typeof GuardarNombresCliente>;
+
+// Servicios digitales ------------------------------------------------------------------------
+
+const camposServicioDigital = {
+  nombre: textoRequerido(200, "Escribe el nombre del servicio."),
+  categoria: textoRequerido(100, "Elige la categoría."),
+  cobro: z.enum(COBROS_DIGITALES),
+  // Vacío = por capturar: la cotización pide escribirlo antes de autorizar.
+  precio: decimalOpcional({ min: 0 }),
+  precioMensual: decimalOpcional({ min: 0 }),
+  activacion: decimalOpcional({ min: 0 }),
+  mesesRenta: z.coerce.number().int().min(1, { error: "Mínimo 1 mes." }).max(60).default(12),
+  incluye: textoOpcional(2000),
+  tiempoEntrega: textoOpcional(100),
+};
+
+export const CrearServicioDigital = z.object(camposServicioDigital);
+export type CrearServicioDigital = z.infer<typeof CrearServicioDigital>;
+
+export const ActualizarServicioDigital = z.object({ ...camposServicioDigital, archivado: z.boolean() }).partial();
+export type ActualizarServicioDigital = z.infer<typeof ActualizarServicioDigital>;
 
 // Parámetros ---------------------------------------------------------------------------------
 

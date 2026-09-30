@@ -6,7 +6,7 @@ import { decimal, decimalOpcional, textoOpcional, textoRequerido, urlOpcional, U
 const entero = z.coerce.number().int().min(0).max(9999);
 
 /** Ids que genera el navegador para conceptos y opciones (no son de la base). */
-const IdLocal = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/, { error: "Identificador inválido." });
+export const IdLocal = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/, { error: "Identificador inválido." });
 
 /**
  * La misma entrada se valida con dos niveles de exigencia:

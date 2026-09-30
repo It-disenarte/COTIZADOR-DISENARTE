@@ -52,4 +52,31 @@ export const QUE_HACER_ALERTA: Record<string, string> = {
 };
 
 /** "Operación: Falta capturar el precio de la gasolina…" */
-export const textoPendiente = ({ paso, mensaje }: Pendiente): string => `${PASOS[paso] ?? "Resumen"}: ${mensaje}`;
+export const textoPendiente = ({ paso, mensaje }: Pendiente, pasos: readonly string[] = PASOS): string =>
+  `${pasos[paso] ?? "Resumen"}: ${mensaje}`;
+
+// Digitalización -----------------------------------------------------------------------------
+
+export const PASOS_DIGITAL = ["Datos", "Servicios", "Brief del cliente", "Pago y promociones", "Resumen"] as const;
+
+export const PASO_DIGITAL = { datos: 0, servicios: 1, brief: 2, pago: 3, resumen: 4 } as const;
+
+const PASO_DE_ERROR_DIGITAL: Record<string, number> = {
+  SIN_SERVICIOS: PASO_DIGITAL.servicios,
+  SIN_PRECIO_DIGITAL: PASO_DIGITAL.servicios,
+  ANTICIPO_INVALIDO: PASO_DIGITAL.pago,
+};
+export const pasoDeErrorDigital = (codigo: string): number => PASO_DE_ERROR_DIGITAL[codigo] ?? PASO_DIGITAL.resumen;
+
+const PASO_DE_ALERTA_DIGITAL: Record<string, number> = {
+  PROMOCION_VENCIDA: PASO_DIGITAL.pago,
+  DESCUENTO_ALTO: PASO_DIGITAL.pago,
+  PROMOCION_SIN_PAGO_UNICO: PASO_DIGITAL.pago,
+};
+export const pasoDeAlertaDigital = (codigo: string): number => PASO_DE_ALERTA_DIGITAL[codigo] ?? PASO_DIGITAL.resumen;
+
+export const QUE_HACER_ALERTA_DIGITAL: Record<string, string> = {
+  PROMOCION_VENCIDA: "Cambia la fecha límite o desactiva la promoción.",
+  DESCUENTO_ALTO: "Confirma el descuento con el responsable antes de enviarlo.",
+  PROMOCION_SIN_PAGO_UNICO: "Desactiva las promociones o agrega servicios de pago único.",
+};

@@ -82,3 +82,50 @@ export const ZONAS = ["local", "foraneo"] as const;
 export type Zona = (typeof ZONAS)[number];
 export const ETIQUETA_ZONA: Record<Zona, string> = { local: "Local", foraneo: "Foráneo" };
 
+// Digitalización ------------------------------------------------------------------------------
+
+/** Dos tipos de cotización: la de siempre (costo + fórmula del PNO) y la de servicios digitales (precio de lista). */
+export const TIPOS_COTIZACION = ["fisica", "digital"] as const;
+export type TipoCotizacion = (typeof TIPOS_COTIZACION)[number];
+export const ETIQUETA_TIPO_COTIZACION: Record<TipoCotizacion, string> = {
+  fisica: "Publicidad física",
+  digital: "Digitalización",
+};
+
+/**
+ * Cómo se cobra un servicio digital. "paquete": página web que se renta (mensualidad + activación,
+ * IVA incluido) o se compra como dueño (precio + IVA, en dos pagos). "unico" y "mensual" llevan IVA aparte.
+ */
+export const COBROS_DIGITALES = ["paquete", "unico", "mensual"] as const;
+export type CobroDigital = (typeof COBROS_DIGITALES)[number];
+export const ETIQUETA_COBRO_DIGITAL: Record<CobroDigital, string> = {
+  paquete: "Paquete web (renta o dueño)",
+  unico: "Pago único",
+  mensual: "Pago mensual",
+};
+
+/** Grupos del catálogo de servicios digitales (lista fija, como las categorías de insumos). */
+export const CATEGORIAS_DIGITALES = [
+  "Paquetes web",
+  "Web a la medida",
+  "Identidad de marca",
+  "Google y SEO",
+  "Redes sociales",
+  "Contenido",
+  "Soporte y capacitación",
+  "Otros",
+] as const;
+
+export function opcionesCategoriaDigital(actual?: string | null): string[] {
+  const lista: string[] = [...CATEGORIAS_DIGITALES];
+  return actual && !lista.includes(actual) ? [actual, ...lista] : lista;
+}
+
+/** Cómo se presenta el paquete web en la propuesta: solo renta, solo dueño, o las dos para que el cliente elija. */
+export const MODALIDADES_WEB = ["renta", "dueno", "ambas"] as const;
+export type ModalidadWeb = (typeof MODALIDADES_WEB)[number];
+export const ETIQUETA_MODALIDAD_WEB: Record<ModalidadWeb, string> = {
+  renta: "Solo renta",
+  dueno: "Solo dueño",
+  ambas: "Las dos, para que el cliente elija",
+};

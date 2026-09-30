@@ -1,10 +1,10 @@
-import { FilePlus2 } from "lucide-react";
+import { FilePlus2, Globe } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { BotonEliminar, BotonPdf } from "@/components/cotizador/acciones-cotizacion";
 import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge, Card } from "@/components/ui";
-import { ETIQUETA_ESTADO } from "@/lib/catalogo/constantes";
+import { ETIQUETA_ESTADO, ETIQUETA_TIPO_COTIZACION } from "@/lib/catalogo/constantes";
 import { formatoFechaHora, formatoMoneda } from "@/lib/formato";
 import { tienePermiso } from "@/lib/permisos";
 import { requireSesion } from "@/lib/sesion";
@@ -41,12 +41,20 @@ export default async function PaginaCotizaciones({ searchParams }: PageProps<"/c
             </div>
           )}
         </div>
-        <Link
-          href="/cotizaciones/nueva"
-          className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90"
-        >
-          <FilePlus2 className="size-4" /> Nueva cotización
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/cotizaciones/nueva"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90"
+          >
+            <FilePlus2 className="size-4" /> Publicidad física
+          </Link>
+          <Link
+            href="/cotizaciones/nueva?tipo=digital"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Globe className="size-4" /> Digitalización
+          </Link>
+        </div>
       </header>
 
       {cotizaciones.length === 0 ? (
@@ -78,6 +86,7 @@ export default async function PaginaCotizaciones({ searchParams }: PageProps<"/c
                         {c.titulo}
                       </Link>
                       {c.cliente && <p className="text-xs text-muted-foreground">{c.cliente}</p>}
+                      {c.tipo === "digital" && <p className="text-xs text-primary">{ETIQUETA_TIPO_COTIZACION.digital}</p>}
                       {todas && c.vendedor && <p className="text-xs text-morado">Vendedor: {c.vendedor}</p>}
                     </td>
                     <td className="px-4 py-3 align-top">

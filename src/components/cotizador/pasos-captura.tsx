@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Card, CardContent, Input, Label, Select } from "@/components/ui";
-import { ETIQUETA_ZONA, ZONAS } from "@/lib/catalogo/constantes";
+import { ETIQUETA_ZONA, type Zona, ZONAS } from "@/lib/catalogo/constantes";
 import type { BorradorCotizacion } from "@/lib/cotizador/estado";
 import type { Lugar } from "@/lib/mapas/osm";
 import { CalcularKm } from "./calcular-km";
@@ -21,20 +21,34 @@ export type ClienteOpcion = {
   notas: string | null;
 };
 
-type Props = {
-  borrador: BorradorCotizacion;
-  cambiar: (cambios: (b: BorradorCotizacion) => BorradorCotizacion) => void;
+/** Lo que el paso Datos edita: igual en publicidad física y en digitalización. */
+export type BorradorDatos = Pick<BorradorCotizacion, "titulo" | "solicitante" | "vendedorId" | "cliente">;
+
+type Props<B extends BorradorDatos> = {
+  borrador: B;
+  cambiar: (cambios: (b: B) => B) => void;
 };
 
 // Paso 1 -------------------------------------------------------------------------------------
 
-export function PasoDatos({
+export function PasoDatos<B extends BorradorDatos>({
   borrador,
   cambiar,
   clientes,
   vendedores,
   puedeElegirVendedor,
-}: Props & { clientes: ClienteOpcion[]; vendedores: { id: string; nombre: string }[]; puedeElegirVendedor: boolean }) {
+  alSincronizarCliente,
+  conTraslado = true,
+}: Props<B> & {
+  clientes: ClienteOpcion[];
+  vendedores: { id: string; nombre: string }[];
+  puedeElegirVendedor: boolean;
+  /** Publicidad física: los km y la zona del cliente pasan a Operación (traslado y viáticos). */
+  alSincronizarCliente?: (b: B, datos: { km?: string; zona?: Zona }) => B;
+  /** Digitalización no tiene traslado: sin km ni zona. */
+  conTraslado?: boolean;
+}) {
+  const sincronizar = alSincronizarCliente ?? ((b: B) => b);
   const cliente = borrador.cliente;
   // Punto exacto elegido en las sugerencias de dirección (si lo hay).
   const [lugarElegido, setLugarElegido] = useState<Lugar | null>(null);
@@ -45,45 +59,34 @@ export function PasoDatos({
     })
     .slice(0, 5);
 
-  const editarCliente = (cambios: Partial<BorradorCotizacion["cliente"]>) =>
+  const editarCliente = (cambios: Partial<BorradorDatos["cliente"]>) =>
     cambiar((b) => ({ ...b, cliente: { ...b.cliente, ...cambios } }));
 
   /** Los km se guardan con el cliente y pasan al "Km por trayecto" de Operación. */
-  const ponerKm = (valor: string) =>
-    cambiar((b) => ({
-      ...b,
-      cliente: { ...b.cliente, kmDesdeSjr: valor },
-      entrada: {
-        ...b.entrada,
-        operacion: { ...b.entrada.operacion, traslado: { ...b.entrada.operacion.traslado, kmPorTrayecto: valor } },
-      },
-    }));
+  const ponerKm = (valor: string) => cambiar((b) => sincronizar({ ...b, cliente: { ...b.cliente, kmDesdeSjr: valor } }, { km: valor }));
 
   const usarCliente = (c: ClienteOpcion) =>
-    cambiar((b) => ({
-      ...b,
-      cliente: {
-        id: c.id,
-        nombreContacto: c.nombreContacto,
-        puesto: c.puesto ?? "",
-        empresa: c.empresa ?? "",
-        correo: c.correo ?? "",
-        telefono: c.telefono ?? "",
-        direccion: c.direccion ?? "",
-        kmDesdeSjr: c.kmDesdeSjr ?? "",
-        zona: c.zona,
-        notas: c.notas ?? "",
-      },
-      entrada: {
-        ...b.entrada,
-        operacion: {
-          ...b.entrada.operacion,
-          viaticos: { ...b.entrada.operacion.viaticos, tipo: c.zona },
-          // El km se guarda por cliente para no volver a capturarlo; pasa directo al traslado de Operación.
-          traslado: { ...b.entrada.operacion.traslado, kmPorTrayecto: c.kmDesdeSjr ?? b.entrada.operacion.traslado.kmPorTrayecto },
+    cambiar((b) =>
+      sincronizar(
+        {
+          ...b,
+          cliente: {
+            id: c.id,
+            nombreContacto: c.nombreContacto,
+            puesto: c.puesto ?? "",
+            empresa: c.empresa ?? "",
+            correo: c.correo ?? "",
+            telefono: c.telefono ?? "",
+            direccion: c.direccion ?? "",
+            kmDesdeSjr: c.kmDesdeSjr ?? "",
+            zona: c.zona,
+            notas: c.notas ?? "",
+          },
         },
-      },
-    }));
+        // El km se guarda por cliente para no volver a capturarlo; pasa directo al traslado de Operación.
+        { km: c.kmDesdeSjr ?? undefined, zona: c.zona },
+      ),
+    );
 
   return (
     <div className="space-y-6">
@@ -180,6 +183,7 @@ export function PasoDatos({
                 alElegirLugar={setLugarElegido}
               />
             </div>
+            {conTraslado && (
             <div className="space-y-2">
               <Label htmlFor="km">Km desde San Juan del Río</Label>
               <Input
@@ -195,6 +199,8 @@ export function PasoDatos({
               </p>
               <CalcularKm direccion={cliente.direccion} lugar={lugarElegido} alUsar={ponerKm} />
             </div>
+            )}
+            {conTraslado && (
             <div className="space-y-2">
               <Label htmlFor="zona">Zona</Label>
               <Select
@@ -202,11 +208,7 @@ export function PasoDatos({
                 value={cliente.zona}
                 onChange={(e) => {
                   const zona = e.target.value as "local" | "foraneo";
-                  editarCliente({ zona });
-                  cambiar((b) => ({
-                    ...b,
-                    entrada: { ...b.entrada, operacion: { ...b.entrada.operacion, viaticos: { ...b.entrada.operacion.viaticos, tipo: zona } } },
-                  }));
+                  cambiar((b) => sincronizar({ ...b, cliente: { ...b.cliente, zona } }, { zona }));
                 }}
               >
                 {ZONAS.map((z) => (
@@ -220,6 +222,7 @@ export function PasoDatos({
                 proyecto es distinto.
               </p>
             </div>
+            )}
           </div>
 
           {sugerencias.length > 0 && (

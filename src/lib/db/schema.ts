@@ -1,7 +1,15 @@
 import { boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 // Imports relativos: drizzle-kit lee este archivo fuera de Next y no resuelve el alias "@/".
 import { sql } from "drizzle-orm";
-import { ESTADOS_COTIZACION, FAMILIAS_RECETA, MODOS_COMPONENTE, UNIDADES_COSTO, ZONAS } from "../catalogo/constantes";
+import {
+  COBROS_DIGITALES,
+  ESTADOS_COTIZACION,
+  FAMILIAS_RECETA,
+  MODOS_COMPONENTE,
+  TIPOS_COTIZACION,
+  UNIDADES_COSTO,
+  ZONAS,
+} from "../catalogo/constantes";
 import { ROLES } from "../roles";
 
 export { ROLES, type Rol } from "../roles";
@@ -173,6 +181,7 @@ export const parametros = pgTable("parametros", {
 });
 
 export const estadoCotizacionEnum = pgEnum("estado_cotizacion", ESTADOS_COTIZACION);
+export const tipoCotizacionEnum = pgEnum("tipo_cotizacion", TIPOS_COTIZACION);
 
 export const cotizaciones = pgTable(
   "cotizaciones",
@@ -186,6 +195,8 @@ export const cotizaciones = pgTable(
     titulo: text("titulo").notNull(),
     solicitante: text("solicitante"),
     estado: estadoCotizacionEnum("estado").notNull().default("borrador"),
+    /** Publicidad física (costo + fórmula del PNO) o digitalización (precios de lista). No cambia después. */
+    tipo: tipoCotizacionEnum("tipo").notNull().default("fisica"),
     versionActual: integer("version_actual").notNull().default(1),
     /**
      * Autorización del análisis de costos (PNO-COM-01, punto de control de la Fase 1):
@@ -292,3 +303,28 @@ export const clientes = pgTable(
   },
   (t) => [index("clientes_nombre_idx").on(t.nombreContacto), index("clientes_empresa_idx").on(t.empresa)],
 );
+
+export const cobroDigitalEnum = pgEnum("cobro_digital", COBROS_DIGITALES);
+
+/**
+ * Catálogo de servicios digitales ("insumos digitales"): paquetes web, módulos a la medida, logo,
+ * redes, Google… A diferencia de los insumos, el precio es de venta (de lista), no un costo.
+ * Precio null = por capturar. Cada cotización copia el precio al agregarlo: cambiarlo aquí no mueve lo cotizado.
+ */
+export const serviciosDigitales = pgTable("servicios_digitales", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  nombre: text("nombre").notNull(),
+  categoria: text("categoria").notNull(),
+  cobro: cobroDigitalEnum("cobro").notNull().default("unico"),
+  /** Pago único, mensual, o precio como dueño del paquete. Sin IVA. */
+  precio: dinero("precio"),
+  /** Paquete en renta: mensualidad y activación, con IVA incluido. */
+  precioMensual: dinero("precio_mensual"),
+  activacion: dinero("activacion"),
+  mesesRenta: integer("meses_renta").notNull().default(12),
+  /** Lo que incluye, una viñeta por renglón: sale en el PDF. */
+  incluye: text("incluye"),
+  tiempoEntrega: text("tiempo_entrega"),
+  archivado: boolean("archivado").notNull().default(false),
+  ...tiempos,
+});

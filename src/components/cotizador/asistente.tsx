@@ -2,11 +2,12 @@
 
 import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAvisos } from "@/components/avisos";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
+import { useGuardadoCotizacion } from "./use-guardado";
 import { PASO, PASOS, type Pendiente, pasoDeAlerta, pasoDeErrorMotor, QUE_HACER_ALERTA } from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
 import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
@@ -42,36 +43,24 @@ export function AsistenteCotizacion({
   autorizada = null,
 }: Props) {
   const router = useRouter();
-  const [borrador, setBorrador] = useState<BorradorCotizacion>(() => {
-    const base = inicial ?? borradorInicial(usuarioId);
-    // Siempre hay al menos una opción, para que la tabla del levantamiento reciba insumos.
-    return base.entrada.opciones.length ? base : { ...base, entrada: { ...base.entrada, opciones: [opcionNueva(1)] } };
+  const [autorizadaEn, setAutorizadaEn] = useState<string | null>(autorizada);
+  const { borrador, cambiar, guardar, guardarPendiente, guardando, guardadoEn, autoguardado } = useGuardadoCotizacion({
+    inicial: () => {
+      const base = inicial ?? borradorInicial(usuarioId);
+      // Siempre hay al menos una opción, para que la tabla del levantamiento reciba insumos.
+      return base.entrada.opciones.length ? base : { ...base, entrada: { ...base.entrada, opciones: [opcionNueva(1)] } };
+    },
+    cuerpo: cuerpoParaGuardar,
+    // Al editar, la autorización anterior deja de valer: el servidor la borra al guardar.
+    alEditar: () => setAutorizadaEn(null),
   });
   const [paso, setPaso] = useState(0);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [guardando, setGuardando] = useState(false);
   /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [ranuraCatalogo, setRanuraCatalogo] = useState<HTMLDivElement | null>(null);
   const avisar = useAvisos();
-  const [guardadoEn, setGuardadoEn] = useState<string | null>(inicial?.id ? "Borrador abierto" : null);
-
-  // Guardado automático. Se cuenta cada edición; lo que se guardó se recuerda por número de edición,
-  // así solo se guarda si alguien cambió algo (abrir una cotización autorizada no la toca).
-  const [ediciones, setEdiciones] = useState(0);
-  const edicionesRef = useRef(0);
-  const guardadasRef = useRef(0);
-  const borradorRef = useRef(borrador);
-  /** Guardado en curso: se espera antes de otro, para no crear la misma cotización dos veces. */
-  const enCursoRef = useRef<Promise<string> | null>(null);
-  const [autoguardado, setAutoguardado] = useState<{ estado: "listo" | "pendiente" | "guardando" | "error"; error?: string }>({
-    estado: "listo",
-  });
-  useEffect(() => {
-    borradorRef.current = borrador;
-  }, [borrador]);
   const [alertasConfirmadas, setAlertasConfirmadas] = useState(false);
-  const [autorizadaEn, setAutorizadaEn] = useState<string | null>(autorizada);
 
   /** Vuelve a descargar el catálogo: tras crear o editar un insumo, los precios se recalculan solos. */
   async function recargarCatalogo() {
@@ -104,89 +93,6 @@ export function AsistenteCotizacion({
       return { resultado: null, pendiente: { paso: PASO.resumen, mensaje: "Faltan datos para calcular." } };
     }
   }, [borrador.entrada, snapshot]);
-
-  const faltanDatosPaso1 = (b: BorradorCotizacion) => !b.titulo.trim() || !b.cliente.nombreContacto.trim();
-
-  /**
-   * Escribe en el servidor lo más reciente que hay en pantalla y devuelve el id. Una escritura a la
-   * vez: si hay otra en curso, la espera y luego guarda (así el primer guardado de una cotización
-   * nueva no se duplica). Lanza el error del servidor para que quien llama decida cómo avisarlo.
-   */
-  async function escribirEnServidor(): Promise<string> {
-    while (enCursoRef.current) await enCursoRef.current.catch(() => null);
-    const actual = borradorRef.current;
-    const edicion = edicionesRef.current;
-    const tarea = (async () => {
-      type Respuesta = { id: string; folio: string; clienteId: string };
-      const cuerpo = cuerpoParaGuardar(actual);
-      const respuesta = actual.id
-        ? await llamarApi<Respuesta>(`/api/cotizaciones/${actual.id}`, "PUT", cuerpo)
-        : await llamarApi<Respuesta>("/api/cotizaciones", "POST", cuerpo);
-      // El id (y el del cliente) se conocen desde ya: el siguiente guardado actualiza, no crea otra.
-      const conIds = (b: BorradorCotizacion) => ({ ...b, id: respuesta.id, folio: respuesta.folio, cliente: { ...b.cliente, id: respuesta.clienteId } });
-      borradorRef.current = conIds(borradorRef.current);
-      setBorrador(conIds);
-      guardadasRef.current = Math.max(guardadasRef.current, edicion);
-      if (!actual.id) window.history.replaceState(null, "", `/cotizaciones/${respuesta.id}`);
-      setGuardadoEn(`Guardado ${new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`);
-      return respuesta.id;
-    })();
-    enCursoRef.current = tarea;
-    try {
-      return await tarea;
-    } finally {
-      if (enCursoRef.current === tarea) enCursoRef.current = null;
-    }
-  }
-
-  /** Guarda el borrador y devuelve su id (null si faltan datos o falló). Con pantalla de carga. */
-  async function guardar({ avisar: avisarAlUsuario = true } = {}): Promise<string | null> {
-    if (faltanDatosPaso1(borradorRef.current)) {
-      if (avisarAlUsuario) avisar({ tipo: "error", texto: "Para guardar, captura el título y el contacto del cliente en el paso Datos." });
-      return null;
-    }
-    setGuardando(true);
-    try {
-      const id = await escribirEnServidor();
-      setAutoguardado({ estado: "listo" });
-      if (avisarAlUsuario) avisar({ tipo: "ok", texto: `Borrador guardado con folio ${borradorRef.current.folio}.` });
-      router.refresh();
-      return id;
-    } catch (error) {
-      avisar({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo guardar." });
-      return null;
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  // Guardado automático: dos segundos después de la última edición, sin pantalla de carga, para que
-  // no se pierda nada si algo falla o se cierra la pestaña sin guardar.
-  useEffect(() => {
-    if (ediciones === 0 || ediciones <= guardadasRef.current) return;
-    if (faltanDatosPaso1(borradorRef.current)) return;
-    setAutoguardado({ estado: "pendiente" });
-    const temporizador = setTimeout(async () => {
-      setAutoguardado({ estado: "guardando" });
-      try {
-        await escribirEnServidor();
-        setAutoguardado(edicionesRef.current > guardadasRef.current ? { estado: "pendiente" } : { estado: "listo" });
-      } catch (error) {
-        setAutoguardado({ estado: "error", error: error instanceof Error ? error.message : "No se pudo guardar." });
-      }
-    }, 2000);
-    // escribirEnServidor lee lo más reciente de los refs: solo importa cuándo hubo una edición.
-    return () => clearTimeout(temporizador);
-  }, [ediciones]);
-
-  // Si se intenta cerrar o recargar con cambios sin guardar, el navegador pregunta antes.
-  useEffect(() => {
-    const alSalir = (e: BeforeUnloadEvent) => {
-      if (edicionesRef.current > guardadasRef.current && !faltanDatosPaso1(borradorRef.current)) e.preventDefault();
-    };
-    window.addEventListener("beforeunload", alSalir);
-    return () => window.removeEventListener("beforeunload", alSalir);
-  }, []);
 
   /**
    * Autoriza el análisis de costos (PNO-COM-01, Fase 1). Solo lo puede hacer el responsable;
@@ -233,22 +139,11 @@ export function AsistenteCotizacion({
   }
 
   async function irAlPaso(destino: number) {
-    // Al cambiar de paso se guarda lo que falte (si el automático ya guardó todo, no hay espera).
-    const hayPendiente = edicionesRef.current > guardadasRef.current || !borradorRef.current.id;
-    if (hayPendiente && !faltanDatosPaso1(borradorRef.current)) {
-      await guardar({ avisar: false });
-    }
+    await guardarPendiente();
     setPaso(Math.min(Math.max(destino, 0), PASOS.length - 1));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const cambiar = (transformacion: (b: BorradorCotizacion) => BorradorCotizacion) => {
-    setBorrador(transformacion);
-    edicionesRef.current += 1;
-    setEdiciones(edicionesRef.current);
-    // Al editar, la autorización anterior deja de valer: el servidor la borra al guardar.
-    setAutorizadaEn(null);
-  };
   const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
   // Todas las alertas: las generales y las de cada opción (margen bajo, precio a mano), sin repetir.
   const todasLasAlertas = resultado
@@ -298,6 +193,17 @@ export function AsistenteCotizacion({
             clientes={clientes}
             vendedores={vendedores}
             puedeElegirVendedor={puedeElegirVendedor}
+            alSincronizarCliente={(b, { km, zona }) => ({
+              ...b,
+              entrada: {
+                ...b.entrada,
+                operacion: {
+                  ...b.entrada.operacion,
+                  viaticos: zona ? { ...b.entrada.operacion.viaticos, tipo: zona } : b.entrada.operacion.viaticos,
+                  traslado: km !== undefined ? { ...b.entrada.operacion.traslado, kmPorTrayecto: km } : b.entrada.operacion.traslado,
+                },
+              },
+            })}
           />
         )}
         {paso === 1 && (
@@ -421,26 +327,29 @@ export function AsistenteCotizacion({
 }
 
 /** Lo que falta para calcular, con un botón para ir directo al paso donde se captura. */
-function AvisoPendiente({
+export function AvisoPendiente({
   pendiente,
   pasoActual,
   irAlPaso,
+  pasos = PASOS,
 }: {
   pendiente: Pendiente;
   pasoActual: number;
   irAlPaso: (paso: number) => void;
+  /** Nombres de los pasos del asistente (física o digital). */
+  pasos?: readonly string[];
 }) {
   return (
     <div className="space-y-2 rounded-md border border-accent/40 bg-accent/5 p-3 text-sm">
       <p className="flex items-start gap-2">
         <TriangleAlert className="mt-0.5 size-4 shrink-0 text-accent" />
         <span>
-          <span className="font-medium">Falta en “{PASOS[pendiente.paso]}”:</span> {pendiente.mensaje}
+          <span className="font-medium">Falta en “{pasos[pendiente.paso]}”:</span> {pendiente.mensaje}
         </span>
       </p>
       {pendiente.paso !== pasoActual && (
         <Button type="button" size="sm" variant="outline" onClick={() => irAlPaso(pendiente.paso)}>
-          Ir a {PASOS[pendiente.paso]} <ChevronRight />
+          Ir a {pasos[pendiente.paso]} <ChevronRight />
         </Button>
       )}
     </div>
@@ -519,7 +428,7 @@ function ComposicionDelCosto({
 }
 
 /** Cómo va el guardado automático, al pie del precio en vivo. */
-function EstadoGuardado({
+export function EstadoGuardado({
   estado,
   guardadoEn,
   reintentar,
@@ -576,14 +485,21 @@ function ReventaEnVivo({
 }
 
 /** Las alertas por revisar: al abrirlas dicen qué pasa, qué hacer y llevan al paso donde se corrige. */
-function ListaAlertas({
+export function ListaAlertas({
   alertas,
   pasoActual,
   irAlPaso,
+  pasos = PASOS,
+  pasoDe = pasoDeAlerta,
+  queHacer = QUE_HACER_ALERTA,
 }: {
   alertas: { codigo: string; mensaje: string }[];
   pasoActual: number;
   irAlPaso: (paso: number) => void;
+  pasos?: readonly string[];
+  /** Dónde se revisa cada alerta. */
+  pasoDe?: (codigo: string) => number;
+  queHacer?: Record<string, string>;
 }) {
   const [abierta, setAbierta] = useState(false);
   return (
@@ -601,14 +517,14 @@ function ListaAlertas({
       {abierta && (
         <ul className="space-y-2">
           {alertas.map((alerta, i) => {
-            const destino = pasoDeAlerta(alerta.codigo);
+            const destino = pasoDe(alerta.codigo);
             return (
               <li key={i} className="space-y-1 rounded-md border border-accent/30 bg-accent/5 p-2 text-xs">
                 <p>{alerta.mensaje}</p>
-                {QUE_HACER_ALERTA[alerta.codigo] && <p className="text-muted-foreground">{QUE_HACER_ALERTA[alerta.codigo]}</p>}
+                {queHacer[alerta.codigo] && <p className="text-muted-foreground">{queHacer[alerta.codigo]}</p>}
                 {destino !== pasoActual ? (
                   <button type="button" onClick={() => irAlPaso(destino)} className="font-medium text-accent underline underline-offset-2">
-                    Ir a {PASOS[destino]}
+                    Ir a {pasos[destino]}
                   </button>
                 ) : (
                   <p className="font-medium text-accent">Está en este paso.</p>

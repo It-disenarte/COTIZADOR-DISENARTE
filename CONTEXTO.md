@@ -169,6 +169,39 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   (`pasoDeAlerta` en `src/lib/cotizador/pasos.ts`).
 - El PDF se genera al momento, **nunca se guarda en disco**.
 
+### 6.1 Digitalización (segundo tipo de cotización)
+
+Además de la publicidad física, hay cotizaciones de **Digitalización**: páginas web, identidad de marca, Google y
+redes sociales. La columna `cotizaciones.tipo` (`fisica` | `digital`) las distingue. Una cotización no cambia de
+tipo después de creada (409 `TIPO_DISTINTO`). En la lista, "Nueva" ofrece dos botones y las digitales llevan su
+etiqueta. Se abre con `/cotizaciones/nueva?tipo=digital`.
+
+- **Aquí no se usa la fórmula del PNO.** Son **precios de lista**, sin costo directo ni margen. Viven en el
+  catálogo `servicios_digitales` (Catálogo → "Servicios digitales").
+- **IVA:** los paquetes en **renta ya incluyen IVA** (activación + mensualidad × meses). **Todo lo demás lleva IVA
+  aparte**: el paquete en modalidad dueño, lo hecho a la medida y cualquier otro servicio.
+- **Cobros:** `paquete` (tiene precio dueño, mensualidad, activación y meses de renta), `unico` o `mensual`.
+  Con modalidad "ambas", el PDF muestra una página de renta y otra de dueño para que el cliente compare.
+- **Lo hecho a la medida no tiene precio base:** cada módulo o sección se escribe a mano y, con "Guardar en el
+  catálogo", queda como servicio para futuros proyectos. Los extras sembrados sin precio ("por capturar") se
+  pueden cotizar, pero no autorizar hasta tener precio.
+- **Pagos del modo dueño:** anticipo 70% y finiquito 30%, editable si se acuerda otra cosa con el cliente. El
+  anticipo se calcula sobre el total con IVA.
+- **Promociones:** hay dos predeterminadas (10% de contado + capacitación; 25% en 48 h + 1 año de soporte),
+  apagadas. Se activan y se ajustan por cotización. Solo aplican a los pagos únicos. Hay alerta si están vencidas
+  o si el descuento pasa de 30%.
+- **Brief del cliente:** el cliente llena el Google Forms. Se sube el CSV de respuestas, se elige su fila y la IA
+  propone paquete, extras, alcance, lo que no incluye y los supuestos, **solo del catálogo y sin precios**. Todo se
+  revisa antes de aplicarlo.
+- Pasos: **Datos → Servicios → Brief del cliente → Pago y promociones → Resumen**. Usa el mismo guardado
+  automático (`use-guardado.ts`), la misma autorización y los mismos mensajes de correo/WhatsApp.
+- **PDF:** mismo marco de Canva y mismo diseño, con textos propios (`src/lib/pdf/textos-digital.ts`): por qué,
+  proceso, entregables y funcionalidad web (solo si lleva página), lo que no incluye y condiciones.
+- Archivos: `motor/digital.ts` (cálculo puro), `validacion/digital.ts`, `cotizador/estado-digital.ts`,
+  `cotizador/brief.ts` (lector del CSV), `ia/brief.ts`, `pdf/digital.ts`, `servicios/servicios-digitales.ts`,
+  `components/cotizador/asistente-digital.tsx`, `pasos-digital.tsx` y `paso-brief.tsx`. Pruebas:
+  `tests/digital.test.ts` y `tests/digitalizacion-api.test.ts`.
+
 ---
 
 ## 7. Decisiones tomadas (y por qué)
@@ -193,6 +226,9 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
 | Sin búsqueda de precios de reventa con IA | El dueño la consideró irrelevante (sept. 2026): el precio de compra se captura a mano |
 | Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |
+| Digitalización con precios de lista | Los servicios digitales no tienen costo directo; el dueño fija precios de lista (sept. 2026) |
+| Renta con IVA incluido; lo demás IVA aparte | Así se ofrecen los paquetes; el modo dueño, lo hecho a la medida y los extras llevan IVA aparte |
+| Digitalización usa el mismo PDF | Mismo diseño de Canva, solo cambian los textos |
 
 ---
 
@@ -216,7 +252,8 @@ Detalles que costaron trabajo y conviene no volver a descubrir:
 
 ### Gemini (`src/lib/ia/`)
 
-Cinco tareas: leer levantamiento, redactar alcance, leer listas de costos, redactar el
+Seis tareas: leer levantamiento, redactar alcance, leer listas de costos, leer el **brief** de Digitalización
+(propone servicios del catálogo por número; los que no existen se descartan), redactar el
 mensaje para mandar la propuesta (correo o WhatsApp, cada uno con su botón) y proponer el **nombre para el
 cliente** de los insumos (Catálogo → Insumos → "Sugerir con IA"; se revisa antes de guardar). Reglas que ya están aplicadas:
 
@@ -282,6 +319,10 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 - Costo del estireno cal. 20 y cal. 40, y del vinil fotoluminiscente.
 - Rendimiento real de la Mazda CX-30 (quedó 14 km/L como punto de partida).
 - Respaldo de la base de datos fuera del VPS.
+- Precios de los servicios digitales sembrados "por capturar" (página adicional, tienda en línea, logotipo,
+  manual, fichas de Google, redes sociales, etc.).
+- Condiciones de Digitalización por confirmar: forma de pago de la renta, de quién es el sitio en renta y los
+  días de aviso para cancelar servicios mensuales.
 
 **Mejoras posibles, ya conversadas:**
 
@@ -296,4 +337,4 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 
 Se construyó por fases: base y autenticación → catálogo → motor de cálculo → asistente → PDF → duplicar e IA →
 identidad de marca → importación de costos → kilómetros automáticos → alineación con el PNO-COM-01 → correo y
-WhatsApp. El `README.md` conserva las decisiones de cada fase con su justificación.
+WhatsApp → Digitalización (páginas web y servicios digitales). El `README.md` conserva las decisiones de cada fase con su justificación.

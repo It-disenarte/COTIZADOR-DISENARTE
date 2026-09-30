@@ -37,7 +37,7 @@ const RAIZ_PDF = path.join(process.cwd(), "src", "lib", "pdf");
 
 // El marco y las fuentes no cambian entre peticiones: se leen del disco una sola vez.
 let archivos: Promise<{ marco: Buffer; regular: Buffer; negrita: Buffer }> | null = null;
-function leerArchivos() {
+export function leerArchivos() {
   archivos ??= Promise.all([
     readFile(path.join(RAIZ_PDF, "plantillas", "marco.pdf")),
     readFile(path.join(RAIZ_PDF, "fuentes", "Poppins-Regular.ttf")),
@@ -133,7 +133,7 @@ async function incrustarImagen(doc: PDFDocument, imagen: ImagenPdf | undefined):
  * por el sangrado) y pdf-lib, por defecto, recorta desde (0, 0). Por eso se le pasa
  * la caja real: si no, el diseño sube 8.58 pt y queda una franja blanca abajo.
  */
-function incrustarFondos(doc: PDFDocument, paginas: PDFPage[]): Promise<PDFEmbeddedPage[]> {
+export function incrustarFondos(doc: PDFDocument, paginas: PDFPage[]): Promise<PDFEmbeddedPage[]> {
   const cajas = paginas.map((pagina) => {
     const caja = pagina.getMediaBox();
     return { left: caja.x, bottom: caja.y, right: caja.x + caja.width, top: caja.y + caja.height };
@@ -146,7 +146,12 @@ function dibujarFondo(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
   lienzo.pagina.drawPage(fondo, { x: 0, y: 0, width: PAGINA.ancho, height: PAGINA.alto });
 }
 
-function portada(lienzo: Lienzo, fondo: PDFEmbeddedPage, datos: DatosPdf) {
+/** Portada: también la usa el PDF de Digitalización (solo necesita los datos de la cotización). */
+export function portada(
+  lienzo: Lienzo,
+  fondo: PDFEmbeddedPage,
+  datos: Pick<DatosPdf, "titulo" | "fecha" | "folio" | "solicitante" | "cliente" | "asesor">,
+) {
   lienzo.pagina = lienzo.doc.addPage([PAGINA.ancho, PAGINA.alto]);
   dibujarFondo(lienzo, fondo);
   const blanco = COLOR.blanco;
@@ -201,7 +206,7 @@ function portada(lienzo: Lienzo, fondo: PDFEmbeddedPage, datos: DatosPdf) {
   lienzo.textoEn(sitio, 304.5 - lienzo.anchoDe(sitio, 13, true) / 2, 14, { tamano: 13, negrita: true, color: COLOR.morado });
 }
 
-function marcoInterior(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
+export function marcoInterior(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
   dibujarFondo(lienzo, fondo);
 
   const blanco = COLOR.blanco;
@@ -275,7 +280,7 @@ function consolidado(lienzo: Lienzo, datos: DatosPdf) {
   lienzo.texto(`Área total de producción: ${levantamiento.areaM2} m²`, { tamano: 9, color: COLOR.suave });
 }
 
-const columnasCotizacion = (): Columna[] => [
+export const columnasCotizacion = (): Columna[] => [
   { titulo: "Cantidad", ancho: 66, alineacion: "centro" },
   { titulo: "Tiempo estimado", ancho: 76, alineacion: "centro" },
   { titulo: "Resumen de alcance", ancho: 190 },
@@ -380,7 +385,7 @@ function materialesAdicionales(lienzo: Lienzo, datos: DatosPdf) {
   cierreDeCotizacion(lienzo, datos);
 }
 
-function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal" | "descuento" | "iva" | "total">) {
+export function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal" | "descuento" | "iva" | "total">) {
   const ancho = 200;
   const x = PAGINA.ancho - MARGEN.x - ancho - 8;
   const renglones: [string, string][] = [["Subtotal", variante.subtotal]];

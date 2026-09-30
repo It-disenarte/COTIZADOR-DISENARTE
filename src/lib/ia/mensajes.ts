@@ -87,7 +87,18 @@ export type DatosMensajes = {
   supuestos: string | null;
   vigenciaDias: string | null;
   /** Solo precios de venta: el desglose de costos jamás sale de la empresa. */
-  opciones: { nombre: string; descripcion: string | null; modalidad: string; subtotal: string; iva: string; total: string }[];
+  opciones: {
+    nombre: string;
+    descripcion: string | null;
+    modalidad: string;
+    subtotal: string;
+    iva: string;
+    total: string;
+    /** Digitalización: las formas de pago ya en texto (renta, anticipo, promociones), en lugar del subtotal. */
+    precioTexto?: string;
+  }[];
+  /** Digitalización: sin piezas, envío ni instalación. */
+  digital?: boolean;
   reventa: { nombre: string; cantidad: string; subtotal: string }[];
 };
 
@@ -99,10 +110,11 @@ export async function redactarMensaje(actor: UsuarioSesion, datos: DatosMensajes
     datos.resumen ? `Resumen del alcance: ${datos.resumen}` : null,
     `Cliente: ${datos.empresa ?? "sin empresa"} — contacto ${datos.contacto}${datos.puesto ? `, ${datos.puesto}` : ""}`,
     `Asesor que firma: ${datos.asesor ?? "el equipo de Diseñarte México"}`,
-    `Piezas: ${datos.piezas}${datos.areas.length ? ` en ${datos.areas.join(", ")}` : ""}`,
+    datos.digital ? "Tipo de proyecto: servicios digitales (página web, identidad, redes o Google)" : null,
+    datos.digital ? null : `Piezas: ${datos.piezas}${datos.areas.length ? ` en ${datos.areas.join(", ")}` : ""}`,
     `Tiempo de entrega: ${datos.tiempoEstimado || "por confirmar"}`,
-    `Incluye envío: ${datos.incluyeEnvio ? "sí" : "no"}`,
-    `Incluye instalación: ${datos.incluyeInstalacion ? "sí" : "no"}`,
+    datos.digital ? null : `Incluye envío: ${datos.incluyeEnvio ? "sí" : "no"}`,
+    datos.digital ? null : `Incluye instalación: ${datos.incluyeInstalacion ? "sí" : "no"}`,
     datos.retiroGraficosPrevios ? "Incluye retiro de gráficos previos." : null,
     datos.notasSuperficie ? `Condición de la superficie: ${datos.notasSuperficie}` : null,
     datos.noIncluye ? `NO incluye: ${datos.noIncluye}` : null,
@@ -113,7 +125,7 @@ export async function redactarMensaje(actor: UsuarioSesion, datos: DatosMensajes
     ...datos.opciones.map(
       (o) =>
         `- ${o.modalidad}${o.nombre ? ` · ${o.nombre}` : ""}${o.descripcion ? ` (${o.descripcion})` : ""}: ` +
-        `subtotal ${dinero(o.subtotal)}, IVA ${dinero(o.iva)}, total ${dinero(o.total)}`,
+        (o.precioTexto ?? `subtotal ${dinero(o.subtotal)}, IVA ${dinero(o.iva)}, total ${dinero(o.total)}`),
     ),
     ...(datos.reventa.length
       ? ["Materiales adicionales:", ...datos.reventa.map((r) => `- ${r.cantidad} × ${r.nombre}: ${dinero(r.subtotal)}`)]

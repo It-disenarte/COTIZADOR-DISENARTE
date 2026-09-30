@@ -91,6 +91,7 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
 /** Lo que se manda a la API (la validación de verdad ocurre en el servidor). */
 export function cuerpoParaGuardar(borrador: BorradorCotizacion) {
   return {
+    tipo: "fisica" as const,
     titulo: borrador.titulo,
     solicitante: borrador.solicitante,
     vendedorId: borrador.vendedorId,

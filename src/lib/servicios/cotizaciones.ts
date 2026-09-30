@@ -1,21 +1,25 @@
 import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { EstadoCotizacion } from "@/lib/catalogo/constantes";
+import type { EstadoCotizacion, TipoCotizacion } from "@/lib/catalogo/constantes";
 import { db } from "@/lib/db";
 import { clientes, cotizaciones, cotizacionVersiones, imagenesCotizacion, usuarios } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import {
   calcular,
+  calcularDigital,
   type EntradaCotizacion as EntradaMotor,
+  type EntradaDigital as EntradaDigitalMotor,
   ErrorMotor,
   normalizarEntrada,
   type ResultadoCotizacion,
+  type ResultadoDigital,
   type Snapshot,
 } from "@/lib/motor";
 import { requirePermiso, requireVerCotizacion, tienePermiso, type UsuarioSesion } from "@/lib/permisos";
-import { pasoDeErrorMotor, textoPendiente } from "@/lib/cotizador/pasos";
+import { PASOS_DIGITAL, pasoDeErrorDigital, pasoDeErrorMotor, textoPendiente } from "@/lib/cotizador/pasos";
 import { EntradaCotizacion, pendienteDeEntrada } from "@/lib/validacion/cotizacion";
 import type { GuardarCotizacion } from "@/lib/validacion/cotizaciones";
+import { EntradaDigital, pendienteDeEntradaDigital } from "@/lib/validacion/digital";
 import { exigirUuid, noEncontrado } from "./comun";
 import { obtenerSnapshot } from "./snapshot";
 
@@ -29,6 +33,7 @@ export type CotizacionResumen = {
   folio: string;
   titulo: string;
   estado: EstadoCotizacion;
+  tipo: TipoCotizacion;
   version: number;
   cliente: string | null;
   vendedor: string | null;
@@ -43,13 +48,14 @@ export type CotizacionDetalle = {
   titulo: string;
   solicitante: string | null;
   estado: EstadoCotizacion;
+  tipo: TipoCotizacion;
   version: number;
   vendedorId: string;
   vendedor: string | null;
   cliente: typeof clientes.$inferSelect | null;
   entrada: unknown;
-  /** null mientras el borrador está incompleto. */
-  resultado: ResultadoCotizacion | null;
+  /** null mientras el borrador está incompleto. La forma depende del tipo (física o digital). */
+  resultado: Resultado | null;
   actualizadoEn: Date;
   /** Fecha en que se autorizó el análisis de costos (PNO Fase 1). null = sin autorizar. */
   autorizadaEn: Date | null;
@@ -78,13 +84,15 @@ function jsonEstable(valor: unknown): string {
   );
 }
 
-type Calculo = { resultado: ResultadoCotizacion | null; pendiente: string | null };
+export type Resultado = ResultadoCotizacion | ResultadoDigital;
+type Calculo = { resultado: Resultado | null; pendiente: string | null };
 
 /**
  * Calcula solo si la entrada está completa. Un borrador se guarda aunque falten datos (o aunque
  * al catálogo le falte un costo); mientras tanto no tiene resultado y `pendiente` dice qué falta.
  */
-function intentarCalcular(entrada: unknown, snapshot: Snapshot): Calculo {
+function intentarCalcular(entrada: unknown, snapshot: Snapshot, tipo: TipoCotizacion = "fisica"): Calculo {
+  if (tipo === "digital") return intentarCalcularDigital(entrada, snapshot);
   const completa = EntradaCotizacion.safeParse(entrada);
   if (!completa.success) return { resultado: null, pendiente: pendienteDeEntrada(entrada) };
   try {
@@ -97,8 +105,25 @@ function intentarCalcular(entrada: unknown, snapshot: Snapshot): Calculo {
   }
 }
 
+/** Digitalización: precios de lista, sin fórmula del PNO. Solo necesita el IVA de los parámetros. */
+function intentarCalcularDigital(entrada: unknown, snapshot: Snapshot): Calculo {
+  const completa = EntradaDigital.safeParse(entrada);
+  if (!completa.success) return { resultado: null, pendiente: pendienteDeEntradaDigital(entrada) };
+  try {
+    return { resultado: calcularDigital(completa.data as EntradaDigitalMotor, snapshot.parametros.iva), pendiente: null };
+  } catch (error) {
+    if (error instanceof ErrorMotor) {
+      return {
+        resultado: null,
+        pendiente: textoPendiente({ paso: pasoDeErrorDigital(error.codigo), mensaje: error.message }, PASOS_DIGITAL),
+      };
+    }
+    throw error;
+  }
+}
+
 /** Lo que va al cliente (PDF, mensajes) necesita la cotización completa y calculada. */
-export function exigirResultado(cotizacion: { resultado: ResultadoCotizacion | null }): ResultadoCotizacion {
+export function exigirResultado(cotizacion: { resultado: Resultado | null }): Resultado {
   if (!cotizacion.resultado) {
     throw new ErrorHttp(409, "La cotización todavía está incompleta. Termina de capturarla en el asistente.", "COTIZACION_INCOMPLETA");
   }
@@ -129,9 +154,9 @@ export async function guardarCotizacion(
 ): Promise<{ id: string; folio: string; version: number; clienteId: string } & Calculo> {
   requirePermiso(actor, "cotizaciones.propias");
   const snapshot = await obtenerSnapshot(actor);
-  // Siempre se guarda en la forma actual, aunque llegue en la anterior (pestaña abierta de antes).
-  const entrada = normalizarEntrada(datos.entrada as EntradaMotor, snapshot);
-  const { resultado, pendiente } = intentarCalcular(entrada, snapshot);
+  // Física: siempre se guarda en la forma actual, aunque llegue en la anterior (pestaña abierta de antes).
+  const entrada = datos.tipo === "digital" ? datos.entrada : normalizarEntrada(datos.entrada as EntradaMotor, snapshot);
+  const { resultado, pendiente } = intentarCalcular(entrada, snapshot, datos.tipo);
 
   // Solo quien ve todas las cotizaciones puede cotizar a nombre de otra persona.
   const vendedorId = datos.vendedorId && tienePermiso(actor, "cotizaciones.ver_todas") ? datos.vendedorId : actor.id;
@@ -144,7 +169,7 @@ export async function guardarCotizacion(
       const folio = await generarFolio(tx);
       const [cotizacion] = await tx
         .insert(cotizaciones)
-        .values({ ...campos, folio, vendedorId, estado: "borrador", versionActual: 1 })
+        .values({ ...campos, folio, vendedorId, tipo: datos.tipo, estado: "borrador", versionActual: 1 })
         .returning();
       await tx.insert(cotizacionVersiones).values({
         cotizacionId: cotizacion.id,
@@ -162,6 +187,9 @@ export async function guardarCotizacion(
     if (!existente) noEncontrado("Cotización");
     requireVerCotizacion(actor, { vendedorId: existente.vendedorId });
     exigirEditable(existente);
+    if (existente.tipo !== datos.tipo) {
+      throw new ErrorHttp(409, "Esta cotización es de otro tipo. Para cambiarlo, crea una nueva.", "TIPO_DISTINTO");
+    }
 
     // Sin vendedor elegido, la cotización sigue siendo de quien la hizo (no de quien la edita).
     const vendedorFinal = datos.vendedorId && tienePermiso(actor, "cotizaciones.ver_todas") ? datos.vendedorId : existente.vendedorId;
@@ -220,12 +248,13 @@ export async function obtenerCotizacion(actor: UsuarioSesion | null, id: string)
     titulo: fila.cotizacion.titulo,
     solicitante: fila.cotizacion.solicitante,
     estado: fila.cotizacion.estado,
+    tipo: fila.cotizacion.tipo,
     version: version.version,
     vendedorId: fila.cotizacion.vendedorId,
     vendedor: fila.vendedor,
     cliente: fila.cliente,
     entrada: version.entrada,
-    resultado: (version.resultado as ResultadoCotizacion | null) ?? null,
+    resultado: (version.resultado as Resultado | null) ?? null,
     actualizadoEn: fila.cotizacion.actualizadoEn,
     autorizadaEn: fila.cotizacion.autorizadaEn,
     autorizadaPor: fila.autorizadaPor,
@@ -263,6 +292,7 @@ export async function listarCotizaciones(
     folio: f.cotizacion.folio,
     titulo: f.cotizacion.titulo,
     estado: f.cotizacion.estado,
+    tipo: f.cotizacion.tipo,
     version: f.cotizacion.versionActual,
     cliente: f.cliente ?? f.clienteContacto ?? null,
     vendedor: f.vendedor,
@@ -272,8 +302,9 @@ export async function listarCotizaciones(
   }));
 }
 
-/** Total de la primera opción: es el número que se muestra en la lista. */
+/** Total de la primera opción (en digital, lo que se paga al contratar): el número de la lista. */
 function totalDe(resultado: unknown): string | null {
+  if ((resultado as ResultadoDigital | null)?.tipo === "digital") return (resultado as ResultadoDigital).total;
   const r = resultado as ResultadoCotizacion | null;
   const variante = r?.opciones?.[0]?.variantes?.at(-1);
   return variante?.total ?? null;
@@ -300,9 +331,13 @@ export async function duplicarCotizacion(actor: UsuarioSesion | null, id: string
   if (!version) noEncontrado("Versión de la cotización");
 
   const snapshot = await obtenerSnapshot(actor);
-  // Las anteriores se copian ya en la forma actual: cada concepto con los insumos de su receta.
-  const entrada = normalizarEntrada(version.entrada as EntradaMotor, snapshot);
-  const recalculo = intentarCalcular(entrada, snapshot);
+  const digital = original.tipo === "digital";
+  // Las físicas anteriores se copian ya en la forma actual: cada concepto con los insumos de su receta.
+  // Las digitales se copian tal cual: cada servicio lleva su propio precio.
+  const entrada = digital
+    ? (version.entrada as EntradaDigitalMotor)
+    : normalizarEntrada(version.entrada as EntradaMotor, snapshot);
+  const recalculo = intentarCalcular(entrada, snapshot, original.tipo);
   const resultado: unknown = recalculo.resultado ?? version.resultado;
   const precios: unknown = recalculo.resultado ? snapshot : version.precios;
 
@@ -319,13 +354,20 @@ export async function duplicarCotizacion(actor: UsuarioSesion | null, id: string
         solicitante: original.solicitante,
         clienteId: original.clienteId,
         vendedorId: actor.id,
+        tipo: original.tipo,
         estado: "borrador",
         versionActual: 1,
       })
       .returning({ id: cotizaciones.id, folio: cotizaciones.folio });
 
+    if (digital) {
+      await tx.insert(cotizacionVersiones).values({ cotizacionId: nueva.id, version: 1, creadaPor: actor.id, entrada, precios, resultado });
+      return nueva;
+    }
+    const fisica = entrada as ReturnType<typeof normalizarEntrada>;
+
     // Las fotos se copian: así borrar la original no deja a la copia sin ellas.
-    const idsImagenes = entrada.opciones.map((o) => o.imagenId).filter((i): i is string => !!i);
+    const idsImagenes = fisica.opciones.map((o) => o.imagenId).filter((i): i is string => !!i);
     const mapaImagenes = new Map<string, string>();
     if (idsImagenes.length) {
       const imagenes = await tx
@@ -349,8 +391,8 @@ export async function duplicarCotizacion(actor: UsuarioSesion | null, id: string
     }
 
     const entradaCopia = {
-      ...entrada,
-      opciones: entrada.opciones.map((o) => ({ ...o, imagenId: o.imagenId ? (mapaImagenes.get(o.imagenId) ?? null) : null })),
+      ...fisica,
+      opciones: fisica.opciones.map((o) => ({ ...o, imagenId: o.imagenId ? (mapaImagenes.get(o.imagenId) ?? null) : null })),
     };
     await tx.insert(cotizacionVersiones).values({
       cotizacionId: nueva.id,
@@ -386,7 +428,7 @@ export async function autorizarCotizacion(actor: UsuarioSesion | null, id: strin
     .where(and(eq(cotizacionVersiones.cotizacionId, id), eq(cotizacionVersiones.version, existente.versionActual)));
   if (!version) noEncontrado("Versión de la cotización");
   if (!version.resultado) {
-    const { pendiente } = intentarCalcular(version.entrada, version.precios as Snapshot);
+    const { pendiente } = intentarCalcular(version.entrada, version.precios as Snapshot, existente.tipo);
     throw new ErrorHttp(
       409,
       `La cotización todavía está incompleta y no se puede autorizar. ${pendiente ?? "Termina de capturarla."}`,
