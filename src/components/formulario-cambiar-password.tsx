@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Button, Input, Label } from "@/components/ui";
 import { PASSWORD_MIN } from "@/lib/roles";
 import { llamarApi } from "@/lib/utils";
@@ -33,6 +34,7 @@ export function FormularioCambiarPassword() {
 
   return (
     <form onSubmit={enviar} className="space-y-4">
+      {enviando && <PantallaCarga mensaje="Guardando la contraseña…" />}
       <div className="space-y-2">
         <Label htmlFor="actual">Contraseña actual</Label>
         <Input id="actual" name="actual" type="password" autoComplete="current-password" required />

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Button, Input, Label } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
@@ -36,6 +37,8 @@ export function FormularioLogin() {
 
   return (
     <form onSubmit={enviar} className="space-y-4">
+      {/* Se queda hasta que abre el inicio: entrar tarda lo que el servidor arma la primera pantalla. */}
+      {enviando && <PantallaCarga mensaje="Entrando…" />}
       <div className="space-y-2">
         <Label htmlFor="email">Correo</Label>
         <Input id="email" name="email" type="email" autoComplete="username" required autoFocus />

@@ -3,7 +3,9 @@
 import { FilePlus2, FolderClock, House, KeyRound, LogOut, Package, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { Isotipo, Marca, TresPuntos } from "@/components/marca";
+import { PantallaCarga } from "@/components/pantalla-carga";
 import { authClient } from "@/lib/auth-client";
 import { ETIQUETA_ROL, type Permiso, tienePermiso, type UsuarioSesion } from "@/lib/permisos";
 import { cn } from "@/lib/utils";
@@ -20,26 +22,35 @@ const ELEMENTOS: Elemento[] = [
 ];
 
 /**
- * Barra lateral en el morado corporativo (#7C07A6) con el logo en su versión
- * positivo (blanco), como indica el manual para fondos de color.
+ * Barra lateral en el morado corporativo (#7C07A6) con el ícono de la app en su versión
+ * positivo (blanco), para que se distinga sobre el fondo de color.
  */
 export function Navegacion({ usuario }: { usuario: UsuarioSesion }) {
   const ruta = usePathname();
   const router = useRouter();
 
+  const [saliendo, setSaliendo] = useState(false);
+
+  // La pantalla de carga se queda hasta que abre el login (la barra desaparece con la sesión).
   async function salir() {
-    await authClient.signOut();
-    router.replace("/login");
-    router.refresh();
+    setSaliendo(true);
+    try {
+      await authClient.signOut();
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setSaliendo(false);
+    }
   }
 
   const visibles = ELEMENTOS.filter((e) => !e.permiso || tienePermiso(usuario, e.permiso));
 
   return (
     <aside className="flex flex-col bg-morado text-white md:sticky md:top-0 md:h-screen md:w-64">
-      {/* Escritorio: logo completo. Celular: isotipo y nombre, para no ocupar media pantalla. */}
+      {saliendo && <PantallaCarga mensaje="Cerrando sesión…" />}
+      {/* Escritorio: ícono y nombre grandes. Celular: más chicos, para no ocupar media pantalla. */}
       <div className="hidden px-6 pt-8 pb-6 md:block">
-        <Marca variante="positivo" ancho={132} conEtiqueta />
+        <Marca variante="positivo" tamano={44} />
       </div>
       <div className="flex items-center gap-3 px-4 py-3 md:hidden">
         <Isotipo variante="positivo" tamano={32} />

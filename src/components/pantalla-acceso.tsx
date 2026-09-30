@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 /**
  * Pantallas sin sesión (entrar, configuración inicial, cambiar contraseña).
- * Escritorio: bloque morado con el logo en positivo a la izquierda y el formulario sobre
- * la textura. Celular: logo a color arriba del formulario.
+ * Escritorio: bloque morado con el ícono de la app en positivo a la izquierda y el formulario
+ * sobre la textura. Celular: ícono a color arriba del formulario.
  */
 export function PantallaAcceso({
   titulo,
@@ -20,7 +20,7 @@ export function PantallaAcceso({
       <section className="relative hidden flex-col justify-between overflow-hidden bg-morado p-10 text-white md:flex">
         <TresPuntos className="self-end text-white" />
         <div className="space-y-8">
-          <Marca variante="positivo" ancho={190} className="items-start" />
+          <Marca variante="positivo" tamano={76} />
           <div className="filete-marca h-1 w-24 rounded-full" />
           <p className="max-w-xs text-lg font-light leading-snug text-white/90">
             Cotizador de comunicación visual, señalética e impresión.
@@ -31,7 +31,7 @@ export function PantallaAcceso({
 
       <section className="flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-sm space-y-6">
-          <Marca ancho={120} className="md:hidden" />
+          <Marca tamano={52} className="justify-center md:hidden" />
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between gap-3">

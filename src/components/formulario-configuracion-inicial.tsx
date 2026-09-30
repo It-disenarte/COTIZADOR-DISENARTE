@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Button, Input, Label } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 import { PASSWORD_MIN } from "@/lib/roles";
@@ -36,6 +37,7 @@ export function FormularioConfiguracionInicial() {
 
   return (
     <form onSubmit={enviar} className="space-y-4">
+      {enviando && <PantallaCarga mensaje="Creando la cuenta…" />}
       <div className="space-y-2">
         <Label htmlFor="nombre">Nombre</Label>
         <Input id="nombre" name="nombre" autoComplete="name" required minLength={2} autoFocus />
