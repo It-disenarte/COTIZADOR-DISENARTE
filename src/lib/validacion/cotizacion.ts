@@ -5,6 +5,32 @@ import { decimal, decimalOpcional, textoOpcional, textoRequerido, urlOpcional, U
 
 const entero = z.coerce.number().int().min(0).max(9999);
 
+const enBlanco = (v: unknown) => v === undefined || v === null || String(v).trim() === "" || Number(v) === 0;
+
+/**
+ * En una venta de pura reventa o maquila el levantamiento se queda vacío (la fila en blanco con que
+ * empieza toda cotización). Esas filas no cuentan si hay artículos de reventa o si toda la tabla está
+ * en blanco; en ese caso el aviso dice que falta un concepto o un artículo.
+ */
+function quitarFilasEnBlanco(entrada: unknown): unknown {
+  if (!entrada || typeof entrada !== "object") return entrada;
+  const e = entrada as { reventa?: unknown; levantamiento?: { filas?: unknown } };
+  if (!Array.isArray(e.levantamiento?.filas)) return entrada;
+  const todas = e.levantamiento.filas as Record<string, unknown>[];
+  const llenas = todas.filter(
+    (f) =>
+      !(
+        !String(f?.concepto ?? "").trim() &&
+        enBlanco(f?.anchoM) &&
+        enBlanco(f?.altoM) &&
+        (Array.isArray(f?.cantidades) ? f.cantidades : []).every(enBlanco)
+      ),
+  );
+  const hayReventa = Array.isArray(e.reventa) && e.reventa.length > 0;
+  if (!hayReventa && llenas.length > 0) return entrada;
+  return { ...e, levantamiento: { ...e.levantamiento, filas: llenas } };
+}
+
 /** Ids que genera el navegador para conceptos y opciones (no son de la base). */
 export const IdLocal = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/, { error: "Identificador inválido." });
 
@@ -50,16 +76,14 @@ function esquemaEntrada(modo: "borrador" | "completa") {
     escala: z.enum(["una_vez", "por_pieza"]),
   });
 
-  return z.object({
+  const objeto = z.object({
     levantamiento: z.object({
       areas: z
         .array(texto(100, "Nombra el área."))
         .min(minimo(1), { error: "Agrega al menos un área." })
         .max(50),
-      filas: z
-        .array(FilaLevantamiento)
-        .min(minimo(1), { error: "El levantamiento necesita al menos una fila." })
-        .max(500),
+      // El mínimo de una fila se revisa abajo: una venta de pura reventa o maquila no lleva conceptos.
+      filas: z.array(FilaLevantamiento).max(500),
     }),
     opciones: z
       .array(
@@ -172,6 +196,19 @@ function esquemaEntrada(modo: "borrador" | "completa") {
       )
       .max(50),
   });
+  if (borrador) return objeto;
+  return z.preprocess(
+    quitarFilasEnBlanco,
+    objeto.superRefine((entrada, ctx) => {
+      if (entrada.levantamiento.filas.length === 0 && entrada.reventa.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["levantamiento", "filas"],
+          message: "Agrega al menos un concepto, o artículos de reventa o maquila en el paso Reventa y maquila.",
+        });
+      }
+    }),
+  );
 }
 
 export const EntradaCotizacion = esquemaEntrada("completa");

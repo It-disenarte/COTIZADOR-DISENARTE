@@ -7,6 +7,8 @@ import { type Celda, COLOR, Lienzo, MARGEN, tabla } from "./lienzo";
 import { EMPRESA, MARCO, PAGINA } from "./marca";
 import {
   CONDICIONES_DIGITAL,
+  CONDICIONES_RENTA,
+  ENTREGABLES_RENTA,
   ENTREGABLES_WEB,
   FUNCIONALIDAD_WEB,
   LEYENDA_DIGITAL,
@@ -52,8 +54,8 @@ export async function generarPdfDigital(datos: DatosPdfDigital): Promise<Uint8Ar
   porQue(lienzo);
   proceso(lienzo);
   for (const escenario of datos.resultado.escenarios) presupuesto(lienzo, datos, escenario);
-  if (datos.incluyeWeb) entregables(lienzo);
-  condiciones(lienzo);
+  if (datos.incluyeWeb) entregables(lienzo, datos.resultado.escenarios.every((e) => e.clave === "renta"));
+  condiciones(lienzo, datos.resultado.escenarios.some((e) => e.renta));
 
   return doc.save();
 }
@@ -148,9 +150,9 @@ function presupuesto(lienzo: Lienzo, datos: DatosPdfDigital, escenario: Escenari
     renglones(
       lienzo,
       [
-        ["Activación inicial", `${formatoMoneda(escenario.renta.activacion)} MXN`],
-        [`Mensualidad × ${escenario.renta.meses} meses`, `${formatoMoneda(escenario.renta.mensualidad)} MXN`],
-        ["Total del primer año (IVA incluido)", `${formatoMoneda(escenario.renta.totalPrimerAno)} MXN`],
+        ["Activación (incluye el primer mes)", `${formatoMoneda(escenario.renta.activacion)} MXN`],
+        [`Mensualidad a partir del mes 2 (${escenario.renta.meses - 1} pagos)`, `${formatoMoneda(escenario.renta.mensualidad)} MXN`],
+        [`Total de los ${escenario.renta.meses} meses (IVA incluido)`, `${formatoMoneda(escenario.renta.totalPrimerAno)} MXN`],
       ],
       { destacado: true },
     );
@@ -232,18 +234,19 @@ function cierre(lienzo: Lienzo, datos: DatosPdfDigital) {
   lienzo.texto(LEYENDA_DIGITAL, { tamano: 7.5, color: COLOR.tenue, interlineado: 10.5 });
 }
 
-function entregables(lienzo: Lienzo) {
+function entregables(lienzo: Lienzo, soloRenta: boolean) {
   encabezado(lienzo, "Entregables");
-  for (const e of ENTREGABLES_WEB) lienzo.texto(`• ${e}`, { tamano: 10, interlineado: 15 });
+  for (const e of soloRenta ? ENTREGABLES_RENTA : ENTREGABLES_WEB) lienzo.texto(`• ${e}`, { tamano: 10, interlineado: 15 });
   lienzo.espacio(16);
   lienzo.titulo("Funcionalidad", { tamano: 16, color: COLOR.tinta });
   lienzo.espacio(12);
   for (const f of FUNCIONALIDAD_WEB) lienzo.texto(`• ${f}`, { tamano: 10, interlineado: 15 });
 }
 
-function condiciones(lienzo: Lienzo) {
+function condiciones(lienzo: Lienzo, conRenta: boolean) {
   encabezado(lienzo, "Condiciones comerciales");
-  CONDICIONES_DIGITAL.forEach((c, i) => {
+  // Las reglas de la renta solo se imprimen si la propuesta ofrece esa modalidad.
+  [...(conRenta ? CONDICIONES_RENTA : []), ...CONDICIONES_DIGITAL].forEach((c, i) => {
     lienzo.texto(`${i + 1}. ${c}`, { tamano: 8.8, color: COLOR.suave, interlineado: 12.5 });
     lienzo.espacio(4);
   });

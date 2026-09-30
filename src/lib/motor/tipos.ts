@@ -249,6 +249,14 @@ export type OpcionResultado = {
 
 export type ReventaResultado = {
   items: { nombre: string; cantidad: string; precioReferencia: string; unitario: string; subtotal: string; link: string | null; verificado: boolean }[];
+  /**
+   * Solo en cotizaciones de pura reventa o maquila (sin conceptos): diseño, envío, instalación y
+   * extras como filas aparte, con la fórmula del PNO. Con conceptos, la operación va en ellos.
+   */
+  operacion?: FilaPdf[];
+  /** Descuento por decisión rápida; solo en cotizaciones de pura reventa o maquila. */
+  descuento?: string;
+  /** Subtotal de artículos + operación, menos el descuento. */
   subtotal: string;
   iva: string;
   total: string;

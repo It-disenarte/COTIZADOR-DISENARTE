@@ -24,6 +24,7 @@ export async function mensajeDeCotizacion(actor: UsuarioSesion | null, id: strin
   }
   const entrada = cotizacion.entrada as EntradaCotizacion;
   const resultado = exigirResultado(cotizacion) as ResultadoCotizacion;
+  const soloReventa = resultado.opciones.length === 0;
 
   const datos: DatosMensajes = {
     folio: cotizacion.folio,
@@ -34,7 +35,9 @@ export async function mensajeDeCotizacion(actor: UsuarioSesion | null, id: strin
     contacto: cotizacion.cliente?.nombreContacto ?? cotizacion.solicitante ?? "el contacto",
     puesto: cotizacion.cliente?.puesto ?? null,
     asesor: cotizacion.vendedor,
-    piezas: resultado.levantamiento.piezas,
+    piezas: soloReventa
+      ? resultado.reventa.items.reduce((total, i) => total + Number(i.cantidad), 0).toString()
+      : resultado.levantamiento.piezas,
     // Solo las cotizaciones de antes reparten por áreas; ahora cada área es un concepto.
     areas: resultado.levantamiento.porArea.length > 1 ? resultado.levantamiento.porArea.map((a) => a.area) : [],
     tiempoEstimado: entrada?.tiempoEstimado ?? null,
@@ -46,7 +49,18 @@ export async function mensajeDeCotizacion(actor: UsuarioSesion | null, id: strin
     supuestos: entrada?.propuesta?.supuestos ?? null,
     vigenciaDias: entrada?.propuesta?.vigenciaDias == null ? null : String(entrada.propuesta.vigenciaDias),
     // Solo precios de venta: el desglose de costos no sale de la empresa (PNO 7.2 y 7.3.4).
-    opciones: resultado.opciones.flatMap((opcion) =>
+    opciones: soloReventa
+      ? [
+          {
+            nombre: cotizacion.titulo,
+            descripcion: null,
+            modalidad: "Propuesta",
+            subtotal: resultado.reventa.subtotal,
+            iva: resultado.reventa.iva,
+            total: resultado.reventa.total,
+          },
+        ]
+      : resultado.opciones.flatMap((opcion) =>
       opcion.variantes.map((v) => ({
         nombre: opcion.nombre,
         descripcion: opcion.descripcionPdf,
@@ -56,7 +70,10 @@ export async function mensajeDeCotizacion(actor: UsuarioSesion | null, id: strin
         total: v.total,
       })),
     ),
-    reventa: resultado.reventa.items.map((i) => ({ nombre: i.nombre, cantidad: i.cantidad, subtotal: i.subtotal })),
+    reventa: [
+      ...resultado.reventa.items.map((i) => ({ nombre: i.nombre, cantidad: i.cantidad, subtotal: i.subtotal })),
+      ...(resultado.reventa.operacion ?? []).map((f) => ({ nombre: f.concepto, cantidad: f.cantidad, subtotal: f.subtotal })),
+    ],
   };
 
   return redactarMensaje(actor as UsuarioSesion, datos, canal);
@@ -94,7 +111,7 @@ function datosDigitales(cotizacion: Awaited<ReturnType<typeof obtenerCotizacion>
     opciones: resultado.escenarios.map((e) => {
       const partes: string[] = [];
       if (e.renta) {
-        partes.push(`activación ${dinero(e.renta.activacion)} y ${dinero(e.renta.mensualidad)} al mes por ${e.renta.meses} meses, IVA incluido`);
+        partes.push(`activación ${dinero(e.renta.activacion)} (incluye el primer mes) y después ${dinero(e.renta.mensualidad)} al mes, IVA incluido`);
       }
       if (e.unico) {
         partes.push(

@@ -467,10 +467,17 @@ export function PasoReventa({ borrador, cambiar }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-medium">Artículos de reventa</h3>
+        <h3 className="font-medium">Artículos de reventa y maquila</h3>
         <p className="text-sm text-muted-foreground">
-          Producto que no fabricamos y solo revendemos: extintores, botiquines, detectores. Salen en el PDF en la página
-          “Materiales adicionales”. Si la cotización no lleva ninguno, deja este paso vacío.
+          Lo que no producimos nosotros: producto que solo revendemos (extintores, botiquines, detectores) o trabajo
+          que le encargamos a un proveedor (maquila). Los dos llevan la utilidad de reventa sobre lo que nos cuestan.
+          Si la cotización no lleva ninguno, deja este paso vacío.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Si <span className="font-medium text-foreground">todo</span> es reventa o maquila, deja vacía la tabla del
+          paso 2: el PDF sale con estos artículos como la cotización, y el diseño, el envío, la instalación y los extras
+          del paso Operación salen en filas aparte. Si también hay conceptos, estos artículos van en la hoja
+          “Materiales adicionales”.
         </p>
       </div>
 
@@ -491,9 +498,11 @@ export function PasoReventa({ borrador, cambiar }: Props) {
                   id={`reventa-nombre-${i}`}
                   value={item.nombre}
                   onChange={(e) => editarItem(i, { nombre: e.target.value })}
-                  placeholder="Detector de humo autónomo 9V"
+                  placeholder="Detector de humo autónomo 9V · Letras 3D en acero (maquila)"
                 />
-                <p className="text-xs text-muted-foreground">Así sale en el PDF: escríbelo como lo reconoce el cliente.</p>
+                <p className="text-xs text-muted-foreground">
+                  Así sale en el PDF: escríbelo como lo reconoce el cliente. No hace falta decir que es maquila.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`reventa-cantidad-${i}`}>Cantidad</Label>
@@ -516,7 +525,8 @@ export function PasoReventa({ borrador, cambiar }: Props) {
                   placeholder="0.00"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Precio de compra por pieza, sin IVA. La app le suma la utilidad de reventa sola.
+                  Precio de compra o lo que cobra el proveedor por pieza, sin IVA. La app le suma la utilidad de
+                  reventa sola.
                 </p>
               </div>
             </div>
@@ -552,7 +562,7 @@ export function PasoReventa({ borrador, cambiar }: Props) {
         variant="outline"
         onClick={() => editar([...items, { nombre: "", precioReferencia: "", cantidad: "1", link: "", verificado: false }])}
       >
-        <Plus /> Agregar artículo de reventa
+        <Plus /> Agregar artículo
       </Button>
     </div>
   );
@@ -585,6 +595,7 @@ export function PasoResumen({
 
   const descuento = borrador.entrada.ajustes.descuentoDecisionRapida;
   const { entrada } = borrador;
+  const soloReventa = resultado.opciones.length === 0;
 
   const editarPropuesta = (cambios: Partial<NonNullable<typeof entrada.propuesta>>) =>
     cambiar((b) => ({ ...b, entrada: { ...b.entrada, propuesta: { ...b.entrada.propuesta, ...cambios } } }));
@@ -602,8 +613,13 @@ export function PasoResumen({
           titulo: borrador.titulo,
           // Con una sola columna no hay reparto por áreas que describir: los conceptos ya lo dicen.
           areas: entrada.levantamiento.areas.length > 1 ? entrada.levantamiento.areas : [],
-          piezas: resultado.levantamiento.piezas,
-          recetas: resultado.opciones.map((o) => ({ nombre: o.nombre, descripcion: o.descripcionPdf })),
+          piezas: soloReventa
+            ? String(resultado.reventa.items.reduce((total, i) => total + Number(i.cantidad), 0))
+            : resultado.levantamiento.piezas,
+          // Sin conceptos, lo que se vende son los artículos de reventa o maquila.
+          recetas: soloReventa
+            ? resultado.reventa.items.map((i) => ({ nombre: i.nombre, descripcion: null }))
+            : resultado.opciones.map((o) => ({ nombre: o.nombre, descripcion: o.descripcionPdf })),
           tiempoEstimado: entrada.tiempoEstimado ?? null,
           incluyeEnvio: entrada.incluyeEnvio,
           incluyeInstalacion: entrada.operacion.instalacion.incluye,
@@ -796,15 +812,30 @@ export function PasoResumen({
       {resultado.reventa.items.length > 0 && (
         <Card>
           <CardContent className="space-y-2 pt-6">
-            <h3 className="font-medium">Materiales adicionales</h3>
+            <h3 className="font-medium">{soloReventa ? "Reventa y maquila" : "Materiales adicionales"}</h3>
+            {soloReventa && (
+              <p className="text-xs text-muted-foreground">
+                Artículos con la utilidad de reventa sobre lo que nos cuestan; la operación, con la fórmula del PNO.
+              </p>
+            )}
             {resultado.reventa.items.map((item, i) => (
-              <div key={i} className="flex justify-between text-sm">
+              <div key={i} className="flex justify-between gap-2 text-sm">
                 <span>
                   {item.cantidad} × {item.nombre}
+                  <span className="text-muted-foreground"> · nos cuesta {formatoMoneda(item.precioReferencia)} c/u</span>
                 </span>
                 <span>{formatoMoneda(item.subtotal)}</span>
               </div>
             ))}
+            {(resultado.reventa.operacion ?? []).map((f) => (
+              <div key={f.concepto} className="flex justify-between gap-2 text-sm">
+                <span>{f.concepto}</span>
+                <span>{formatoMoneda(f.subtotal)}</span>
+              </div>
+            ))}
+            {Number(resultado.reventa.descuento ?? 0) > 0 && (
+              <Renglon etiqueta="Descuento" valor={`-${resultado.reventa.descuento}`} />
+            )}
             <Renglon etiqueta="Subtotal" valor={resultado.reventa.subtotal} />
             <Renglon etiqueta="Total con IVA" valor={resultado.reventa.total} destacado />
           </CardContent>

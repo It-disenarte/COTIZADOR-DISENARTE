@@ -94,6 +94,7 @@ export type EscenarioDigital = {
     promociones: PromocionResultado[];
   } | null;
   filasRenta: FilaDigital[];
+  /** La activación ya incluye la primera mensualidad: después se pagan `meses − 1` mensualidades. */
   renta: { activacion: string; mensualidad: string; meses: number; totalPrimerAno: string } | null;
   filasMensuales: FilaDigital[];
   mensual: { subtotal: string; iva: string; total: string } | null;
@@ -172,7 +173,7 @@ export function calcularDigital(entrada: EntradaDigital, iva: Numerico, hoy = ne
         mensualidad = mensualidad.plus(mensual.times(cantidad));
         meses = Math.max(meses, mesesLinea);
         filasRenta.push(
-          fila(linea, mensual, cantidad, `${mesesLinea} mensualidades · activación ${money(alta)} · IVA incluido`),
+          fila(linea, mensual, cantidad, "Mensualidad a partir del mes 2; la activación cubre el primero · IVA incluido"),
         );
       } else if (linea.cobro === "mensual") {
         filasMensuales.push(fila(linea, exigir(linea.precio, linea, "el precio mensual"), cantidad, "Precio al mes"));
@@ -228,7 +229,7 @@ export function calcularDigital(entrada: EntradaDigital, iva: Numerico, hoy = ne
             activacion: activacion.toFixed(2),
             mensualidad: mensualidad.toFixed(2),
             meses,
-            totalPrimerAno: activacion.plus(mensualidad.times(meses)).toFixed(2),
+            totalPrimerAno: activacion.plus(mensualidad.times(Math.max(meses - 1, 0))).toFixed(2),
           }
         : null,
       filasMensuales,

@@ -306,6 +306,8 @@ export async function listarCotizaciones(
 function totalDe(resultado: unknown): string | null {
   if ((resultado as ResultadoDigital | null)?.tipo === "digital") return (resultado as ResultadoDigital).total;
   const r = resultado as ResultadoCotizacion | null;
+  // Pura reventa o maquila: no hay opciones, el total es el de los artículos con su operación.
+  if (r && r.opciones?.length === 0) return r.reventa?.total ?? null;
   const variante = r?.opciones?.[0]?.variantes?.at(-1);
   return variante?.total ?? null;
 }

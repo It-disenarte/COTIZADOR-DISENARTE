@@ -224,10 +224,10 @@ function TarjetaLinea({
             <Campo id={id("mensual")} etiqueta="Renta: mensualidad" ayuda="Con IVA incluido.">
               <Input id={id("mensual")} inputMode="decimal" value={txt(linea.precioMensual)} onChange={(e) => alCambiar({ precioMensual: e.target.value })} />
             </Campo>
-            <Campo id={id("activacion")} etiqueta="Renta: activación" ayuda="Con IVA incluido.">
+            <Campo id={id("activacion")} etiqueta="Renta: activación" ayuda="Primer pago; ya incluye la primera mensualidad. Con IVA incluido.">
               <Input id={id("activacion")} inputMode="decimal" value={txt(linea.activacion)} onChange={(e) => alCambiar({ activacion: e.target.value })} />
             </Campo>
-            <Campo id={id("meses")} etiqueta="Renta: meses">
+            <Campo id={id("meses")} etiqueta="Renta: meses" ayuda="Meses del plazo, contando el que cubre la activación. 12 = activación + 11 mensualidades.">
               <Input id={id("meses")} inputMode="numeric" value={txt(linea.mesesRenta)} onChange={(e) => alCambiar({ mesesRenta: e.target.value })} />
             </Campo>
           </div>
@@ -504,11 +504,11 @@ export function PasoResumenDigital({
                   </p>
                 ))}
                 <p className="flex justify-between gap-2 text-muted-foreground">
-                  <span>Activación</span>
+                  <span>Activación (incluye el primer mes)</span>
                   <span>{formatoMoneda(e.renta.activacion)}</span>
                 </p>
                 <p className="flex justify-between gap-2 font-medium">
-                  <span>Total del primer año</span>
+                  <span>Total de {e.renta.meses} meses</span>
                   <span>{formatoMoneda(e.renta.totalPrimerAno)}</span>
                 </p>
               </div>

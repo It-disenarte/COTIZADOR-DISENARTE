@@ -24,7 +24,7 @@ describe("Digitalización: paquete web en renta o como dueño", () => {
   it("en renta respeta los precios de lista con IVA incluido: activación + mensualidad", () => {
     const [renta] = calcularDigital(entrada({ modalidadWeb: "renta" }), "0.16").escenarios;
     expect(renta.clave).toBe("renta");
-    expect(renta.renta).toEqual({ activacion: "7540.00", mensualidad: "1102.00", meses: 12, totalPrimerAno: "20764.00" });
+    expect(renta.renta).toEqual({ activacion: "7540.00", mensualidad: "1102.00", meses: 12, totalPrimerAno: "19662.00" }); // la activación ya cubre el primer mes: 7,540 + 11 × 1,102
     expect(renta.unico).toBeNull();
     expect(renta.filasRenta[0].nota).toContain("IVA incluido");
   });

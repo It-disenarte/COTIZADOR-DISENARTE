@@ -103,7 +103,8 @@ export async function generarPdf(datos: DatosPdf): Promise<Uint8Array> {
   // Todas las páginas de cotización llevan el marco interior, con su encabezado y su pie.
   lienzo.alAbrirPagina = (l) => marcoInterior(l, fondoInterior);
 
-  consolidado(lienzo, datos);
+  // Una venta de pura reventa o maquila no tiene levantamiento que consolidar.
+  if (datos.resultado.opciones.length > 0) consolidado(lienzo, datos);
   for (const opcion of datos.resultado.opciones) {
     const imagen = await incrustarImagen(doc, datos.imagenes?.get(opcion.id ?? opcion.recetaId));
     for (const variante of opcion.variantes) {
@@ -358,19 +359,33 @@ function paginaDeOpcion(
   if (imagen) dibujarImagen(lienzo, imagen);
 }
 
+/**
+ * Artículos de reventa o maquila. Con conceptos es una hoja aparte ("Materiales adicionales"); en una
+ * venta de pura reventa o maquila es la cotización misma, con el proyecto arriba y la operación
+ * (diseño, envío, instalación) en sus propias filas.
+ */
 function materialesAdicionales(lienzo: Lienzo, datos: DatosPdf) {
   const { reventa } = datos.resultado;
   if (reventa.items.length === 0) return;
+  const soloReventa = datos.resultado.opciones.length === 0;
 
   lienzo.nuevaPagina();
-  lienzo.espacio(10);
-  lienzo.titulo("Materiales adicionales", { tamano: 16, color: COLOR.tinta });
+  lienzo.espacio(soloReventa ? 30 : 10);
+  lienzo.titulo(soloReventa ? datos.titulo : "Materiales adicionales", { tamano: 16, color: COLOR.tinta });
   lienzo.espacio(14);
+
+  if (soloReventa) {
+    const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
+    lienzo.texto(`Proyecto: ${concepto}`, { tamano: 9, negrita: true });
+    if (datos.alcance?.resumen?.trim()) lienzo.texto(datos.alcance.resumen.trim(), { tamano: 9 });
+    lienzo.espacio(10);
+  }
 
   const tiempo = datos.tiempoEstimado ?? "Por definir";
   const filas: Celda[][] = reventa.items.map((item) => {
     const alcance = [{ texto: `Concepto: ${item.nombre}`, negrita: true }];
-    if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
+    // Sin conceptos, el envío sale en su propia fila.
+    if (datos.incluyeEnvio && !soloReventa) alcance.push({ texto: "Incluye envío", negrita: true });
     return [
       item.cantidad,
       tiempo,
@@ -379,9 +394,23 @@ function materialesAdicionales(lienzo: Lienzo, datos: DatosPdf) {
       `${formatoMoneda(item.subtotal)} MXN`,
     ];
   });
+  for (const fila of reventa.operacion ?? []) {
+    filas.push([
+      fila.cantidad,
+      tiempo,
+      [{ texto: `Concepto: ${fila.concepto}`, negrita: true }],
+      [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
+      `${formatoMoneda(fila.subtotal)} MXN`,
+    ]);
+  }
 
-  tabla(lienzo, columnasCotizacion(), filas, { estilo: "reticula", tamano: 8.8, alturaMinima: 58, centrarVertical: true });
-  bloqueTotales(lienzo, { subtotal: reventa.subtotal, descuento: "0", iva: reventa.iva, total: reventa.total });
+  tabla(lienzo, columnasCotizacion(), filas, {
+    estilo: "reticula",
+    tamano: 8.8,
+    alturaMinima: soloReventa ? 48 : 58,
+    centrarVertical: true,
+  });
+  bloqueTotales(lienzo, { subtotal: reventa.subtotal, descuento: reventa.descuento ?? "0", iva: reventa.iva, total: reventa.total });
   cierreDeCotizacion(lienzo, datos);
 }
 

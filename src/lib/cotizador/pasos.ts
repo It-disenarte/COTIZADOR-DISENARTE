@@ -1,6 +1,6 @@
 // Pasos del asistente. Módulo puro: lo usan la pantalla y el servidor (para decir dónde falta algo).
 
-export const PASOS = ["Datos", "Levantamiento y materiales", "Opciones y fotos", "Operación", "Reventa", "Resumen"] as const;
+export const PASOS = ["Datos", "Levantamiento y materiales", "Opciones y fotos", "Operación", "Reventa y maquila", "Resumen"] as const;
 
 export const PASO = { datos: 0, levantamiento: 1, opciones: 2, operacion: 3, reventa: 4, resumen: 5 } as const;
 

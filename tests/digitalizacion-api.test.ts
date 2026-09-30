@@ -159,11 +159,13 @@ describe("Cotización de Digitalización", () => {
     expect(texto).toContain("Propuesta presupuestaria");
     expect(texto).toContain("Modalidad renta");
     expect(texto).toContain("Modalidad dueño");
-    expect(texto).toContain("Activación inicial");
     expect(texto).toContain("Promoción #1 por pago de contado: 10% de descuento");
     expect(texto).toContain("+ CAPACITACIÓN DEL PROYECTO");
     expect(texto).toContain("Sesión de fotografía o video.");
     expect(texto).toContain("Condiciones comerciales");
+    expect(texto).toContain("Activación (incluye el primer mes)");
+    expect(texto).toContain("La tolerancia es de 1 día");
+    expect(texto).toContain("hosting que Diseñarte administra");
     expect(texto).toContain("Entregables"); // lleva página web
     expect(texto).not.toMatch(/costo directo|margen|utilidad/i);
   });

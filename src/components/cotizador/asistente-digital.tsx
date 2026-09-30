@@ -241,9 +241,9 @@ export function AsistenteDigital({
                   <>
                     <p className="text-lg font-semibold">
                       {formatoMoneda(e.renta.mensualidad)}
-                      <span className="text-sm font-normal text-muted-foreground"> /mes × {e.renta.meses}</span>
+                      <span className="text-sm font-normal text-muted-foreground"> /mes desde el mes 2</span>
                     </p>
-                    <p className="text-muted-foreground">Activación {formatoMoneda(e.renta.activacion)} · IVA incluido</p>
+                    <p className="text-muted-foreground">Activación {formatoMoneda(e.renta.activacion)} con el primer mes · IVA incluido</p>
                   </>
                 )}
                 {e.unico && (

@@ -350,13 +350,21 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
   const entrada = normalizarEntrada(entradaCapturada, snapshot);
   const p = snapshot.parametros;
   const { piezas, detalle, resumen } = calcularLevantamiento(entrada);
-  if (piezas.lte(0)) throw new ErrorMotor("El levantamiento no tiene piezas.", "SIN_PIEZAS");
-  if (entrada.opciones.length === 0) throw new ErrorMotor("Agrega al menos una opción.", "SIN_OPCIONES");
-
   const margen = elegir(entrada.ajustes.margen, p.margen);
   const pctError = d(p.pctMargenError);
   const iva = d(p.iva);
   const alertasGenerales: Alerta[] = [];
+
+  // Venta de pura reventa o maquila: no hay nada que producir, así que no hay opciones de material.
+  // La propuesta es la tabla de artículos más la operación en filas aparte.
+  if (piezas.lte(0) && entrada.reventa.length > 0) {
+    alertasDeOperacion(entrada, snapshot, alertasGenerales);
+    const operacion = operacionAparte(entrada, snapshot, factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError));
+    const reventa = calcularReventa(entrada, snapshot, alertasGenerales, operacion);
+    return { levantamiento: resumen, opciones: [], reventa, alertas: dedupe(alertasGenerales) };
+  }
+  if (piezas.lte(0)) throw new ErrorMotor("El levantamiento no tiene piezas.", "SIN_PIEZAS");
+  if (entrada.opciones.length === 0) throw new ErrorMotor("Agrega al menos una opción.", "SIN_OPCIONES");
 
   // Un concepto sin piezas no se cotiza (p. ej. una fila que se dejó a medias).
   const conPiezas = detalle.filter((f) => f.piezas.gt(0));
@@ -458,7 +466,21 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
     return { id: opcion.id, recetaId: opcion.id, nombre: opcion.nombre, descripcionPdf: opcion.descripcion ?? null, variantes };
   });
 
-  // Alertas de operación (6.8)
+  alertasDeOperacion(entrada, snapshot, alertasGenerales);
+
+  const reventa = calcularReventa(entrada, snapshot, alertasGenerales);
+
+  return {
+    levantamiento: resumen,
+    opciones,
+    reventa,
+    alertas: dedupe(alertasGenerales),
+  };
+}
+
+/** Alertas de operación (6.8). */
+function alertasDeOperacion(entrada: EntradaNormalizada, snapshot: Snapshot, alertasGenerales: Alerta[]) {
+  const p = snapshot.parametros;
   const op = entrada.operacion;
   const sinTraslado = d(op.traslado.kmPorTrayecto).lte(0);
   if (op.instalacion.incluye && !op.trabajoEnInstalacionesDisenarte && op.viaticos.tipo === "foraneo" && sinTraslado) {
@@ -476,15 +498,39 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
       });
     }
   }
+}
 
-  const reventa = calcularReventa(entrada, snapshot, alertasGenerales);
+/**
+ * Operación de una venta de pura reventa o maquila, en filas aparte (así lo pidió el dueño): el
+ * diseño, la mano de obra en taller, el envío con la instalación y cada extra. Es trabajo propio,
+ * así que lleva la fórmula del PNO; lo que es por pieza se multiplica por las piezas vendidas.
+ */
+function operacionAparte(entrada: EntradaNormalizada, snapshot: Snapshot, factor: Decimal): FilaPdf[] {
+  const p = snapshot.parametros;
+  const op = entrada.operacion;
+  const piezas = suma(entrada.reventa.map((r) => d(vacio(r.cantidad) ? 0 : (r.cantidad as never))));
+  const fijos = calcularFijos(entrada, snapshot, true);
+  const instalacionPorPieza =
+    op.instalacion.incluye && op.instalacion.escalaPorPieza === true
+      ? d(op.instalacion.personas).times(d(op.instalacion.dias)).times(d(p.tarifaInstaladorDia)).times(piezas)
+      : CERO;
+  const produccion = d(op.produccion.personas).times(d(op.produccion.dias)).times(d(p.tarifaInstaladorDia));
+  const campo = suma([fijos.instalacion, instalacionPorPieza, fijos.viaticos, fijos.gasolina, fijos.casetas, fijos.hospedaje]);
+  const nombreCampo =
+    op.instalacion.incluye && entrada.incluyeEnvio ? "Envío e instalación" : op.instalacion.incluye ? "Instalación" : "Envío";
 
-  return {
-    levantamiento: resumen,
-    opciones,
-    reventa,
-    alertas: dedupe(alertasGenerales),
-  };
+  const partes: [string, Decimal][] = [
+    ["Diseño", fijos.diseno],
+    ["Mano de obra en taller", produccion],
+    [nombreCampo, campo],
+    ...op.extras.map((e): [string, Decimal] => [e.concepto || "Extra", d(e.monto).times(e.escala === "por_pieza" ? piezas : 1)]),
+  ];
+  return partes
+    .filter(([, costo]) => costo.gt(0))
+    .map(([concepto, costo]) => {
+      const precio = round2(costo.times(factor));
+      return { concepto, cantidad: "1", unitario: precio.toFixed(2), subtotal: precio.toFixed(2) };
+    });
 }
 
 /**
@@ -641,7 +687,7 @@ function calcularVariante(args: {
 // Reventa (6.7): markup sin margen de venta ni margen de error
 // ---------------------------------------------------------------------------
 
-function calcularReventa(entrada: EntradaNormalizada, snapshot: Snapshot, alertas: Alerta[]): ReventaResultado {
+function calcularReventa(entrada: EntradaNormalizada, snapshot: Snapshot, alertas: Alerta[], operacion?: FilaPdf[]): ReventaResultado {
   const p = snapshot.parametros;
   const items = entrada.reventa.map((articulo) => {
     const unitario = round2(d(articulo.precioReferencia).times(d(p.pctReventa).plus(1)));
@@ -660,9 +706,17 @@ function calcularReventa(entrada: EntradaNormalizada, snapshot: Snapshot, alerta
     };
   });
 
-  const subtotal = round2(suma(items.map((i) => d(i.subtotal))));
+  // Con conceptos, el descuento ya se restó en su opción; sin ellos, se resta aquí.
+  const descuento = operacion ? elegir(entrada.ajustes.descuentoDecisionRapida?.monto, 0) : CERO;
+  const subtotal = round2(suma([...items, ...(operacion ?? [])].map((i) => d(i.subtotal))).minus(descuento));
   const total = round2(subtotal.times(d(p.iva).plus(1)));
-  return { items, subtotal: subtotal.toFixed(2), iva: total.minus(subtotal).toFixed(2), total: total.toFixed(2) };
+  return {
+    items,
+    ...(operacion ? { operacion, descuento: money(descuento) } : {}),
+    subtotal: subtotal.toFixed(2),
+    iva: total.minus(subtotal).toFixed(2),
+    total: total.toFixed(2),
+  };
 }
 
 const dedupe = (alertas: Alerta[]): Alerta[] => {

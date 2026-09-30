@@ -57,6 +57,12 @@ export const ENTREGABLES_WEB = [
   "1 año del dominio (después se renueva).",
 ];
 
+/** En renta el sitio se queda en nuestro hosting: no se entregan accesos ni se renueva aparte. */
+export const ENTREGABLES_RENTA = [
+  "Sitio publicado en el hosting que administra Diseñarte, con dominio y correos, mientras dure la renta.",
+  "Actualizaciones incluidas en tu paquete cada mes.",
+];
+
 export const FUNCIONALIDAD_WEB = [
   "Diseño adaptado a celular y computadora.",
   "Optimización de la velocidad de carga.",
@@ -72,12 +78,18 @@ export const NO_INCLUYE_DIGITAL = [
   "Restauraciones por errores o cambios hechos por terceros después de la entrega, y recuperación de información generada durante el desarrollo.",
 ].join("\n");
 
+export const CONDICIONES_RENTA = [
+  "Modalidad renta: el primer pago es la activación, que ya incluye la primera mensualidad. A partir del segundo mes se paga la mensualidad cada mes.",
+  "Te enviamos recordatorios días antes de la fecha de pago, el mismo día y el último día de tolerancia. La tolerancia es de 1 día: si la mensualidad no se paga, el sitio se da de baja y se vuelve a habilitar en cuanto se cubre el pago.",
+  "Mientras el sitio esté en renta, el dominio y el sitio permanecen en el hosting que Diseñarte administra para sus clientes.",
+];
+
 export const CONDICIONES_DIGITAL = [
   "Forma de pago de los servicios de pago único y de la modalidad dueño: anticipo y finiquito al entregar, según los porcentajes indicados en esta propuesta.",
   "El plazo de entrega empieza a contar cuando se cumplen tres condiciones: anticipo recibido, brief contestado y entrega de los contenidos (logotipo, textos y fotografías).",
   "Cualquier demora en la información o en las aprobaciones del cliente pausa el conteo, y la fecha de entrega se reprograma.",
   "Las rondas de cambios son las incluidas en cada paquete. Los cambios adicionales, o los que excedan el 10% del diseño aprobado, se cotizan aparte.",
-  "El dominio y los correos incluyen 1 año de servicio; después de ese año deben renovarse.",
+  "En la modalidad dueño, el dominio y los correos incluyen 1 año de servicio; después de ese año deben renovarse.",
   "En la modalidad dueño, al liquidar se entregan todos los accesos del sitio.",
   "Los textos, imágenes y datos los proporciona el cliente. La producción de fotografía o video no está incluida.",
   "Los precios no incluyen IVA, salvo los paquetes en modalidad renta, que ya lo incluyen.",

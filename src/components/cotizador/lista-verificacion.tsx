@@ -24,10 +24,12 @@ export function ListaVerificacion({
   const { entrada } = borrador;
   const conTexto = (valor: unknown) => typeof valor === "string" && valor.trim().length > 0;
   const utilidadMinima = Math.min(...resultado.opciones.flatMap((o) => o.variantes.map((v) => Number(v.margenReal))));
+  // Una venta de pura reventa o maquila no lleva la comprobación del 30%: su utilidad es la de reventa.
+  const soloReventa = resultado.opciones.length === 0;
   const sinRevisar = resultado.alertas.some((a) => a.codigo === "INSUMO_POR_REVISAR");
   const reventaSinVerificar = entrada.reventa.some((r) => !r.verificado);
 
-  const puntos: Punto[] = [
+  const posibles: (Punto | null)[] = [
     {
       texto: "Datos del cliente completos, con puesto del contacto",
       ok: conTexto(borrador.cliente.nombreContacto) && conTexto(borrador.cliente.puesto),
@@ -45,12 +47,14 @@ export function ListaVerificacion({
       obligatorio: true,
       nota: "Quitarlo requiere autorización expresa de la Dirección (PNO 5.3).",
     },
-    {
-      texto: "La utilidad comprobada llega al 30%",
-      ok: Number.isFinite(utilidadMinima) && utilidadMinima >= 0.3,
-      obligatorio: true,
-      nota: "Revisa el cálculo: la comprobación del apartado 6.8 quedó por debajo de lo autorizado.",
-    },
+    soloReventa
+      ? null
+      : {
+          texto: "La utilidad comprobada llega al 30%",
+          ok: Number.isFinite(utilidadMinima) && utilidadMinima >= 0.3,
+          obligatorio: true,
+          nota: "Revisa el cálculo: la comprobación del apartado 6.8 quedó por debajo de lo autorizado.",
+        },
     {
       texto: "El precio de reventa está verificado",
       ok: !reventaSinVerificar,
@@ -78,6 +82,7 @@ export function ListaVerificacion({
       nota: "Sin autorización no se puede generar ni enviar la propuesta (punto de control de la Fase 1).",
     },
   ];
+  const puntos = posibles.filter((p): p is Punto => p !== null);
 
   const faltantes = puntos.filter((p) => !p.ok && p.obligatorio).length;
 

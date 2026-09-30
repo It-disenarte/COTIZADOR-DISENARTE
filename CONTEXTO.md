@@ -117,7 +117,7 @@ números aunque cambien los precios: el snapshot se guarda con cada versión.
 
 ## 6. Cómo funciona el cotizador
 
-Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y fotos → Operación → Reventa → Resumen**.
+Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y fotos → Operación → Reventa y maquila → Resumen**.
 
 - El **cliente** se captura dentro de la cotización (no hay pantalla de clientes) y se guarda solo.
 - El **levantamiento** es una tabla de conceptos con **una sola columna "Cantidad"**. Si algo va en varias áreas,
@@ -168,6 +168,12 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   página. Las **alertas** se abren con un clic: cada una dice qué hacer y lleva al paso donde se corrige
   (`pasoDeAlerta` en `src/lib/cotizador/pasos.ts`).
 - El PDF se genera al momento, **nunca se guarda en disco**.
+- **Reventa y maquila** (paso 5): lo que no producimos (producto que se revende o trabajo encargado a un proveedor)
+  lleva el 35% de `pct_reventa` sobre lo que nos cuesta; maquila y reventa se tratan igual. Si **todo** es reventa o
+  maquila, la tabla del paso 2 se deja vacía: el resultado no trae opciones (`opciones: []`), el PDF no lleva
+  consolidado y los artículos son la cotización, con la operación (diseño, mano de obra, envío e instalación, extras)
+  en **filas aparte** con la fórmula del PNO (`reventa.operacion`). El descuento por decisión rápida se resta ahí.
+  Con conceptos, los artículos siguen en la hoja "Materiales adicionales" y la operación va en los conceptos.
 
 ### 6.1 Digitalización (segundo tipo de cotización)
 
@@ -178,7 +184,11 @@ etiqueta. Se abre con `/cotizaciones/nueva?tipo=digital`.
 
 - **Aquí no se usa la fórmula del PNO.** Son **precios de lista**, sin costo directo ni margen. Viven en el
   catálogo `servicios_digitales` (Catálogo → "Servicios digitales").
-- **IVA:** los paquetes en **renta ya incluyen IVA** (activación + mensualidad × meses). **Todo lo demás lleva IVA
+- **Renta:** ya **incluye IVA**. El primer pago es la activación, que **incluye el primer mes**; después se paga la
+  mensualidad (12 meses = activación + 11 mensualidades). Tolerancia de 1 día: sin pago, el sitio se da de baja y se
+  reactiva al pagar (se mandan recordatorios antes, el día y el último día). El sitio y el dominio se quedan en el
+  hosting que administra Diseñarte. Estas condiciones solo salen en el PDF si se ofrece renta.
+- **IVA:** **Todo lo demás lleva IVA
   aparte**: el paquete en modalidad dueño, lo hecho a la medida y cualquier otro servicio.
 - **Cobros:** `paquete` (tiene precio dueño, mensualidad, activación y meses de renta), `unico` o `mensual`.
   Con modalidad "ambas", el PDF muestra una página de renta y otra de dueño para que el cliente compare.
@@ -225,6 +235,7 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Sin recetas | El dueño las quitó (sept. 2026): cada concepto lleva sus insumos directamente; las tablas quedan solo para cotizaciones anteriores |
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
 | Sin búsqueda de precios de reventa con IA | El dueño la consideró irrelevante (sept. 2026): el precio de compra se captura a mano |
+| Maquila con el mismo 35% que la reventa | El dueño lo decidió (sept. 2026); en una venta de pura reventa o maquila la operación sale en filas aparte |
 | Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |
 | Digitalización con precios de lista | Los servicios digitales no tienen costo directo; el dueño fija precios de lista (sept. 2026) |
 | Renta con IVA incluido; lo demás IVA aparte | Así se ofrecen los paquetes; el modo dueño, lo hecho a la medida y los extras llevan IVA aparte |
@@ -321,8 +332,7 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 - Respaldo de la base de datos fuera del VPS.
 - Precios de los servicios digitales sembrados "por capturar" (página adicional, tienda en línea, logotipo,
   manual, fichas de Google, redes sociales, etc.).
-- Condiciones de Digitalización por confirmar: forma de pago de la renta, de quién es el sitio en renta y los
-  días de aviso para cancelar servicios mensuales.
+- Días de aviso para cancelar servicios mensuales de Digitalización (manejo de redes, etc.).
 
 **Mejoras posibles, ya conversadas:**
 

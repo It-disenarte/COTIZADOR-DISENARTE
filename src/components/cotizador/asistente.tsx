@@ -10,7 +10,7 @@ import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNuev
 import { useGuardadoCotizacion } from "./use-guardado";
 import { PASO, PASOS, type Pendiente, pasoDeAlerta, pasoDeErrorMotor, QUE_HACER_ALERTA } from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
-import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type Snapshot } from "@/lib/motor";
+import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type ResultadoCotizacion, type Snapshot } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
 import { problemaDeEntrada } from "@/lib/validacion/cotizacion";
 import { PasoLevantamiento } from "./paso-levantamiento";
@@ -294,6 +294,8 @@ export function AsistenteCotizacion({
               </div>
             )}
 
+            {resultado && resultado.opciones.length === 0 && <SoloReventaEnVivo reventa={resultado.reventa} />}
+
             {resultado && resultado.opciones.length > 1 && (
               <div className="space-y-1 border-t pt-2 text-xs">
                 {resultado.opciones.map((o) => (
@@ -457,6 +459,35 @@ export function EstadoGuardado({
  * La reventa se cotiza aparte (su propia utilidad y su página en el PDF) y es la misma para todas las
  * opciones: aquí se ve junto al precio, sin mezclarla con él.
  */
+/** Venta de pura reventa o maquila: artículos (compra + utilidad de reventa) y la operación aparte. */
+function SoloReventaEnVivo({ reventa }: { reventa: ResultadoCotizacion["reventa"] }) {
+  const renglon = (etiqueta: string, valor: string, clase = "") => (
+    <p className={cn("flex justify-between gap-2", clase)}>
+      <span>{etiqueta}</span>
+      <span className="tabular-nums">{formatoMoneda(valor)}</span>
+    </p>
+  );
+  const articulos = reventa.items.reduce((total, i) => total + Number(i.subtotal), 0);
+  return (
+    <div className="space-y-1 text-sm">
+      <p className="text-2xl font-semibold">{formatoMoneda(reventa.total)}</p>
+      <p className="text-muted-foreground">Reventa y maquila · {reventa.items.length} artículo{reventa.items.length === 1 ? "" : "s"}</p>
+      <div className="space-y-1 border-t pt-2 text-xs">
+        {renglon("Artículos (compra + utilidad de reventa)", articulos.toFixed(2))}
+        {(reventa.operacion ?? []).map((f) => (
+          <div key={f.concepto}>{renglon(f.concepto, f.subtotal)}</div>
+        ))}
+        {Number(reventa.descuento ?? 0) > 0 && renglon("− Descuento", reventa.descuento ?? "0")}
+        {renglon("Subtotal", reventa.subtotal, "border-t pt-1 font-medium")}
+        {renglon("+ IVA", reventa.iva)}
+        <p className="text-muted-foreground">
+          La operación (diseño, envío, instalación y extras) sale en filas aparte, con la fórmula del PNO.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function ReventaEnVivo({
   total,
   articulos,

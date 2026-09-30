@@ -270,6 +270,10 @@ export function PasoLevantamiento({
             insumos de la opción actual y cambias solo lo que sea distinto. Cada opción es una página del PDF; su
             nombre y su foto se capturan en el paso siguiente. Si agregaste una de más, quítala con la ×.
           </p>
+          <p className="text-xs text-muted-foreground">
+            ¿Todo lo que se vende es de reventa o maquila? Deja esta tabla vacía y captúralo en el paso “Reventa y
+            maquila”.
+          </p>
         </div>
 
         <Card className="overflow-hidden">
