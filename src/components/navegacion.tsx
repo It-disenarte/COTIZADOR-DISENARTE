@@ -4,6 +4,7 @@ import { FilePlus2, FolderClock, House, KeyRound, LogOut, Package, Users } from 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { BotonInstalar } from "@/components/boton-instalar";
 import { Isotipo, Marca, TresPuntos } from "@/components/marca";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { authClient } from "@/lib/auth-client";
@@ -93,6 +94,7 @@ export function Navegacion({ usuario }: { usuario: UsuarioSesion }) {
           >
             <KeyRound className="size-3.5" /> Contraseña
           </Link>
+          <BotonInstalar />
           <button
             onClick={salir}
             className="ml-auto flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-white/85 hover:bg-white/10 hover:text-white"
@@ -105,6 +107,7 @@ export function Navegacion({ usuario }: { usuario: UsuarioSesion }) {
         <span className="truncate text-xs text-white/85">
           {usuario.nombre} · {ETIQUETA_ROL[usuario.rol]}
         </span>
+        <BotonInstalar className="ml-auto mr-2 px-1 py-0.5" />
         <button onClick={salir} className="flex items-center gap-1 text-xs">
           <LogOut className="size-3.5" /> Salir
         </button>

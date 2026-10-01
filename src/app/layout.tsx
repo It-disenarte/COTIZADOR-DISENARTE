@@ -14,6 +14,9 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "Cotizador Diseñarte México",
   description: "Cotizaciones de publicidad y comunicación visual",
+  applicationName: "Cotizador",
+  // iPhone: instalada desde Compartir → "Agregar a inicio" se abre a pantalla completa, con este nombre.
+  appleWebApp: { capable: true, title: "Cotizador", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
