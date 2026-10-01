@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Pencil, Plus, RefreshCw, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState, useTransition } from "react";
 import { useAvisos } from "@/components/avisos";
@@ -31,8 +31,14 @@ type Props<T extends { id: string }> = {
   etiquetaNueva: string;
   puedeEditar: boolean;
   texto: (fila: T) => string;
+  /** Cómo se nombra la fila en avisos y confirmaciones (por defecto, el texto de búsqueda). */
+  nombreDe?: (fila: T) => string;
   archivable?: boolean;
   esArchivado?: (fila: T) => boolean;
+  /** Muestra el botón de eliminar (DELETE al endpoint), con confirmación. */
+  eliminable?: boolean;
+  /** Texto de la confirmación al eliminar: qué pasa y qué conviene hacer si se usa. */
+  avisoEliminar?: string;
   vacio?: string;
   /** Título de la ventana del formulario: sin fila = alta nueva. */
   tituloFormulario?: (fila?: T) => string;
@@ -53,8 +59,11 @@ export function PanelCrud<T extends { id: string }>({
   etiquetaNueva,
   puedeEditar,
   texto,
+  nombreDe = texto,
   archivable = false,
   esArchivado = () => false,
+  eliminable = false,
+  avisoEliminar = "Se borra para siempre; no se puede deshacer.",
   vacio = "Sin registros.",
   tituloFormulario,
   opcionesDe,
@@ -66,6 +75,7 @@ export function PanelCrud<T extends { id: string }>({
   const [busqueda, setBusqueda] = useState("");
   const [verArchivados, setVerArchivados] = useState(false);
   const [editando, setEditando] = useState<T | "nuevo" | null>(null);
+  const [porEliminar, setPorEliminar] = useState<T | null>(null);
 
   const visibles = filas.filter((f) => {
     if (!verArchivados && esArchivado(f)) return false;
@@ -109,6 +119,22 @@ export function PanelCrud<T extends { id: string }>({
     }
   }
 
+  async function eliminar(fila: T) {
+    setOcupado(true);
+    try {
+      await llamarApi(`${endpoint}/${fila.id}`, "DELETE");
+      avisar({ tipo: "ok", texto: `"${nombreDe(fila)}" se eliminó.` });
+      setPorEliminar(null);
+      iniciarTransicion(() => router.refresh());
+    } catch (e) {
+      // P. ej. un insumo que usan cotizaciones: el mensaje dice cuáles y que conviene archivarlo.
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo eliminar." });
+      setPorEliminar(null);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   const deshabilitado = ocupado || actualizando;
   const valoresFormulario = editando ? valores(editando === "nuevo" ? undefined : editando) : {};
 
@@ -139,7 +165,26 @@ export function PanelCrud<T extends { id: string }>({
         {actualizando && <RefreshCw className="size-4 animate-spin text-muted-foreground" aria-label="Actualizando" />}
       </div>
 
-      {ocupado && <PantallaCarga mensaje="Guardando…" />}
+      {ocupado && <PantallaCarga mensaje={porEliminar ? "Eliminando…" : "Guardando…"} />}
+
+      {porEliminar && (
+        <Modal titulo="¿Eliminar?" alCerrar={() => setPorEliminar(null)}>
+          <div className="space-y-4">
+            <p className="text-sm">
+              <span className="font-medium">{nombreDe(porEliminar)}</span>
+            </p>
+            <p className="text-sm text-muted-foreground">{avisoEliminar}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="destructive" disabled={deshabilitado} onClick={() => eliminar(porEliminar)}>
+                <Trash2 /> Eliminar
+              </Button>
+              <Button variant="ghost" onClick={() => setPorEliminar(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {editando && (
         <Modal
@@ -249,6 +294,19 @@ export function PanelCrud<T extends { id: string }>({
                             onClick={() => alternarArchivado(fila)}
                           >
                             {esArchivado(fila) ? <ArchiveRestore /> : <Archive />}
+                          </Button>
+                        )}
+                        {eliminable && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={deshabilitado}
+                            title="Eliminar"
+                            aria-label={`Eliminar ${nombreDe(fila)}`}
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => setPorEliminar(fila)}
+                          >
+                            <Trash2 />
                           </Button>
                         )}
                       </div>

@@ -78,6 +78,7 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
           <Campo
             etiqueta="Monto de diseño manual"
             ayuda="Si lo llenas, reemplaza días × tarifa. Úsalo cuando el diseño lleva mucho reacomodo y quieres un monto fijo."
+            opcional
             valor={txt(op.disenoMontoManual ?? "")}
             alCambiar={(v) => editarOperacion({ disenoMontoManual: v })}
           />
@@ -211,6 +212,7 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
             <Campo
               etiqueta="Monto por día manual"
               ayuda="Si lo llenas, reemplaza el monto por día del parámetro ($250 local o $500 foráneo)."
+              opcional
               valor={txt(op.viaticos.montoDiaManual ?? "")}
               alCambiar={(v) => editarOperacion({ viaticos: { ...op.viaticos, montoDiaManual: v } })}
             />
@@ -238,7 +240,8 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
             <Campo
               etiqueta="Viajes redondos"
               ayuda="Vacío = tantos como días de instalación."
-              valor={txt(op.traslado.viajesRedondos ?? "")}
+              opcional
+            valor={txt(op.traslado.viajesRedondos ?? "")}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, viajesRedondos: v } })}
             />
             <Campo
@@ -274,7 +277,8 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
             <Campo
               etiqueta="Rendimiento km/L"
               ayuda="Vacío = el del parámetro."
-              valor={txt(op.traslado.rendimientoKmL ?? "")}
+              opcional
+            valor={txt(op.traslado.rendimientoKmL ?? "")}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, rendimientoKmL: v } })}
             />
             {gasolina && (
@@ -346,6 +350,7 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
               <Input
                 inputMode="decimal"
                 value={txt(extra.monto)}
+                vacioEsCero
                 onChange={(e) => editarOperacion({ extras: op.extras.map((x, k) => (k === i ? { ...x, monto: e.target.value } : x)) })}
                 aria-label={`Monto del extra ${i + 1}`}
               />
@@ -447,6 +452,7 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
           <Campo
             etiqueta="Margen"
             ayuda="Vacío = el del parámetro (0.30). Fracción: 0.35 = 35%."
+            opcional
             valor={txt(borrador.entrada.ajustes.margen ?? "")}
             alCambiar={(v) => cambiar((b) => ({ ...b, entrada: { ...b.entrada, ajustes: { ...b.entrada.ajustes, margen: v } } }))}
           />
@@ -511,7 +517,7 @@ export function PasoReventa({ borrador, cambiar }: Props) {
                   inputMode="decimal"
                   value={txt(item.cantidad)}
                   onChange={(e) => editarItem(i, { cantidad: e.target.value })}
-                  placeholder="1"
+                  vacioEsCero
                 />
                 <p className="text-xs text-muted-foreground">Cuántas piezas se le venden.</p>
               </div>
@@ -787,6 +793,7 @@ export function PasoResumen({
                         key={c.filaId}
                         etiqueta={c.concepto}
                         ayuda={`Calculado: ${formatoMoneda(c.unitarioCalculado)}`}
+                        opcional
                         valor={txt(borrador.entrada.opciones.find((o) => o.id === opcion.id)?.preciosManuales?.[c.filaId] ?? "")}
                         alCambiar={(valor) =>
                           cambiar((b) => ({
@@ -847,6 +854,7 @@ export function PasoResumen({
           <Campo
             etiqueta="Descuento por decisión rápida"
             ayuda="Se resta del subtotal antes del IVA. Bórralo (déjalo vacío) para quitarlo."
+            opcional
             valor={txt(descuento?.monto)}
             alCambiar={(valor) =>
               cambiar((b) => ({
@@ -894,17 +902,20 @@ function Campo({
   valor,
   alCambiar,
   ayuda,
+  opcional = false,
 }: {
   etiqueta: string;
   valor: string;
   alCambiar: (valor: string) => void;
   ayuda?: string;
+  /** Vacío tiene significado (usar el parámetro, quitar el descuento): no se rellena con 0. */
+  opcional?: boolean;
 }) {
   const id = etiqueta.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{etiqueta}</Label>
-      <Input id={id} inputMode="decimal" value={valor} onChange={(e) => alCambiar(e.target.value)} />
+      <Input id={id} inputMode="decimal" value={valor} onChange={(e) => alCambiar(e.target.value)} vacioEsCero={!opcional} />
       {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
     </div>
   );

@@ -49,6 +49,9 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
       etiquetaNueva="Nuevo insumo"
       archivable
       esArchivado={(i) => i.archivado}
+      eliminable
+      nombreDe={(i) => i.nombre}
+      avisoEliminar="Se borra del catálogo para siempre. Si alguna cotización lo usa no se podrá eliminar: en ese caso archívalo (botón de la caja), deja de aparecer y esas cotizaciones conservan su precio."
       texto={(i) => `${i.nombre} ${i.nombreCliente ?? ""} ${i.categoria} ${i.fuente ?? ""}`}
       campos={CAMPOS}
       opcionesDe={(campo, i) =>

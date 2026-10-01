@@ -323,6 +323,7 @@ export function PasoLevantamiento({
                           className="h-9 w-18"
                           inputMode="decimal"
                           value={txt(fila.anchoM)}
+                          vacioEsCero
                           onChange={(e) => editarFila(fila.id, { anchoM: e.target.value })}
                           aria-label={`Ancho de la fila ${i + 1}`}
                         />
@@ -332,6 +333,7 @@ export function PasoLevantamiento({
                           className="h-9 w-18"
                           inputMode="decimal"
                           value={txt(fila.altoM)}
+                          vacioEsCero
                           onChange={(e) => editarFila(fila.id, { altoM: e.target.value })}
                           aria-label={`Alto de la fila ${i + 1}`}
                         />
@@ -341,6 +343,7 @@ export function PasoLevantamiento({
                           className="h-9 w-18"
                           inputMode="numeric"
                           value={txt(fila.cantidades[0])}
+                          vacioEsCero
                           onChange={(e) => editarFila(fila.id, { cantidades: [e.target.value] })}
                           aria-label={`Cantidad de la fila ${i + 1}`}
                         />
@@ -583,6 +586,10 @@ function ChipInsumo({
       inputMode="decimal"
       value={txt(componente.cantidad)}
       onChange={(e) => alCambiar({ cantidad: limpiarNumero(e.target.value, "decimal") })}
+      // Igual que los demás campos numéricos: nunca se queda vacío y el 0 se reemplaza al escribir.
+      onFocus={(e) => e.target.value === "0" && e.target.select()}
+      onBlur={(e) => e.target.value.trim() === "" && alCambiar({ cantidad: "0" })}
+      placeholder="0"
       aria-label={etiqueta}
       className="h-6 w-16 rounded border border-input bg-card px-1 text-foreground"
     />

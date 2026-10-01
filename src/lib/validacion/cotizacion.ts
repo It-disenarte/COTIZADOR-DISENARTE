@@ -44,7 +44,11 @@ export const IdLocal = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/, { error: "Ident
  */
 function esquemaEntrada(modo: "borrador" | "completa") {
   const borrador = modo === "borrador";
+  // Vacío = 0: el asistente rellena con 0 los campos que se borran, y si llega vacío se toma igual.
   const numero = (opciones: Parameters<typeof decimal>[0]) =>
+    borrador ? z.union([z.literal(""), decimal(opciones)]) : z.union([z.literal("").transform(() => "0"), decimal(opciones)]);
+  // Lo que sí hay que escribir aunque sea 0 (un precio que falta no debe pasar como gratis).
+  const numeroExigido = (opciones: Parameters<typeof decimal>[0]) =>
     borrador ? z.union([z.literal(""), decimal(opciones)]) : decimal(opciones);
   const texto = (max: number, mensaje: string) => (borrador ? z.string().trim().max(max) : textoRequerido(max, mensaje));
   const minimo = (n: number) => (borrador ? 0 : n);
@@ -188,7 +192,7 @@ function esquemaEntrada(modo: "borrador" | "completa") {
       .array(
         z.object({
           nombre: texto(200, "Escribe el nombre del artículo."),
-          precioReferencia: numero({ min: 0 }),
+          precioReferencia: numeroExigido({ min: 0 }),
           cantidad: numero({ min: 0 }),
           link: urlOpcional,
           verificado: z.boolean().default(false),

@@ -52,13 +52,26 @@ export function limpiarNumero(valor: string, modo: "decimal" | "numeric" | "tel"
 /**
  * Los campos marcados como numéricos (inputMode "decimal", "numeric" o "tel") no aceptan letras:
  * se filtran al escribir o pegar, en toda la app.
+ *
+ * Con `vacioEsCero`, el campo nunca se queda vacío: si se borra, vuelve a 0 al salir de él, y al
+ * entrar en un 0 se selecciona, para que lo que se escriba lo reemplace (y no quede "05").
  */
-export function Input({ className, onChange, inputMode, ...props }: React.ComponentProps<"input">) {
+export function Input({
+  className,
+  onChange,
+  onFocus,
+  onBlur,
+  inputMode,
+  vacioEsCero = false,
+  placeholder,
+  ...props
+}: React.ComponentProps<"input"> & { vacioEsCero?: boolean }) {
   const numerico = inputMode === "decimal" || inputMode === "numeric" || inputMode === "tel";
   return (
     <input
       className={cn(claseCampo, className)}
       inputMode={inputMode}
+      placeholder={placeholder ?? (vacioEsCero ? "0" : undefined)}
       onChange={
         numerico && onChange
           ? (e) => {
@@ -68,6 +81,18 @@ export function Input({ className, onChange, inputMode, ...props }: React.Compon
             }
           : onChange
       }
+      onFocus={(e) => {
+        if (vacioEsCero && e.target.value === "0") e.target.select();
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        if (vacioEsCero && e.target.value.trim() === "" && onChange) {
+          // Quien escucha solo lee e.target.value: se le avisa como si hubieran escrito el 0.
+          e.target.value = "0";
+          onChange(e as unknown as React.ChangeEvent<HTMLInputElement>);
+        }
+        onBlur?.(e);
+      }}
       {...props}
     />
   );

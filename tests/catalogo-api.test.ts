@@ -8,7 +8,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { insumos, parametros, recetas } = await import("@/lib/db/schema");
+const { insumos, parametros, recetaComponentes, recetas } = await import("@/lib/db/schema");
 const { crearPrimerAdmin } = await import("@/lib/servicios/configuracion-inicial");
 const rutaUsuarios = await import("@/app/api/usuarios/route");
 const rutaCuentaPassword = await import("@/app/api/cuenta/password/route");
@@ -284,3 +284,75 @@ describe("Clientes", () => {
   });
 });
 
+
+describe("Eliminar insumos", () => {
+  const rutaCotizaciones = () => import("@/app/api/cotizaciones/route");
+  const eliminar = (id: string, cookie: string) =>
+    rutaInsumo.DELETE(peticion(`/api/insumos/${id}`, { metodo: "DELETE", cookie }), ctxId(id));
+  const crear = async (nombre: string) => {
+    const res = await rutaInsumos.POST(
+      peticion("/api/insumos", { metodo: "POST", cookie: cookieAgente, cuerpo: { ...insumoValido, nombre } }),
+      undefined,
+    );
+    return (await res.json()).insumo.id as string;
+  };
+
+  it("quien edita el catálogo borra un insumo que ninguna cotización usa", async () => {
+    const id = await crear("Insumo que sobra");
+    expect((await eliminar(id, cookieAgente)).status).toBe(200);
+    expect(await db.select().from(insumos).where(eq(insumos.id, id))).toHaveLength(0);
+  });
+
+  it("un insumo que solo está en una receta antigua sin cotizaciones también se puede borrar", async () => {
+    const [componente] = await db.select().from(recetaComponentes).limit(1);
+    expect((await eliminar(componente.insumoId, cookieAgente)).status).toBe(200);
+    expect(await db.select().from(recetaComponentes).where(eq(recetaComponentes.insumoId, componente.insumoId))).toHaveLength(0);
+  });
+
+  it("ventas no puede eliminar insumos", async () => {
+    const id = await crear("Insumo protegido");
+    expect((await eliminar(id, cookieVentas)).status).toBe(403);
+  });
+
+  it("un insumo que usa una cotización no se borra: el aviso dice cuál y pide archivarlo", async () => {
+    const id = await crear("Vinil en uso");
+    const { POST } = await rutaCotizaciones();
+    const res = await POST(
+      peticion("/api/cotizaciones", {
+        metodo: "POST",
+        cookie: cookieAgente,
+        cuerpo: {
+          titulo: "Rotulación de vitrina",
+          solicitante: "Ana",
+          cliente: { nombreContacto: "Ana", puesto: "", empresa: "", correo: "", telefono: "", direccion: "", kmDesdeSjr: "", zona: "local", notas: "" },
+          entrada: {
+            levantamiento: { areas: ["Cantidad"], filas: [{ id: "f1", concepto: "Vitrina", anchoM: "2", altoM: "1", cantidades: ["1"] }] },
+            opciones: [{ id: "op1", nombre: "Opción 1", materiales: { f1: [{ insumoId: id, modo: "por_m2", cantidad: "1" }] } }],
+            incluyeEnvio: false,
+            operacion: {
+              trabajoEnInstalacionesDisenarte: false,
+              diasDiseno: "0",
+              disenoMontoManual: "",
+              produccion: { personas: 0, dias: "0" },
+              instalacion: { incluye: false, personas: 0, dias: "0", escalaPorPieza: false },
+              viaticos: { tipo: "local", personas: 0, dias: "0", montoDiaManual: "" },
+              hospedaje: { incluye: false, noches: 0, costoNoche: "0" },
+              traslado: { kmPorTrayecto: "0", modo: "diario", viajesRedondos: "", rendimientoKmL: "", casetasPorViaje: "0" },
+              extras: [],
+            },
+            presentacion: { operacionProrrateada: true, modalidades: "solo_una" },
+            ajustes: { aplicaMargenError: true, aplicaConsumibles: true, margen: "", descuentoDecisionRapida: null },
+            reventa: [],
+          },
+        },
+      }),
+      undefined,
+    );
+    const { folio } = await res.json();
+
+    const respuesta = await eliminar(id, cookieAgente);
+    expect(respuesta.status).toBe(409);
+    expect((await respuesta.json()).error).toContain(`lo usa la cotización ${folio}`);
+    expect(await db.select().from(insumos).where(eq(insumos.id, id))).toHaveLength(1);
+  });
+});

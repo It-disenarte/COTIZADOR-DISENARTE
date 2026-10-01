@@ -86,6 +86,20 @@ describe("Cotización de pura reventa o maquila", () => {
     expect(pendiente).toMatch(/^Levantamiento y materiales: Agrega al menos un concepto, o artículos de reventa o maquila/);
   });
 
+  it("un campo numérico que se dejó vacío cuenta como 0, salvo lo que nos cuesta un artículo", async () => {
+    const venta = ventaSoloReventa();
+    venta.entrada.operacion.diasDiseno = "";
+    venta.entrada.operacion.traslado.casetasPorViaje = "";
+    const { pendiente, resultado } = await crear(venta);
+    expect(pendiente).toBeNull();
+    expect(resultado.reventa.operacion.map((f: { concepto: string }) => f.concepto)).toEqual(["Envío e instalación"]);
+
+    const sinPrecio = ventaSoloReventa({
+      reventa: [{ nombre: "Extintor PQS 4.5 kg", precioReferencia: "", cantidad: "4", link: "", verificado: true }],
+    });
+    expect((await crear(sinPrecio)).pendiente).toMatch(/^Reventa y maquila:/);
+  });
+
   it("el descuento por decisión rápida se resta antes del IVA", async () => {
     const { resultado } = await crear(ventaSoloReventa({ descuento: "485.71" }));
     expect(resultado.reventa.descuento).toBe("485.71");

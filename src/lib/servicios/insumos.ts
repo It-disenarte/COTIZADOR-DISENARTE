@@ -1,6 +1,6 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { insumos } from "@/lib/db/schema";
+import { cotizaciones, cotizacionVersiones, insumos, recetaComponentes } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { ActualizarInsumo, CrearInsumo, GuardarNombresCliente } from "@/lib/validacion/catalogo";
@@ -36,6 +36,51 @@ export async function actualizarInsumo(actor: UsuarioSesion | null, id: string, 
     }
     const [despues] = await tx.update(insumos).set(valores).where(eq(insumos.id, id)).returning();
     return despues;
+  });
+}
+
+/**
+ * Borra un insumo para siempre, solo si ninguna cotización lo usa: directo en un concepto o, en las
+ * cotizaciones anteriores, dentro de su receta. Si alguna lo usa, se pide archivarlo: deja de salir en
+ * el catálogo y esas cotizaciones siguen calculando igual.
+ */
+export async function eliminarInsumo(actor: UsuarioSesion | null, id: string): Promise<void> {
+  requirePermiso(actor, "catalogo.editar");
+  exigirUuid(id, "Insumo");
+  await db.transaction(async (tx) => {
+    const [insumo] = await tx.select({ nombre: insumos.nombre }).from(insumos).where(eq(insumos.id, id));
+    if (!insumo) noEncontrado("Insumo");
+
+    const enRecetas = await tx
+      .select({ recetaId: recetaComponentes.recetaId })
+      .from(recetaComponentes)
+      .where(eq(recetaComponentes.insumoId, id));
+    // Los ids se buscan dentro de la entrada guardada (JSON) de la versión vigente de cada cotización.
+    const ids = [id, ...new Set(enRecetas.map((r) => r.recetaId))];
+    const enUso = await tx
+      .select({ folio: cotizaciones.folio })
+      .from(cotizaciones)
+      .innerJoin(
+        cotizacionVersiones,
+        and(eq(cotizacionVersiones.cotizacionId, cotizaciones.id), eq(cotizacionVersiones.version, cotizaciones.versionActual)),
+      )
+      .where(sql`${cotizacionVersiones.entrada}::text like any (${sql.raw(`array[${ids.map((i) => `'%${i}%'`).join(",")}]`)})`)
+      .orderBy(asc(cotizaciones.folio));
+
+    if (enUso.length > 0) {
+      const folios = enUso.slice(0, 3).map((c) => c.folio).join(", ");
+      const resto = enUso.length > 3 ? ` y ${enUso.length - 3} más` : "";
+      throw new ErrorHttp(
+        409,
+        `No se puede eliminar "${insumo.nombre}": lo usa${enUso.length === 1 ? " la cotización" : "n las cotizaciones"} ${folios}${resto}. ` +
+          "Archívalo: deja de aparecer en el catálogo y esas cotizaciones conservan su precio.",
+        "INSUMO_EN_USO",
+      );
+    }
+
+    // Recetas que ninguna cotización usa (ya no hay pantalla de recetas): solo estorban para borrar.
+    if (enRecetas.length) await tx.delete(recetaComponentes).where(inArray(recetaComponentes.insumoId, [id]));
+    await tx.delete(insumos).where(eq(insumos.id, id));
   });
 }
 
