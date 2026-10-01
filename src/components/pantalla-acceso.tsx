@@ -1,4 +1,4 @@
-import { Marca, TresPuntos } from "@/components/marca";
+import { Marca } from "@/components/marca";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 
 /**
@@ -17,9 +17,8 @@ export function PantallaAcceso({
 }) {
   return (
     <main className="grid min-h-screen md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <section className="relative hidden flex-col justify-between overflow-hidden bg-morado p-10 text-white md:flex">
-        <TresPuntos className="self-end text-white" />
-        <div className="space-y-8">
+      <section className="relative hidden flex-col overflow-hidden bg-morado p-10 text-white md:flex">
+        <div className="my-auto space-y-8">
           <Marca variante="positivo" tamano={76} />
           <div className="filete-marca h-1 w-24 rounded-full" />
           <p className="max-w-xs text-lg font-light leading-snug text-white/90">
@@ -34,10 +33,7 @@ export function PantallaAcceso({
           <Marca tamano={52} className="justify-center md:hidden" />
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <CardTitle className="text-morado">{titulo}</CardTitle>
-                <TresPuntos className="mt-1.5 text-morado" />
-              </div>
+              <CardTitle className="text-morado">{titulo}</CardTitle>
               <CardDescription>{descripcion}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">{children}</CardContent>

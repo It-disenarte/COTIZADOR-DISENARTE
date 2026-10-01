@@ -53,14 +53,3 @@ export function Isotipo({ variante = "color", tamano = 32, className }: { varian
     />
   );
 }
-
-/** Los tres puntos morados que acompañan cada página del manual. */
-export function TresPuntos({ className }: { className?: string }) {
-  return (
-    <span aria-hidden className={cn("inline-flex gap-1.5", className)}>
-      <span className="size-2.5 rounded-full bg-current" />
-      <span className="size-2.5 rounded-full bg-current" />
-      <span className="size-2.5 rounded-full bg-current" />
-    </span>
-  );
-}

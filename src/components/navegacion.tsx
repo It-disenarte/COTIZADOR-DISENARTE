@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { BotonInstalar } from "@/components/boton-instalar";
-import { Isotipo, Marca, TresPuntos } from "@/components/marca";
+import { Isotipo, Marca } from "@/components/marca";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { authClient } from "@/lib/auth-client";
 import { COOKIE_MENU_OCULTO } from "@/lib/menu";
@@ -114,14 +114,11 @@ export function Navegacion({ usuario, inicialOculto = false }: { usuario: Usuari
       {/* Escritorio: usuario y una acción por renglón (no se cortan con nombres largos). */}
       <div className={cn("hidden border-t border-white/15 md:block", oculto ? "px-2 py-3" : "p-4")}>
         {!oculto && (
-          <div className="mb-2 flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium" title={usuario.nombre}>
-                {usuario.nombre}
-              </p>
-              <p className="truncate text-xs text-white/70">{ETIQUETA_ROL[usuario.rol]}</p>
-            </div>
-            <TresPuntos className="mt-1.5 shrink-0 text-turquesa" />
+          <div className="mb-2 min-w-0">
+            <p className="truncate text-sm font-medium" title={usuario.nombre}>
+              {usuario.nombre}
+            </p>
+            <p className="truncate text-xs text-white/70">{ETIQUETA_ROL[usuario.rol]}</p>
           </div>
         )}
         <div className={cn("flex flex-col gap-0.5", oculto && "items-center")}>
