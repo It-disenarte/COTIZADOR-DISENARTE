@@ -11,7 +11,7 @@ type EventoInstalacion = Event & { prompt: () => Promise<void>; userChoice: Prom
  * "Instalar app" en el menú. Solo aparece donde el navegador permite instalarla y todavía no está
  * instalada; en iPhone se instala desde Compartir → "Agregar a inicio", porque Safari no ofrece el botón.
  */
-export function BotonInstalar({ className }: { className?: string }) {
+export function BotonInstalar({ className, soloIcono = false }: { className?: string; /** Menú escondido: solo el ícono. */ soloIcono?: boolean }) {
   const [evento, setEvento] = useState<EventoInstalacion | null>(null);
 
   useEffect(() => {
@@ -44,9 +44,10 @@ export function BotonInstalar({ className }: { className?: string }) {
       type="button"
       onClick={instalar}
       title="Instala el cotizador para abrirlo como una app, en su propia ventana"
-      className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-white/85 hover:bg-white/10 hover:text-white", className)}
+      className={className}
     >
-      <Download className="size-3.5" /> Instalar app
+      <Download className="size-3.5 shrink-0" />
+      <span className={cn(soloIcono && "sr-only")}>Instalar app</span>
     </button>
   );
 }
