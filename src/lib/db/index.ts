@@ -6,7 +6,7 @@ import * as schema from "./schema";
 const globalParaDb = globalThis as unknown as { poolCotizador?: Pool };
 
 // En Vercel cada instancia de función abre su propio pool: se mantiene chico para no agotar
-// las conexiones de Postgres (max_connections = 100 por defecto).
+// las conexiones de Postgres (max_connections = 100 por defecto). En el VPS es un solo proceso: 10.
 const maxConexiones = Number(process.env.DB_POOL_MAX ?? (process.env.VERCEL ? 3 : 10));
 
 const pool =

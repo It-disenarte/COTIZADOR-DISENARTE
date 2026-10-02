@@ -7,8 +7,8 @@ import { cuentas, ROLES, sesiones, usuarios, verificaciones } from "@/lib/db/sch
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/roles";
 
-// En Vercel, si no se define BETTER_AUTH_URL, se usa el dominio de producción del proyecto
-// (el personalizado si se asignó uno; si no, el *.vercel.app).
+// En el VPS hay que definir BETTER_AUTH_URL con el dominio (https://…): sin él no se puede entrar.
+// En Vercel, si falta, se usa el dominio de producción del proyecto.
 const urlProduccionVercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : undefined;

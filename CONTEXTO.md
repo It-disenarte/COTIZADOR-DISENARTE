@@ -295,14 +295,20 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 
 ## 10. Despliegue
 
-- Repo en GitHub → **Vercel** (rama `main`). `vercel-build` corre `db:migrate` y luego `next build`, así que
-  **las migraciones se aplican solas** en cada despliegue.
-- La base **PostgreSQL** vive en el VPS Hostinger del cliente, administrada con Easypanel.
-- Variables de entorno en Vercel: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GEMINI_API_KEY`, y opcionales
-  `GEMINI_MODEL` (por defecto `gemini-3.8-flash`), `GEMINI_LIMITE_HORA`, `ORIGEN_COORDENADAS`, `CONTACTO_MAPAS`,
-  `DB_POOL_MAX`.
-- Si un despliegue se queda en "Initializing" mucho tiempo, revisar primero
-  [vercel-status.com](https://www.vercel-status.com) antes de buscar en el código: ya pasó una vez.
+- **App y base en el VPS Hostinger del cliente, con Easypanel** (antes la app estaba en Vercel). Easypanel
+  construye el `Dockerfile` desde GitHub (rama `main`): Next en modo `standalone` sobre `node:24-slim`.
+- Al arrancar, el contenedor corre `scripts/migrar.mjs` y luego `server.js`: **las migraciones se aplican solas**
+  en cada despliegue; si fallan, el contenedor no arranca y queda la versión anterior.
+- `DATABASE_URL` usa el **nombre interno** del servicio de Postgres en Easypanel (`proyecto_servicio:5432`), no
+  la IP pública: así el puerto de la base no necesita estar expuesto a internet.
+- Variables en Easypanel (servicio → Entorno): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+  (**obligatoria**, el dominio con https), `GEMINI_API_KEY`, y opcionales `GEMINI_MODEL` (por defecto
+  `gemini-3.8-flash`), `GEMINI_LIMITE_HORA`, `ORIGEN_COORDENADAS`, `CONTACTO_MAPAS`, `DB_POOL_MAX`.
+- La imagen se compila con un `BETTER_AUTH_SECRET` de relleno (Better Auth lo exige al compilar); el real se
+  lee al arrancar.
+- `npm run crear-admin` usa tsx y no existe en la imagen: si se pierde el acceso, correrlo desde una PC con
+  `DATABASE_URL` apuntando a la base (abriendo el puerto un momento) o desde la consola de Postgres.
+- El script `vercel-build` y el respaldo a `VERCEL_*` en el código siguen ahí mientras Vercel no se apague.
 
 ---
 
