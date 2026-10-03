@@ -9,6 +9,8 @@ import { authClient } from "@/lib/auth-client";
 const MENSAJES: Record<string, string> = {
   INVALID_EMAIL_OR_PASSWORD: "Correo o contraseña incorrectos.",
   CUENTA_DESACTIVADA: "Tu cuenta está desactivada. Habla con el administrador.",
+  // El servidor solo acepta el login desde la dirección configurada (BETTER_AUTH_URL).
+  INVALID_ORIGIN: "Esta dirección no está autorizada para entrar. Abre la app desde su dirección oficial o avisa al administrador.",
 };
 
 export function FormularioLogin() {

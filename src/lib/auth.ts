@@ -7,17 +7,34 @@ import { cuentas, ROLES, sesiones, usuarios, verificaciones } from "@/lib/db/sch
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/roles";
 
-// En el VPS hay que definir BETTER_AUTH_URL con el dominio (https://…): sin él no se puede entrar.
-// En Vercel, si falta, se usa el dominio de producción del proyecto.
+// En el VPS hay que definir BETTER_AUTH_URL con el dominio (https://…): el login solo se acepta desde
+// esa dirección (si no, responde 403 "Invalid origin"). En Vercel, si falta, se usa su dominio de producción.
 const urlProduccionVercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : undefined;
-const baseURL = process.env.BETTER_AUTH_URL || urlProduccionVercel;
+
+/** "https://dominio.com/" → "https://dominio.com". Avisa en el log si no es una dirección web. */
+function origenWeb(valor: string | undefined, variable: string): string | undefined {
+  const limpio = valor?.trim();
+  if (!limpio) return undefined;
+  try {
+    const url = new URL(limpio);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.origin;
+  } catch {}
+  console.error(`[auth] ${variable} debe ser una dirección web como https://cotizador.disenartemx.com (no "${limpio.slice(0, 20)}…").`);
+  return undefined;
+}
+
+const baseURL = origenWeb(process.env.BETTER_AUTH_URL, "BETTER_AUTH_URL") ?? urlProduccionVercel;
+// Otros dominios desde los que se puede entrar, separados por comas (p. ej. el de Easypanel y el propio).
+const otrosOrigenes = (process.env.BETTER_AUTH_ORIGENES ?? "")
+  .split(",")
+  .map((o) => origenWeb(o, "BETTER_AUTH_ORIGENES"));
 
 export const auth = betterAuth({
   appName: "Cotizador Diseñarte",
   baseURL,
-  trustedOrigins: [baseURL, urlProduccionVercel].filter((u): u is string => Boolean(u)),
+  trustedOrigins: [baseURL, urlProduccionVercel, ...otrosOrigenes].filter((u): u is string => Boolean(u)),
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user: usuarios, session: sesiones, account: cuentas, verification: verificaciones },

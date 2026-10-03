@@ -302,7 +302,7 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 - `DATABASE_URL` usa el **nombre interno** del servicio de Postgres en Easypanel (`proyecto_servicio:5432`), no
   la IP pública: así el puerto de la base no necesita estar expuesto a internet.
 - Variables en Easypanel (servicio → Entorno): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
-  (**obligatoria**, el dominio con https), `GEMINI_API_KEY`, y opcionales `GEMINI_MODEL` (por defecto
+  (**obligatoria**, el dominio con https; el login solo se acepta desde ahí, si no responde 403 "Invalid origin"), `BETTER_AUTH_ORIGENES` (otros dominios, separados por comas), `GEMINI_API_KEY`, y opcionales `GEMINI_MODEL` (por defecto
   `gemini-3.8-flash`), `GEMINI_LIMITE_HORA`, `ORIGEN_COORDENADAS`, `CONTACTO_MAPAS`, `DB_POOL_MAX`.
 - La imagen se compila con un `BETTER_AUTH_SECRET` de relleno (Better Auth lo exige al compilar); el real se
   lee al arrancar.
