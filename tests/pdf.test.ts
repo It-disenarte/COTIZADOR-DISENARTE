@@ -165,7 +165,7 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     // ...y cada fila dice su concepto con la descripción en viñetas.
     expect(texto.replace(/\s+/g, " ")).toContain("Concepto: Señalamiento 20 × 30 cm Descripción: •");
     expect(texto.replace(/\s+/g, " ")).toContain("Señalética completa para las 3 áreas.");
-    expect(texto).toContain("Precios sin IVA");
+    expect(texto).toContain("Los precios unitarios y subtotales no incluyen IVA; el total ya lo incluye.");
     expect(texto).toContain("Materiales adicionales");
     // Dentro de la celda el nombre puede partirse en dos renglones.
     expect(texto.replace(/\s+/g, " ")).toContain("Detector de humo autónomo 9V");

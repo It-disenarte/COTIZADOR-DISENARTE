@@ -446,13 +446,14 @@ export function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal
 
 /** Cómo se lee al cliente cada petición de acción del PNO (apartado 7.3.7). */
 /**
- * "Precios sin IVA", lo que no incluye, supuestos, vigencia y petición de acción.
+ * la aclaración del IVA, lo que no incluye, supuestos, vigencia y petición de acción.
  * El PNO-COM-01 (7.3.3 y 7.3.6) obliga a delimitar el alcance y asentar las condiciones.
  */
 function cierreDeCotizacion(lienzo: Lienzo, datos: DatosPdf) {
   const { propuesta } = datos;
   lienzo.espacio(4);
-  lienzo.texto("Precios sin IVA", { tamano: 11 });
+  // La tabla va sin IVA y el total con IVA: "Precios sin IVA" a secas se leía como contradicción.
+  lienzo.texto("Los precios unitarios y subtotales no incluyen IVA; el total ya lo incluye.", { tamano: 10 });
 
   if (propuesta?.noIncluye?.trim()) {
     lienzo.espacio(8);
