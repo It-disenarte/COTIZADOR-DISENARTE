@@ -780,6 +780,31 @@ export function PasoResumen({
                 </div>
               </div>
 
+              {/* El precio deseado es de la opción: se captura en su modalidad principal (la última). */}
+              {indiceVariante === opcion.variantes.length - 1 && (
+                <div className="space-y-2 border-t pt-4">
+                  <Campo
+                    etiqueta={`Precio final deseado (sin IVA)${resultado.opciones.length > 1 ? ` · ${opcion.nombre}` : ""}`}
+                    ayuda={
+                      v.subtotalCalculado
+                        ? `Calculado: ${formatoMoneda(v.subtotalCalculado)}. Se agregan ${formatoMoneda(v.ajustePrecio ?? "0")} repartidos entre los conceptos según lo que pesa cada uno; así salen en el PDF. Total con IVA: ${formatoMoneda(v.total)}. Bórralo para volver al calculado.`
+                        : `Opcional. Calculado: ${formatoMoneda(v.subtotal)}. Si escribes un precio mayor, la diferencia se reparte sola entre los conceptos según lo que pesa cada uno, y el PDF sale con esos precios.`
+                    }
+                    opcional
+                    valor={txt(borrador.entrada.opciones.find((o) => o.id === opcion.id)?.precioObjetivo ?? "")}
+                    alCambiar={(valor) =>
+                      cambiar((b) => ({
+                        ...b,
+                        entrada: {
+                          ...b.entrada,
+                          opciones: b.entrada.opciones.map((o) => (o.id === opcion.id ? { ...o, precioObjetivo: valor } : o)),
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
               {/* El precio manual es por concepto y vale para todas las modalidades: se captura una vez. */}
               {indiceVariante === 0 && (v.conceptos?.length ?? 0) > 0 && (
                 <div className="space-y-2 border-t pt-4">

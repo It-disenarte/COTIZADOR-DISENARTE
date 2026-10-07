@@ -409,29 +409,30 @@ describe("Reventa y alertas", () => {
   });
 });
 
+function entradaDosConceptos(): EntradaCotizacion {
+  const entrada = entradaVersa(1);
+  entrada.operacion.instalacion.incluye = false;
+  entrada.operacion.disenoMontoManual = "0";
+  entrada.ajustes.margen = "0.30";
+  entrada.levantamiento.filas = [
+    { id: "letrero", concepto: "Letrero", anchoM: "1", altoM: "1", cantidades: [2] },
+    { id: "placa", concepto: "Placa", anchoM: "0", altoM: "0", cantidades: [10] },
+  ];
+  entrada.opciones = [
+    {
+      id: "o1",
+      nombre: "Opción 1",
+      materiales: {
+        letrero: [{ insumoId: "vinil", modo: "por_m2", cantidad: "1" }],
+        placa: [{ insumoId: "aplicacion", modo: "por_pieza", cantidad: "1" }],
+      },
+    },
+  ];
+  return entrada;
+}
+
 describe("Insumos por concepto: cada concepto con su propio precio", () => {
   /** Un letrero de 1 × 1 m en vinil y diez placas por pieza, sin operación, con 30% de margen. */
-  function entradaDosConceptos(): EntradaCotizacion {
-    const entrada = entradaVersa(1);
-    entrada.operacion.instalacion.incluye = false;
-    entrada.operacion.disenoMontoManual = "0";
-    entrada.ajustes.margen = "0.30";
-    entrada.levantamiento.filas = [
-      { id: "letrero", concepto: "Letrero", anchoM: "1", altoM: "1", cantidades: [2] },
-      { id: "placa", concepto: "Placa", anchoM: "0", altoM: "0", cantidades: [10] },
-    ];
-    entrada.opciones = [
-      {
-        id: "o1",
-        nombre: "Opción 1",
-        materiales: {
-          letrero: [{ insumoId: "vinil", modo: "por_m2", cantidad: "1" }],
-          placa: [{ insumoId: "aplicacion", modo: "por_pieza", cantidad: "1" }],
-        },
-      },
-    ];
-    return entrada;
-  }
 
   it("da una fila por concepto con su unitario real, no un promedio", () => {
     const v = calcular(entradaDosConceptos(), snapshot({})).opciones[0].variantes[0];
@@ -633,5 +634,48 @@ describe("Rollo completo: se captura el precio del rollo y se cobra solo lo que 
     expect(() => consumoDeInsumo({ insumoId: "rolloCompleto", modo: "por_m2", cantidad: "1" }, fila, sinLargo)).toThrow(
       /no tiene el largo del rollo/,
     );
+  });
+
+});
+
+describe("Precio final deseado", () => {
+  const conObjetivo = (precio: string, cambiar?: (e: ReturnType<typeof entradaDosConceptos>) => void) => {
+    const entrada = entradaDosConceptos();
+    (entrada.opciones[0] as { precioObjetivo?: string }).precioObjetivo = precio;
+    cambiar?.(entrada);
+    return calcular(entrada, snapshot({})).opciones[0].variantes[0];
+  };
+
+  it("reparte el aumento entre los conceptos según lo que pesa cada uno", () => {
+    // Calculado: letrero 2 × $571.43 + placa 10 × $285.71 = $3,999.96. Se pide el doble.
+    const v = conObjetivo("8000");
+    expect(v.filas.map((f) => f.unitario)).toEqual(["1142.87", "571.43"]);
+    expect(v.conceptos?.map((c) => c.unitario)).toEqual(["1142.87", "571.43"]);
+    // Sin una fila de cantidad 1, los centavos de cada unitario dejan el subtotal a unos centavos del deseado.
+    expect(Math.abs(Number(v.subtotal) - 8000)).toBeLessThan(0.1);
+    expect(v.subtotalCalculado).toBe("3999.96");
+    expect(Number(v.ajustePrecio)).toBeCloseTo(4000.08, 1);
+    expect(v.total).toBe((Math.round(Number(v.subtotal) * 116) / 100).toFixed(2));
+    expect(Number(v.margenReal)).toBeGreaterThan(0.6); // el costo no cambia: la utilidad sube
+  });
+
+  it("llega exacto cuando hay una fila de cantidad 1 donde acomodar los centavos", () => {
+    const v = conObjetivo("8000", (e) => {
+      e.operacion.disenoMontoManual = "700";
+      e.presentacion.operacionProrrateada = false;
+    });
+    expect(v.subtotal).toBe("8000.00");
+    expect(v.filas.at(-1)?.concepto).toBe("Diseño, envío e instalación");
+  });
+
+  it("no baja el precio: si el deseado es menor al calculado, avisa y deja el calculado", () => {
+    const v = conObjetivo("3000");
+    expect(v.subtotal).toBe("3999.96");
+    expect(v.subtotalCalculado).toBeUndefined();
+    expect(v.alertas.some((a) => a.codigo === "OBJETIVO_MENOR")).toBe(true);
+  });
+
+  it("vacío deja el precio calculado", () => {
+    expect(conObjetivo("").subtotal).toBe("3999.96");
   });
 });

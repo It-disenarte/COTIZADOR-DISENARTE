@@ -131,6 +131,11 @@ export type OpcionCotizacion = {
    * nombres para el cliente de sus insumos.
    */
   descripciones?: Record<string, string | null>;
+  /**
+   * Precio final que se quiere cobrar por esta opción (subtotal sin IVA). Si es mayor al calculado, la
+   * diferencia se reparte entre sus filas según lo que pesa cada una. Vacío = el calculado.
+   */
+  precioObjetivo?: Numerico | null;
 };
 
 /** Forma anterior: una receta para todo el levantamiento. Se convierte sola al calcular. */
@@ -214,6 +219,9 @@ export type Variante = {
   /** Precio de cada concepto. Las cotizaciones anteriores no lo traen. */
   conceptos?: ConceptoResultado[];
   subtotal: string;
+  /** Con precio deseado: el subtotal que dio el cálculo y lo que se le sumó para llegar al deseado. */
+  subtotalCalculado?: string;
+  ajustePrecio?: string;
   descuento: string;
   iva: string;
   total: string;

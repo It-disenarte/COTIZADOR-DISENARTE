@@ -463,6 +463,8 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
       });
     });
 
+    if (!vacio(opcion.precioObjetivo)) aplicarPrecioObjetivo(variantes, d(opcion.precioObjetivo as never), iva);
+
     return { id: opcion.id, recetaId: opcion.id, nombre: opcion.nombre, descripcionPdf: opcion.descripcion ?? null, variantes };
   });
 
@@ -476,6 +478,76 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
     reventa,
     alertas: dedupe(alertasGenerales),
   };
+}
+
+/**
+ * Precio deseado: el vendedor decide cobrar más de lo calculado. La diferencia se reparte entre las filas
+ * de la opción según lo que pesa cada una, para que cada concepto del PDF suba en proporción y el
+ * aumento se vea justificado. El objetivo es el de la modalidad principal (la última, con instalación);
+ * si hay dos modalidades, la otra sube en la misma proporción. Nunca baja el precio: para eso está el
+ * descuento.
+ */
+function aplicarPrecioObjetivo(variantes: Variante[], objetivo: Decimal, iva: Decimal) {
+  const principal = variantes.at(-1);
+  if (!principal) return;
+  const base = d(principal.subtotal);
+  if (base.lte(0)) return;
+  if (objetivo.lt(base)) {
+    principal.alertas.push({
+      codigo: "OBJETIVO_MENOR",
+      mensaje: `El precio deseado (${money(objetivo)}) es menor al calculado (${money(base)}): no se aplicó. Para bajar el precio usa el descuento.`,
+    });
+    return;
+  }
+  if (objetivo.eq(base)) return;
+  const proporcion = objetivo.div(base);
+  for (const variante of variantes) {
+    repartirAumento(variante, variante === principal ? objetivo : round2(d(variante.subtotal).times(proporcion)), iva);
+  }
+}
+
+function repartirAumento(v: Variante, objetivo: Decimal, iva: Decimal) {
+  const descuento = d(v.descuento);
+  const sumaFilas = suma(v.filas.map((f) => d(f.subtotal)));
+  if (sumaFilas.lte(0)) return;
+  const aumento = objetivo.minus(sumaFilas.minus(descuento));
+
+  for (const fila of v.filas) {
+    const cantidad = d(fila.cantidad);
+    if (cantidad.lte(0)) continue;
+    const nuevoSubtotal = d(fila.subtotal).plus(aumento.times(d(fila.subtotal).div(sumaFilas)));
+    const unitario = round2(nuevoSubtotal.div(cantidad));
+    fila.unitario = unitario.toFixed(2);
+    fila.subtotal = money(unitario.times(cantidad));
+  }
+  // El unitario va a centavos: lo que falte para llegar exacto se acomoda en una fila de cantidad 1.
+  const resto = objetivo.minus(suma(v.filas.map((f) => d(f.subtotal))).minus(descuento));
+  const deUna = v.filas.filter((f) => d(f.cantidad).eq(1)).sort((a, b) => d(b.subtotal).cmp(d(a.subtotal)))[0];
+  if (deUna && !resto.isZero()) {
+    deUna.unitario = d(deUna.unitario).plus(resto).toFixed(2);
+    deUna.subtotal = d(deUna.subtotal).plus(resto).toFixed(2);
+  }
+
+  // Los conceptos son las primeras filas, en el mismo orden (la fila de operación aparte va al final).
+  v.conceptos?.forEach((c, i) => {
+    c.unitario = v.filas[i].unitario;
+    c.subtotal = v.filas[i].subtotal;
+  });
+
+  const subtotal = round2(suma(v.filas.map((f) => d(f.subtotal))).minus(descuento));
+  const total = round2(subtotal.times(iva.plus(1)));
+  const costo = d(v.desglose.costoTotal);
+  v.subtotalCalculado = v.subtotal;
+  v.ajustePrecio = subtotal.minus(d(v.subtotal)).toFixed(2);
+  v.subtotal = subtotal.toFixed(2);
+  v.iva = total.minus(subtotal).toFixed(2);
+  v.total = total.toFixed(2);
+  v.margenReal = subtotal.gt(0) ? subtotal.minus(costo).div(subtotal).toDecimalPlaces(4).toString() : "0";
+  if (v.conceptos?.length) {
+    const piezas = suma(v.conceptos.map((c) => d(c.piezas)));
+    const subConceptos = suma(v.conceptos.map((c) => d(c.subtotal)));
+    v.unitario = (v.conceptos.length === 1 ? d(v.conceptos[0].unitario) : round2(subConceptos.div(piezas))).toFixed(2);
+  }
 }
 
 /** Alertas de operación (6.8). */

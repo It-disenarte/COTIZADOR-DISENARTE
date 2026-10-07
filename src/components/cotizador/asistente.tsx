@@ -369,7 +369,7 @@ function ComposicionDelCosto({
   ajustes,
   irAOperacion,
 }: {
-  variante: { desglose: Desglose; subtotal: string; total: string; descuento: string };
+  variante: { desglose: Desglose; subtotal: string; total: string; descuento: string; ajustePrecio?: string };
   parametros: Snapshot["parametros"] | null;
   ajustes: BorradorCotizacion["entrada"]["ajustes"];
   irAOperacion: () => void;
@@ -388,9 +388,10 @@ function ComposicionDelCosto({
   const precio = conError / (1 - margen);
   const subtotal = Number(variante.subtotal);
   const descuento = Number(variante.descuento);
+  const ajuste = Number(variante.ajustePrecio ?? 0);
   // El subtotal redondea el unitario de cada concepto a centavos (y respeta precios manuales y descuento):
   // si se aleja de la fórmula más que unos centavos, se dice por qué.
-  const diferencia = Math.abs(subtotal + descuento - precio) > 1;
+  const diferencia = Math.abs(subtotal + descuento - ajuste - precio) > 1;
 
   const porcentaje = (valor: number) => `${Math.round(valor * 1000) / 10}%`;
   const renglon = (etiqueta: string, valor: number, clase = "") => (
@@ -409,6 +410,7 @@ function ComposicionDelCosto({
       {renglon("Costo", costo, "border-t pt-1 font-medium")}
       {pctError > 0 && renglon(`× ${(1 + pctError).toFixed(2)} margen de error`, conError)}
       {renglon(`÷ ${(1 - margen).toFixed(2)} margen del ${porcentaje(margen)}`, precio)}
+      {ajuste > 0 && renglon("+ Ajuste al precio deseado", ajuste)}
       {descuento > 0 && renglon("− Descuento", descuento)}
       {renglon("Subtotal", subtotal, "border-t pt-1 font-medium")}
       {renglon(`+ IVA ${porcentaje(iva)}`, Number(variante.total), "font-medium")}

@@ -36,6 +36,7 @@ const PASO_DE_ALERTA: Record<string, number> = {
   REVENTA_SIN_VERIFICAR: PASO.reventa,
   DESVIO_PRECIO: PASO.resumen,
   MARGEN_BAJO: PASO.resumen,
+  OBJETIVO_MENOR: PASO.resumen,
 };
 
 export const pasoDeAlerta = (codigo: string): number => PASO_DE_ALERTA[codigo] ?? PASO.resumen;
@@ -49,6 +50,7 @@ export const QUE_HACER_ALERTA: Record<string, string> = {
   REVENTA_SIN_VERIFICAR: "Confirma el precio en la fuente y marca “Precio verificado hoy”.",
   DESVIO_PRECIO: "Revisa el precio escrito a mano de ese concepto.",
   MARGEN_BAJO: "Revisa el margen, el descuento o los precios escritos a mano.",
+  OBJETIVO_MENOR: "Escribe un precio deseado mayor al calculado o déjalo vacío; para bajar el precio usa el descuento.",
 };
 
 /** "Operación: Falta capturar el precio de la gasolina…" */
