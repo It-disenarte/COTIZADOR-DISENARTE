@@ -506,13 +506,17 @@ function aplicarPrecioObjetivo(variantes: Variante[], objetivo: Decimal, iva: De
   }
 }
 
-function repartirAumento(v: Variante, objetivo: Decimal, iva: Decimal) {
-  const descuento = d(v.descuento);
-  const sumaFilas = suma(v.filas.map((f) => d(f.subtotal)));
-  if (sumaFilas.lte(0)) return;
-  const aumento = objetivo.minus(sumaFilas.minus(descuento));
+type FilaConPrecio = { cantidad: string; unitario: string; subtotal: string };
 
-  for (const fila of v.filas) {
+/**
+ * Sube las filas para que sumen `objetivo`, cada una en proporción a su subtotal. Los unitarios van a
+ * centavos: lo que falte para llegar exacto se acomoda en una fila de cantidad 1, si la hay.
+ */
+function repartirEnFilas(filas: FilaConPrecio[], objetivo: Decimal): boolean {
+  const sumaFilas = suma(filas.map((f) => d(f.subtotal)));
+  if (sumaFilas.lte(0)) return false;
+  const aumento = objetivo.minus(sumaFilas);
+  for (const fila of filas) {
     const cantidad = d(fila.cantidad);
     if (cantidad.lte(0)) continue;
     const nuevoSubtotal = d(fila.subtotal).plus(aumento.times(d(fila.subtotal).div(sumaFilas)));
@@ -520,13 +524,19 @@ function repartirAumento(v: Variante, objetivo: Decimal, iva: Decimal) {
     fila.unitario = unitario.toFixed(2);
     fila.subtotal = money(unitario.times(cantidad));
   }
-  // El unitario va a centavos: lo que falte para llegar exacto se acomoda en una fila de cantidad 1.
-  const resto = objetivo.minus(suma(v.filas.map((f) => d(f.subtotal))).minus(descuento));
-  const deUna = v.filas.filter((f) => d(f.cantidad).eq(1)).sort((a, b) => d(b.subtotal).cmp(d(a.subtotal)))[0];
+  const resto = objetivo.minus(suma(filas.map((f) => d(f.subtotal))));
+  const deUna = filas.filter((f) => d(f.cantidad).eq(1)).sort((a, b) => d(b.subtotal).cmp(d(a.subtotal)))[0];
   if (deUna && !resto.isZero()) {
     deUna.unitario = d(deUna.unitario).plus(resto).toFixed(2);
     deUna.subtotal = d(deUna.subtotal).plus(resto).toFixed(2);
   }
+  return true;
+}
+
+function repartirAumento(v: Variante, objetivo: Decimal, iva: Decimal) {
+  const descuento = d(v.descuento);
+  // El descuento se resta después: las filas tienen que sumar el objetivo más el descuento.
+  if (!repartirEnFilas(v.filas, objetivo.plus(descuento))) return;
 
   // Los conceptos son las primeras filas, en el mismo orden (la fila de operación aparte va al final).
   v.conceptos?.forEach((c, i) => {
@@ -780,11 +790,29 @@ function calcularReventa(entrada: EntradaNormalizada, snapshot: Snapshot, alerta
 
   // Con conceptos, el descuento ya se restó en su opción; sin ellos, se resta aquí.
   const descuento = operacion ? elegir(entrada.ajustes.descuentoDecisionRapida?.monto, 0) : CERO;
+  const calculado = round2(suma([...items, ...(operacion ?? [])].map((i) => d(i.subtotal))).minus(descuento));
+
+  // Precio deseado de una venta de pura reventa o maquila: el aumento se reparte entre artículos y operación.
+  let ajuste: { subtotalCalculado: string; ajustePrecio: string } | null = null;
+  const objetivo = operacion && !vacio(entrada.ajustes.precioObjetivo) ? d(entrada.ajustes.precioObjetivo as never) : null;
+  if (objetivo && calculado.gt(0)) {
+    if (objetivo.lt(calculado)) {
+      alertas.push({
+        codigo: "OBJETIVO_MENOR",
+        mensaje: `El precio deseado (${money(objetivo)}) es menor al calculado (${money(calculado)}): no se aplicó. Para bajar el precio usa el descuento.`,
+      });
+    } else if (objetivo.gt(calculado) && repartirEnFilas([...items, ...(operacion ?? [])], objetivo.plus(descuento))) {
+      ajuste = { subtotalCalculado: calculado.toFixed(2), ajustePrecio: "" };
+    }
+  }
+
   const subtotal = round2(suma([...items, ...(operacion ?? [])].map((i) => d(i.subtotal))).minus(descuento));
+  if (ajuste) ajuste.ajustePrecio = subtotal.minus(calculado).toFixed(2);
   const total = round2(subtotal.times(d(p.iva).plus(1)));
   return {
     items,
     ...(operacion ? { operacion, descuento: money(descuento) } : {}),
+    ...(ajuste ?? {}),
     subtotal: subtotal.toFixed(2),
     iva: total.minus(subtotal).toFixed(2),
     total: total.toFixed(2),

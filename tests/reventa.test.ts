@@ -100,6 +100,25 @@ describe("Cotización de pura reventa o maquila", () => {
     expect((await crear(sinPrecio)).pendiente).toMatch(/^Reventa y maquila:/);
   });
 
+  it("con precio deseado, el aumento se reparte entre artículos y operación", async () => {
+    const venta = ventaSoloReventa();
+    (venta.entrada.ajustes as { precioObjetivo?: string }).precioObjetivo = "18971.42"; // el doble del calculado
+    const { resultado } = await crear(venta);
+    expect(resultado.reventa.subtotal).toBe("18971.42");
+    expect(resultado.reventa.subtotalCalculado).toBe("9485.71");
+    expect(resultado.reventa.ajustePrecio).toBe("9485.71");
+    expect(resultado.reventa.items.map((i: { unitario: string }) => i.unitario)).toEqual(["2700.00", "1350.00"]);
+    expect(resultado.reventa.operacion.map((f: { subtotal: string }) => f.subtotal)).toEqual(["2200.00", "5971.42"]);
+  });
+
+  it("el precio deseado menor al calculado no se aplica y avisa", async () => {
+    const venta = ventaSoloReventa();
+    (venta.entrada.ajustes as { precioObjetivo?: string }).precioObjetivo = "5000";
+    const { resultado } = await crear(venta);
+    expect(resultado.reventa.subtotal).toBe("9485.71");
+    expect(resultado.alertas.some((a: { codigo: string }) => a.codigo === "OBJETIVO_MENOR")).toBe(true);
+  });
+
   it("el descuento por decisión rápida se resta antes del IVA", async () => {
     const { resultado } = await crear(ventaSoloReventa({ descuento: "485.71" }));
     expect(resultado.reventa.descuento).toBe("485.71");

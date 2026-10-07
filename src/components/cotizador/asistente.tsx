@@ -479,6 +479,12 @@ function SoloReventaEnVivo({ reventa }: { reventa: ResultadoCotizacion["reventa"
         {(reventa.operacion ?? []).map((f) => (
           <div key={f.concepto}>{renglon(f.concepto, f.subtotal)}</div>
         ))}
+        {Number(reventa.ajustePrecio ?? 0) > 0 && (
+          <p className="text-muted-foreground">
+            Incluye {formatoMoneda(reventa.ajustePrecio ?? "0")} de ajuste al precio deseado (calculado:{" "}
+            {formatoMoneda(reventa.subtotalCalculado ?? "0")}).
+          </p>
+        )}
         {Number(reventa.descuento ?? 0) > 0 && renglon("− Descuento", reventa.descuento ?? "0")}
         {renglon("Subtotal", reventa.subtotal, "border-t pt-1 font-medium")}
         {renglon("+ IVA", reventa.iva)}

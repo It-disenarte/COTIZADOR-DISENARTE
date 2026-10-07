@@ -870,6 +870,23 @@ export function PasoResumen({
             )}
             <Renglon etiqueta="Subtotal" valor={resultado.reventa.subtotal} />
             <Renglon etiqueta="Total con IVA" valor={resultado.reventa.total} destacado />
+            {soloReventa && (
+              <div className="border-t pt-4">
+                <Campo
+                  etiqueta="Precio final deseado (sin IVA)"
+                  ayuda={
+                    resultado.reventa.subtotalCalculado
+                      ? `Calculado: ${formatoMoneda(resultado.reventa.subtotalCalculado)}. Se agregan ${formatoMoneda(resultado.reventa.ajustePrecio ?? "0")} repartidos entre los artículos y la operación según lo que pesa cada uno; así salen en el PDF. Bórralo para volver al calculado.`
+                      : `Opcional. Calculado: ${formatoMoneda(resultado.reventa.subtotal)}. Si escribes un precio mayor, la diferencia se reparte sola entre los artículos y la operación según lo que pesa cada uno, y el PDF sale con esos precios.`
+                  }
+                  opcional
+                  valor={txt(entrada.ajustes.precioObjetivo ?? "")}
+                  alCambiar={(valor) =>
+                    cambiar((b) => ({ ...b, entrada: { ...b.entrada, ajustes: { ...b.entrada.ajustes, precioObjetivo: valor } } }))
+                  }
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

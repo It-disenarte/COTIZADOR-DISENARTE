@@ -185,6 +185,8 @@ function esquemaEntrada(modo: "borrador" | "completa") {
       aplicaMargenError: z.boolean(),
       aplicaConsumibles: z.boolean(),
       margen: decimalOpcional({ min: 0, max: 1, maxExclusivo: true }),
+      // Precio final deseado de una venta de pura reventa o maquila (con conceptos va en cada opción).
+      precioObjetivo: decimalOpcional({ min: 0 }).optional(),
       descuentoDecisionRapida: z
         .object({ monto: numero({ min: 0 }), nota: textoOpcional(300) })
         .nullable()

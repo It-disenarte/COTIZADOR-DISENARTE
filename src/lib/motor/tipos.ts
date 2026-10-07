@@ -171,6 +171,8 @@ export type EntradaCotizacion = {
     aplicaConsumibles: boolean;
     margen?: Numerico | null;
     descuentoDecisionRapida?: { monto: Numerico; nota: string } | null;
+    /** Precio final deseado (sin IVA) de una venta de pura reventa o maquila. Con conceptos va en cada opción. */
+    precioObjetivo?: Numerico | null;
   };
   reventa: { nombre: string; precioReferencia: Numerico; cantidad: Numerico; link?: string | null; verificado: boolean }[];
 };
@@ -266,6 +268,9 @@ export type ReventaResultado = {
   descuento?: string;
   /** Subtotal de artículos + operación, menos el descuento. */
   subtotal: string;
+  /** Con precio deseado (solo pura reventa o maquila): el subtotal calculado y lo que se le sumó. */
+  subtotalCalculado?: string;
+  ajustePrecio?: string;
   iva: string;
   total: string;
 };

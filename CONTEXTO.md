@@ -170,7 +170,8 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - El PDF se genera al momento, **nunca se guarda en disco**.
 - **Precio final deseado** (paso Resumen, por opción, sin IVA): si es mayor al calculado, la diferencia se
   reparte entre las filas según lo que pesa cada una (`aplicarPrecioObjetivo` en el motor) y el PDF sale con esos
-  precios; los centavos se acomodan en una fila de cantidad 1. Nunca baja el precio (para eso está el descuento).
+  precios; los centavos se acomodan en una fila de cantidad 1. Nunca baja el precio (para eso está el descuento). En una venta de pura reventa o maquila
+  el campo va en la tarjeta de reventa (`ajustes.precioObjetivo`) y reparte entre artículos y filas de operación.
 - **Reventa y maquila** (paso 5): lo que no producimos (producto que se revende o trabajo encargado a un proveedor)
   lleva el 35% de `pct_reventa` sobre lo que nos cuesta; maquila y reventa se tratan igual. Si **todo** es reventa o
   maquila, la tabla del paso 2 se deja vacía: el resultado no trae opciones (`opciones: []`), el PDF no lleva
