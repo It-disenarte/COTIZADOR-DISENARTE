@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Ventana encima de la página para formularios cortos (crear o editar), así no hay que subir a
- * buscarlos. Se cierra con Escape, con la × o haciendo clic fuera.
+ * buscarlos. Solo se cierra con la × (o con el botón Cancelar del formulario): un clic fuera o la tecla
+ * Escape no la cierran, porque al seleccionar texto y soltar fuera se perdía lo capturado.
  */
 export function Modal({
   titulo,
@@ -22,24 +23,20 @@ export function Modal({
   className?: string;
 }) {
   useEffect(() => {
-    const alTeclear = (e: KeyboardEvent) => e.key === "Escape" && alCerrar();
-    window.addEventListener("keydown", alTeclear);
     // La página de fondo no se desplaza mientras la ventana está abierta.
     const desbordeAnterior = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", alTeclear);
       document.body.style.overflow = desbordeAnterior;
     };
-  }, [alCerrar]);
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4" onClick={alCerrar}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-modal"
-        onClick={(e) => e.stopPropagation()}
         className={cn("max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border bg-card p-5 shadow-xl", className)}
       >
         <div className="flex items-start justify-between gap-3">
