@@ -4,7 +4,6 @@ import { Button, Card, CardContent, Input, Label, Select } from "@/components/ui
 import { ETIQUETA_ZONA, type Zona, ZONAS } from "@/lib/catalogo/constantes";
 import type { BorradorCotizacion } from "@/lib/cotizador/estado";
 import { AbrirGoogleMaps } from "./abrir-google-maps";
-import { CampoDireccion } from "./campo-direccion";
 
 export type ClienteOpcion = {
   id: string;
@@ -173,10 +172,16 @@ export function PasoDatos<B extends BorradorDatos>({
               />
             </div>
             <div className="sm:col-span-2">
-              <CampoDireccion
-                valor={cliente.direccion}
-                alCambiar={(direccion) => editarCliente({ direccion })}
+              <Label htmlFor="direccion">Dirección de instalación</Label>
+              <Input
+                id="direccion"
+                value={cliente.direccion}
+                onChange={(e) => editarCliente({ direccion: e.target.value })}
+                placeholder="Av. Universidad 123, Col. Centro, Querétaro"
               />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Donde se va a instalar o entregar. Con esta dirección se abre Google Maps para medir los kilómetros.
+              </p>
             </div>
             {conTraslado && (
             <div className="space-y-2">
