@@ -8,7 +8,17 @@ import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
 import { useGuardadoCotizacion } from "./use-guardado";
-import { PASO, PASOS, type Pendiente, pasoDeAlerta, pasoDeErrorMotor, QUE_HACER_ALERTA } from "@/lib/cotizador/pasos";
+import {
+  PASO,
+  PASO_RAPIDA,
+  PASOS,
+  PASOS_RAPIDA,
+  type Pendiente,
+  pasoDeAlerta,
+  pasoDeErrorMotor,
+  pasoDeRapida,
+  QUE_HACER_ALERTA,
+} from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
 import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type ResultadoCotizacion, type Snapshot } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
@@ -17,6 +27,7 @@ import { PasoLevantamiento } from "./paso-levantamiento";
 import { PasoOpciones } from "./paso-opciones";
 import { type ClienteOpcion, PasoDatos } from "./pasos-captura";
 import { PasoOperacion, PasoResumen, PasoReventa } from "./pasos-cierre";
+import { PasoTiempoRapida } from "./paso-rapida";
 
 type Props = {
   usuarioId: string;
@@ -55,6 +66,13 @@ export function AsistenteCotizacion({
     alEditar: () => setAutorizadaEn(null),
   });
   const [paso, setPaso] = useState(0);
+  // Cotización rápida: menos pasos y una sola variable (las horas de desarrollo). Se reconoce por la propia entrada.
+  const rapida = !!borrador.entrada.rapida;
+  const pasos: readonly string[] = rapida ? PASOS_RAPIDA : PASOS;
+  const ultimoPaso = pasos.length - 1;
+  /** Lleva un número de paso del asistente completo (el que usan los errores y alertas) al paso que se ve. */
+  const pasoVisible = (completo: number) => (rapida ? pasoDeRapida(completo) : completo);
+  const clave = (rapida ? ["datos", "levantamiento", "tiempo", "resumen"] : ["datos", "levantamiento", "opciones", "operacion", "reventa", "resumen"])[paso];
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -83,16 +101,17 @@ export function AsistenteCotizacion({
   const { resultado, pendiente } = useMemo((): { resultado: ReturnType<typeof calcular> | null; pendiente: Pendiente | null } => {
     if (!snapshot) return { resultado: null, pendiente: null };
     const problema = problemaDeEntrada(borrador.entrada);
-    if (problema) return { resultado: null, pendiente: problema };
+    if (problema) return { resultado: null, pendiente: { ...problema, paso: rapida ? pasoDeRapida(problema.paso) : problema.paso } };
     try {
       return { resultado: calcular(borrador.entrada as EntradaCotizacion, snapshot), pendiente: null };
     } catch (error) {
       if (error instanceof ErrorMotor) {
-        return { resultado: null, pendiente: { paso: pasoDeErrorMotor(error.codigo), mensaje: error.message } };
+        const completo = pasoDeErrorMotor(error.codigo);
+        return { resultado: null, pendiente: { paso: rapida ? pasoDeRapida(completo) : completo, mensaje: error.message } };
       }
-      return { resultado: null, pendiente: { paso: PASO.resumen, mensaje: "Faltan datos para calcular." } };
+      return { resultado: null, pendiente: { paso: rapida ? PASO_RAPIDA.resumen : PASO.resumen, mensaje: "Faltan datos para calcular." } };
     }
-  }, [borrador.entrada, snapshot]);
+  }, [borrador.entrada, snapshot, rapida]);
 
   /**
    * Autoriza el análisis de costos (PNO-COM-01, Fase 1). Solo lo puede hacer el responsable;
@@ -140,7 +159,7 @@ export function AsistenteCotizacion({
 
   async function irAlPaso(destino: number) {
     await guardarPendiente();
-    setPaso(Math.min(Math.max(destino, 0), PASOS.length - 1));
+    setPaso(Math.min(Math.max(destino, 0), ultimoPaso));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -157,7 +176,7 @@ export function AsistenteCotizacion({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="space-y-6">
         <nav className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
-          {PASOS.map((nombre, i) => (
+          {pasos.map((nombre, i) => (
             <button
               key={nombre}
               type="button"
@@ -178,7 +197,7 @@ export function AsistenteCotizacion({
         {(guardando || ocupado) && <PantallaCarga mensaje={ocupado ?? "Guardando…"} />}
 
         {/* Punto de control del PNO-COM-01: sin autorización no se comunica ningún precio. */}
-        {paso === PASOS.length - 1 && !autorizadaEn && (
+        {paso === ultimoPaso && !autorizadaEn && (
           <Aviso tipo="error">
             {puedeAutorizar
               ? "El análisis de costos no está autorizado. Revísalo y presiona “Autorizar análisis” para poder generar la propuesta."
@@ -186,13 +205,14 @@ export function AsistenteCotizacion({
           </Aviso>
         )}
 
-        {paso === 0 && (
+        {clave === "datos" && (
           <PasoDatos
             borrador={borrador}
             cambiar={cambiar}
             clientes={clientes}
             vendedores={vendedores}
             puedeElegirVendedor={puedeElegirVendedor}
+            conTraslado={!rapida}
             alSincronizarCliente={(b, { km, zona }) => ({
               ...b,
               entrada: {
@@ -206,7 +226,7 @@ export function AsistenteCotizacion({
             })}
           />
         )}
-        {paso === 1 && (
+        {clave === "levantamiento" && (
           <PasoLevantamiento
             borrador={borrador}
             cambiar={cambiar}
@@ -216,18 +236,19 @@ export function AsistenteCotizacion({
             recargarCatalogo={recargarCatalogo}
           />
         )}
-        {paso === 2 && (
+        {clave === "opciones" && (
           <PasoOpciones borrador={borrador} cambiar={cambiar} asegurarGuardado={() => guardar({ avisar: true })} />
         )}
-        {paso === 3 && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
-        {paso === 4 && <PasoReventa borrador={borrador} cambiar={cambiar} />}
-        {paso === 5 && (
+        {clave === "operacion" && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
+        {clave === "tiempo" && <PasoTiempoRapida borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
+        {clave === "reventa" && <PasoReventa borrador={borrador} cambiar={cambiar} />}
+        {clave === "resumen" && (
           <PasoResumen
             borrador={borrador}
             cambiar={cambiar}
             resultado={resultado}
             autorizada={!!autorizadaEn}
-            pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} />}
+            pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} />}
           />
         )}
 
@@ -239,12 +260,12 @@ export function AsistenteCotizacion({
             <Button type="button" variant="outline" onClick={() => guardar()} disabled={guardando}>
               {guardando ? <Loader2 className="animate-spin" /> : <Save />} Guardar borrador
             </Button>
-            {paso === PASOS.length - 1 && puedeAutorizar && !autorizadaEn && (
+            {paso === ultimoPaso && puedeAutorizar && !autorizadaEn && (
               <Button type="button" onClick={autorizar} disabled={guardando || !resultado}>
                 <ShieldCheck /> Autorizar análisis
               </Button>
             )}
-            {paso === PASOS.length - 1 && (
+            {paso === ultimoPaso && (
               <Button
                 type="button"
                 variant="accent"
@@ -255,7 +276,7 @@ export function AsistenteCotizacion({
                 <FileDown /> Generar PDF
               </Button>
             )}
-            {paso < PASOS.length - 1 && (
+            {paso < ultimoPaso && (
               <Button type="button" onClick={() => irAlPaso(paso + 1)}>
                 Siguiente <ChevronRight />
               </Button>
@@ -272,7 +293,7 @@ export function AsistenteCotizacion({
               {borrador.folio && <p className="font-mono text-xs">{borrador.folio}</p>}
             </div>
 
-            {pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} />}
+            {pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} />}
 
             {primeraVariante && (
               <div className="space-y-1 text-sm">
@@ -289,7 +310,8 @@ export function AsistenteCotizacion({
                   variante={primeraVariante}
                   parametros={snapshot?.parametros ?? null}
                   ajustes={borrador.entrada.ajustes}
-                  irAOperacion={() => irAlPaso(PASO.operacion)}
+                  irAOperacion={() => irAlPaso(rapida ? PASO_RAPIDA.tiempo : PASO.operacion)}
+                  rapida={rapida}
                 />
               </div>
             )}
@@ -316,7 +338,15 @@ export function AsistenteCotizacion({
               />
             )}
 
-            {alertas.length > 0 && <ListaAlertas alertas={alertas} pasoActual={paso} irAlPaso={irAlPaso} />}
+            {alertas.length > 0 && (
+              <ListaAlertas
+                alertas={alertas}
+                pasoActual={paso}
+                irAlPaso={irAlPaso}
+                pasos={pasos}
+                pasoDe={(codigo) => pasoVisible(pasoDeAlerta(codigo))}
+              />
+            )}
 
             <EstadoGuardado estado={autoguardado} guardadoEn={guardadoEn} reintentar={() => guardar({ avisar: true })} />
           </CardContent>
@@ -368,11 +398,13 @@ function ComposicionDelCosto({
   parametros,
   ajustes,
   irAOperacion,
+  rapida,
 }: {
   variante: { desglose: Desglose; subtotal: string; total: string; descuento: string; ajustePrecio?: string };
   parametros: Snapshot["parametros"] | null;
   ajustes: BorradorCotizacion["entrada"]["ajustes"];
   irAOperacion: () => void;
+  rapida: boolean;
 }) {
   const { desglose } = variante;
   const materiales = Number(desglose.materiales);
@@ -380,12 +412,15 @@ function ComposicionDelCosto({
   const costo = Number(desglose.costoTotal);
   const operacion = Math.max(costo - materiales - consumibles, 0);
 
+  // Cotización rápida: sin consumibles, con costos indirectos y siempre el margen de error.
+  const indirectos = rapida ? Number(parametros?.pctIndirectos ?? 0.05) : 0;
   const margen = ajustes.margen !== "" && ajustes.margen != null ? Number(ajustes.margen) : Number(parametros?.margen ?? 0.3);
-  const pctError = ajustes.aplicaMargenError ? Number(parametros?.pctMargenError ?? 0.1) : 0;
+  const pctError = ajustes.aplicaMargenError || rapida ? Number(parametros?.pctMargenError ?? 0.1) : 0;
   const pctConsumibles = Number(parametros?.pctConsumibles ?? 0.05);
   const iva = Number(parametros?.iva ?? 0.16);
   const conError = costo * (1 + pctError);
-  const precio = conError / (1 - margen);
+  const conIndirectos = conError * (1 + indirectos);
+  const precio = conIndirectos / (1 - margen);
   const subtotal = Number(variante.subtotal);
   const descuento = Number(variante.descuento);
   const ajuste = Number(variante.ajustePrecio ?? 0);
@@ -405,10 +440,11 @@ function ComposicionDelCosto({
     <div className="space-y-1 border-t pt-2 text-xs">
       <p className="text-muted-foreground">Cómo se llega al precio:</p>
       {renglon("Materiales", materiales)}
-      {ajustes.aplicaConsumibles && renglon(`Consumibles (${porcentaje(pctConsumibles)} de materiales)`, consumibles)}
+      {ajustes.aplicaConsumibles && !rapida && renglon(`Consumibles (${porcentaje(pctConsumibles)} de materiales)`, consumibles)}
       {renglon("Operación y mano de obra", operacion)}
       {renglon("Costo", costo, "border-t pt-1 font-medium")}
       {pctError > 0 && renglon(`× ${(1 + pctError).toFixed(2)} margen de error`, conError)}
+      {indirectos > 0 && renglon(`× ${(1 + indirectos).toFixed(2)} costos indirectos (${porcentaje(indirectos)})`, conIndirectos)}
       {renglon(`÷ ${(1 - margen).toFixed(2)} margen del ${porcentaje(margen)}`, precio)}
       {ajuste > 0 && renglon("+ Ajuste al precio deseado", ajuste)}
       {descuento > 0 && renglon("− Descuento", descuento)}
@@ -419,7 +455,7 @@ function ComposicionDelCosto({
           El subtotal no es exacto a la fórmula porque hay precios escritos a mano o por el redondeo de cada pieza.
         </p>
       )}
-      {operacion > materiales + consumibles && (
+      {!rapida && operacion > materiales + consumibles && (
         <p className="rounded-md bg-accent/10 p-2 text-foreground">
           La operación pesa más que los materiales. Si es solo suministro, revisa diseño, instalación y viáticos.{" "}
           <button type="button" onClick={irAOperacion} className="font-medium underline underline-offset-2">

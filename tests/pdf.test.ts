@@ -336,3 +336,66 @@ describe("Nombre del archivo", () => {
     );
   });
 });
+
+describe("Cotización rápida", () => {
+  it("se guarda, se autoriza y sale en el PDF con los precios por concepto y sin desglose de costos", async () => {
+    const [estireno] = await db.select().from(insumos).where(eq(insumos.nombre, "Estireno cal. 40 blanco"));
+    const base = cotizacionGandhi(recetaId);
+    const rapida = {
+      ...base,
+      titulo: "Letreros rápidos",
+      entrada: {
+        ...base.entrada,
+        rapida: { horasDesarrollo: "6" },
+        levantamiento: {
+          areas: ["Cantidad"],
+          filas: [
+            { id: "c1", concepto: "Letrero entrada", anchoM: "1", altoM: "0.5", cantidades: ["2"] },
+            { id: "c2", concepto: "Letrero salida", anchoM: "0.5", altoM: "0.5", cantidades: ["1"] },
+          ],
+        },
+        opciones: [
+          {
+            id: "o1",
+            nombre: "Opción 1",
+            materiales: {
+              c1: [{ insumoId: estireno.id, modo: "por_m2", cantidad: "1" }],
+              c2: [{ insumoId: estireno.id, modo: "por_m2", cantidad: "1" }],
+            },
+          },
+        ],
+        reventa: [],
+      },
+    };
+    const creada = await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie, cuerpo: rapida }), undefined);
+    expect(creada.status).toBe(201);
+    const id = (await creada.json()).id;
+    expect((await autorizar(id)).status).toBe(200);
+
+    const abierta = await rutaCotizacion.GET(peticion(`/api/cotizaciones/${id}`, { cookie }), ctxId(id));
+    const variante = (await abierta.json()).cotizacion.resultado.opciones[0].variantes[0];
+    // Insumos: 1.25 m² × $95 = $118.75; tiempo: 6 h × $87.50 = $525; directo $643.75 × 1.10 × 1.05 ÷ 0.70.
+    expect(variante.desglose.costoTotal).toBe("643.75");
+    expect(Number(variante.subtotal)).toBeCloseTo((643.75 * 1.1 * 1.05) / 0.7, 0);
+
+    const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${id}/pdf`, { cookie }), ctxId(id));
+    expect(res.status).toBe(200);
+    const { texto } = await textoDelPdf(new Uint8Array(await res.arrayBuffer()));
+    for (const fila of variante.filas) expect(texto).toContain(`${formatoMoneda(fila.unitario)} MXN`);
+    expect(texto).not.toContain("87.50");
+  });
+
+  it("rechaza un cuarto concepto al guardar", async () => {
+    const base = cotizacionGandhi(recetaId);
+    const filas = ["a", "b", "c", "d"].map((x) => ({ id: x, concepto: `Concepto ${x}`, anchoM: "1", altoM: "1", cantidades: ["1"] }));
+    const res = await rutaCotizaciones.POST(
+      peticion("/api/cotizaciones", {
+        metodo: "POST",
+        cookie,
+        cuerpo: { ...base, entrada: { ...base.entrada, rapida: { horasDesarrollo: "4" }, levantamiento: { areas: ["Cantidad"], filas } } },
+      }),
+      undefined,
+    );
+    expect(res.status).toBe(400);
+  });
+});

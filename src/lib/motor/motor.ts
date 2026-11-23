@@ -339,16 +339,59 @@ function armarDesglose(
   };
 }
 
-/** factor = (1 + margen de error) ÷ (1 − margen). El margen es sobre precio de venta. */
-function factorPrecio(margen: Decimal, pctError: Decimal, aplicaError: boolean): Decimal {
+/**
+ * factor = (1 + margen de error) × (1 + indirectos) ÷ (1 − margen). El margen es sobre precio de venta.
+ * Los indirectos solo los lleva la cotización rápida; en las demás son cero y la fórmula es la del PNO.
+ */
+function factorPrecio(margen: Decimal, pctError: Decimal, aplicaError: boolean, indirectos: Decimal = CERO): Decimal {
   if (margen.gte(1)) throw new ErrorMotor("El margen debe ser menor a 1 (0.30 = 30%).", "MARGEN_INVALIDO");
   const conError = aplicaError ? pctError.plus(1) : d(1);
-  return conError.div(d(1).minus(margen));
+  return conError.times(indirectos.plus(1)).div(d(1).minus(margen));
 }
 
-export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot): ResultadoCotizacion {
-  const entrada = normalizarEntrada(entradaCapturada, snapshot);
+/** Máximo de conceptos de una cotización rápida. */
+export const MAX_CONCEPTOS_RAPIDA = 3;
+
+/**
+ * Cotización rápida: lo único que se captura aparte de los conceptos es el tiempo de desarrollo, en horas.
+ * Todo lo demás de la operación se anula, para que lo que haya quedado de otra captura no sume costo, y el
+ * tiempo entra como diseño (costo directo) repartido entre los conceptos.
+ */
+function imponerRapida(entrada: EntradaNormalizada, snapshot: Snapshot): EntradaNormalizada {
+  if (!entrada.rapida) return entrada;
   const p = snapshot.parametros;
+  const tarifaHora = vacio(p.tarifaHoraDesarrollo) ? d(p.tarifaDisenoDia).div(8) : d(p.tarifaHoraDesarrollo as never);
+  const horas = d(vacio(entrada.rapida.horasDesarrollo) ? 0 : (entrada.rapida.horasDesarrollo as never));
+  const op = entrada.operacion;
+  return {
+    ...entrada,
+    incluyeEnvio: false,
+    reventa: [],
+    operacion: {
+      ...op,
+      trabajoEnInstalacionesDisenarte: true,
+      diasDiseno: 0,
+      disenoMontoManual: horas.times(tarifaHora).toString(),
+      produccion: { personas: 0, dias: 0 },
+      instalacion: { incluye: false, personas: 0, dias: 0, escalaPorPieza: false },
+      viaticos: { ...op.viaticos, personas: 0, dias: 0, montoDiaManual: null },
+      hospedaje: { incluye: false, noches: 0, costoNoche: 0 },
+      traslado: { ...op.traslado, kmPorTrayecto: 0, casetasPorViaje: 0 },
+      extras: [],
+    },
+    presentacion: { ...entrada.presentacion, operacionProrrateada: true, modalidades: "solo_una" },
+    ajustes: { ...entrada.ajustes, aplicaMargenError: true, aplicaConsumibles: false, margen: null },
+  };
+}
+
+/** Costos indirectos que lleva la entrada: solo la cotización rápida. */
+const indirectosDe = (entrada: EntradaNormalizada, snapshot: Snapshot): Decimal =>
+  entrada.rapida ? d(vacio(snapshot.parametros.pctIndirectos) ? 0.05 : (snapshot.parametros.pctIndirectos as never)) : CERO;
+
+export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot): ResultadoCotizacion {
+  const entrada = imponerRapida(normalizarEntrada(entradaCapturada, snapshot), snapshot);
+  const p = snapshot.parametros;
+  const indirectos = indirectosDe(entrada, snapshot);
   const { piezas, detalle, resumen } = calcularLevantamiento(entrada);
   const margen = elegir(entrada.ajustes.margen, p.margen);
   const pctError = d(p.pctMargenError);
@@ -359,7 +402,7 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
   // La propuesta es la tabla de artículos más la operación en filas aparte.
   if (piezas.lte(0) && entrada.reventa.length > 0) {
     alertasDeOperacion(entrada, snapshot, alertasGenerales);
-    const operacion = operacionAparte(entrada, snapshot, factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError));
+    const operacion = operacionAparte(entrada, snapshot, factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError, indirectos));
     const reventa = calcularReventa(entrada, snapshot, alertasGenerales, operacion);
     return { levantamiento: resumen, opciones: [], reventa, alertas: dedupe(alertasGenerales) };
   }
@@ -458,6 +501,7 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
         piezas,
         margen,
         pctError,
+        indirectos,
         iva,
         snapshot,
       });
@@ -648,14 +692,15 @@ function calcularVariante(args: {
   piezas: Decimal;
   margen: Decimal;
   pctError: Decimal;
+  indirectos: Decimal;
   iva: Decimal;
   snapshot: Snapshot;
 }): Variante {
-  const { clave, etiqueta, opcion, entrada, costos, porConcepto, porPiezaUnitario, produccion, piezas, margen, pctError, iva, snapshot } =
+  const { clave, etiqueta, opcion, entrada, costos, porConcepto, porPiezaUnitario, produccion, piezas, margen, pctError, indirectos, iva, snapshot } =
     args;
   const p = snapshot.parametros;
   const alertas: Alerta[] = [];
-  const factor = factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError);
+  const factor = factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError, indirectos);
   const prorratear = entrada.presentacion.operacionProrrateada;
 
   // Lo que no es de un concepto en particular (producción y, si se prorratea, la operación) se
@@ -737,7 +782,7 @@ function calcularVariante(args: {
   const unitario = conceptos.length === 1 ? d(conceptos[0].unitario) : round2(subtotalConceptos.div(piezas));
 
   const escenarios = p.escenariosMargen.map((escenario) => {
-    const factorEscenario = factorPrecio(d(escenario), pctError, entrada.ajustes.aplicaMargenError);
+    const factorEscenario = factorPrecio(d(escenario), pctError, entrada.ajustes.aplicaMargenError, indirectos);
     const subtotalEscenario = suma(porConcepto.map((c) => round2(costoDe(c).times(factorEscenario).div(c.piezas)).times(c.piezas)));
     const operacionAparte = prorratear ? CERO : round2(costos.fijos.total.times(factorEscenario));
     return {

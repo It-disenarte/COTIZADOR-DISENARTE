@@ -4,6 +4,23 @@ export const PASOS = ["Datos", "Levantamiento y materiales", "Opciones y fotos",
 
 export const PASO = { datos: 0, levantamiento: 1, opciones: 2, operacion: 3, reventa: 4, resumen: 5 } as const;
 
+// Cotización rápida: menos pasos. Los números de arriba (PASO) siguen identificando dónde falta algo; esto los lleva
+// al paso que sí existe en la cotización rápida.
+export const PASOS_RAPIDA = ["Datos", "Levantamiento y materiales", "Tiempo de desarrollo", "Resumen"] as const;
+
+export const PASO_RAPIDA = { datos: 0, levantamiento: 1, tiempo: 2, resumen: 3 } as const;
+
+const PASO_COMPLETO_A_RAPIDA: Record<number, number> = {
+  [PASO.datos]: PASO_RAPIDA.datos,
+  [PASO.levantamiento]: PASO_RAPIDA.levantamiento,
+  [PASO.opciones]: PASO_RAPIDA.levantamiento,
+  [PASO.operacion]: PASO_RAPIDA.tiempo,
+  [PASO.reventa]: PASO_RAPIDA.resumen,
+  [PASO.resumen]: PASO_RAPIDA.resumen,
+};
+
+export const pasoDeRapida = (paso: number): number => PASO_COMPLETO_A_RAPIDA[paso] ?? PASO_RAPIDA.resumen;
+
 /** Algo que falta para poder calcular, con el paso del asistente donde se captura. */
 export type Pendiente = { paso: number; mensaje: string };
 

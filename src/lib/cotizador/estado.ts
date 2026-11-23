@@ -88,6 +88,12 @@ export function borradorInicial(vendedorId: string): BorradorCotizacion {
   };
 }
 
+/** Cotización rápida: la misma captura con una sola variable, el tiempo de desarrollo en horas. */
+export function borradorRapido(vendedorId: string): BorradorCotizacion {
+  const base = borradorInicial(vendedorId);
+  return { ...base, entrada: { ...base.entrada, rapida: { horasDesarrollo: "" } } };
+}
+
 /** Lo que se manda a la API (la validación de verdad ocurre en el servidor). */
 export function cuerpoParaGuardar(borrador: BorradorCotizacion) {
   return {

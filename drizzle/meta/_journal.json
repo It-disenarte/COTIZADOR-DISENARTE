@@ -148,6 +148,13 @@
       "when": 1790869352821,
       "tag": "0020_un_solo_vehiculo",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790955752821,
+      "tag": "0021_cotizacion_rapida",
+      "breakpoints": true
     }
   ]
 }

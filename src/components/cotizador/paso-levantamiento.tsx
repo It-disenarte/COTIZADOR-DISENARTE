@@ -28,6 +28,7 @@ import {
 } from "@/lib/motor";
 import { cn } from "@/lib/utils";
 import { FormularioInsumo, type InsumoGuardado } from "./formulario-insumo";
+import { MAX_CONCEPTOS_RAPIDA } from "@/lib/motor/motor";
 import { ImportarLevantamiento } from "./ia";
 
 type Props = {
@@ -106,6 +107,9 @@ export function PasoLevantamiento({
   const [pegado, setPegado] = useState<string | null>(null);
   const [filaEncima, setFilaEncima] = useState<string | null>(null);
   const [opcionPorQuitar, setOpcionPorQuitar] = useState<string | null>(null);
+  // Cotización rápida: una sola opción y máximo 3 conceptos, sin pegar de Excel ni importar con IA.
+  const rapida = !!borrador.entrada.rapida;
+  const limiteAlcanzado = rapida && borrador.entrada.levantamiento.filas.length >= MAX_CONCEPTOS_RAPIDA;
 
   const editarEntrada = (transformar: (e: BorradorCotizacion["entrada"]) => BorradorCotizacion["entrada"]) =>
     cambiar((b) => ({ ...b, entrada: transformar(b.entrada) }));
@@ -212,6 +216,7 @@ export function PasoLevantamiento({
   return (
     <div className="space-y-4">
       <div className="min-w-0 space-y-4">
+        {!rapida && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {opciones.map((o, i) =>
@@ -275,6 +280,13 @@ export function PasoLevantamiento({
             maquila”.
           </p>
         </div>
+        )}
+        {rapida && (
+          <p className="text-sm text-muted-foreground">
+            Cotización rápida: máximo {MAX_CONCEPTOS_RAPIDA} conceptos. Cada uno lleva sus insumos del catálogo; el
+            tiempo de desarrollo se captura en el paso siguiente.
+          </p>
+        )}
 
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
@@ -450,6 +462,8 @@ export function PasoLevantamiento({
             <Button
               type="button"
               variant="outline"
+              disabled={limiteAlcanzado}
+              title={limiteAlcanzado ? `La cotización rápida admite máximo ${MAX_CONCEPTOS_RAPIDA} conceptos` : undefined}
               onClick={() => {
                 const fila = filaNueva();
                 editarLevantamiento({ filas: [...filas, fila] });
@@ -458,15 +472,24 @@ export function PasoLevantamiento({
             >
               <Plus /> Agregar concepto
             </Button>
-            <Button type="button" variant="outline" onClick={() => setPegado(pegado === null ? "" : null)}>
-              <ClipboardPaste /> Pegar de Excel
-            </Button>
-            <ImportarLevantamiento
-              alAplicar={(leido, modo) =>
-                // Si el documento reparte por áreas, cada área entra como concepto propio.
-                editarLevantamiento(agregarLevantamientoLeido(borrador.entrada.levantamiento, leido, modo))
-              }
-            />
+            {!rapida && (
+              <Button type="button" variant="outline" onClick={() => setPegado(pegado === null ? "" : null)}>
+                <ClipboardPaste /> Pegar de Excel
+              </Button>
+            )}
+            {!rapida && (
+              <ImportarLevantamiento
+                alAplicar={(leido, modo) =>
+                  // Si el documento reparte por áreas, cada área entra como concepto propio.
+                  editarLevantamiento(agregarLevantamientoLeido(borrador.entrada.levantamiento, leido, modo))
+                }
+              />
+            )}
+            {limiteAlcanzado && (
+              <span className="text-xs text-muted-foreground">
+                Llegaste al máximo de {MAX_CONCEPTOS_RAPIDA} conceptos de la cotización rápida.
+              </span>
+            )}
           </div>
           <p className="px-3 pb-3 text-xs text-muted-foreground">
             Si algo va en varias áreas o ubicaciones, captura un concepto por cada una. La cantidad de cada insumo se

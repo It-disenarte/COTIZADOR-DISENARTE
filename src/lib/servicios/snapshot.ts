@@ -91,6 +91,8 @@ function armarParametros(filas: FilaParametro[]): ParametrosMotor {
     margen: exigir("margen"),
     pctMargenError: exigir("pct_margen_error"),
     pctConsumibles: exigir("pct_consumibles"),
+    pctIndirectos: exigir("pct_indirectos"),
+    tarifaHoraDesarrollo: exigir("tarifa_hora_desarrollo"),
     tarifaInstaladorDia: exigir("tarifa_instalador_dia"),
     tarifaDisenoDia: exigir("tarifa_diseno_dia"),
     viaticosLocalDia: exigir("viaticos_local_dia"),

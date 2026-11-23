@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MODOS_COMPONENTE } from "@/lib/catalogo/constantes";
+import { MAX_CONCEPTOS_RAPIDA } from "@/lib/motor/motor";
 import { PASO, type Pendiente, textoPendiente } from "@/lib/cotizador/pasos";
 import { decimal, decimalOpcional, textoOpcional, textoRequerido, urlOpcional, Uuid } from "./comunes";
 
@@ -81,6 +82,8 @@ function esquemaEntrada(modo: "borrador" | "completa") {
   });
 
   const objeto = z.object({
+    // Presente = cotización rápida: su única variable es el tiempo de desarrollo, en horas.
+    rapida: z.object({ horasDesarrollo: numero({ min: 0, max: 10000 }) }).nullable().optional(),
     levantamiento: z.object({
       areas: z
         .array(texto(100, "Nombra el área."))
@@ -204,15 +207,35 @@ function esquemaEntrada(modo: "borrador" | "completa") {
       )
       .max(50),
   });
-  if (borrador) return objeto;
+  // La cotización rápida admite pocos conceptos; esto se exige también en el borrador.
+  const refinado = objeto.superRefine((entrada, ctx) => {
+    if (entrada.rapida && entrada.levantamiento.filas.length > MAX_CONCEPTOS_RAPIDA) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["levantamiento", "filas"],
+        message: `La cotización rápida admite máximo ${MAX_CONCEPTOS_RAPIDA} conceptos. Para más, usa el asistente completo.`,
+      });
+    }
+  });
+  if (borrador) return refinado;
   return z.preprocess(
     quitarFilasEnBlanco,
-    objeto.superRefine((entrada, ctx) => {
-      if (entrada.levantamiento.filas.length === 0 && entrada.reventa.length === 0) {
+    refinado.superRefine((entrada, ctx) => {
+      if (entrada.levantamiento.filas.length === 0 && entrada.reventa.length === 0 && !entrada.rapida) {
         ctx.addIssue({
           code: "custom",
           path: ["levantamiento", "filas"],
           message: "Agrega al menos un concepto, o artículos de reventa o maquila en el paso Reventa y maquila.",
+        });
+      }
+      if (entrada.rapida && entrada.levantamiento.filas.length === 0) {
+        ctx.addIssue({ code: "custom", path: ["levantamiento", "filas"], message: "Agrega al menos un concepto." });
+      }
+      if (entrada.rapida && !(Number(entrada.rapida.horasDesarrollo) > 0)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["rapida", "horasDesarrollo"],
+          message: "Captura el tiempo de desarrollo en horas (diseño y producción juntos).",
         });
       }
     }),
@@ -239,6 +262,7 @@ function pasoDeRuta(ruta: PropertyKey[]): number {
     case "incluyeEnvio":
       return PASO.opciones;
     case "operacion":
+    case "rapida":
     case "sitio":
       return PASO.operacion;
     case "reventa":

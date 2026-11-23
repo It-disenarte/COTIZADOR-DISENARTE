@@ -40,6 +40,10 @@ export type ParametrosMotor = {
   margen: Numerico;
   pctMargenError: Numerico;
   pctConsumibles: Numerico;
+  /** Cotización rápida: costos indirectos sobre el costo directo. Las cotizaciones anteriores no lo traen. */
+  pctIndirectos?: Numerico;
+  /** Cotización rápida: tarifa por hora del tiempo de desarrollo (diseño y producción). */
+  tarifaHoraDesarrollo?: Numerico;
   tarifaInstaladorDia: Numerico;
   tarifaDisenoDia: Numerico;
   viaticosLocalDia: Numerico;
@@ -139,7 +143,15 @@ export type OpcionCotizacion = {
 /** Forma anterior: una receta para todo el levantamiento. Se convierte sola al calcular. */
 export type OpcionAnterior = { recetaId: string; precioUnitarioManual?: Numerico | null; imagenId?: string | null };
 
+/**
+ * Cotización rápida: máximo 3 conceptos y una sola variable, el tiempo de desarrollo en horas (diseño y
+ * producción juntos). El motor ignora el resto de la operación y aplica margen de error, indirectos y utilidad.
+ */
+export type CotizacionRapida = { horasDesarrollo: Numerico };
+
 export type EntradaCotizacion = {
+  /** Presente = es una cotización rápida. */
+  rapida?: CotizacionRapida | null;
   levantamiento: Levantamiento;
   opciones: (OpcionCotizacion | OpcionAnterior)[];
   /** Texto libre que sale en el PDF ("5-7 días"). No entra en el cálculo. */

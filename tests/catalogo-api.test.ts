@@ -70,10 +70,13 @@ describe("Datos semilla de la especificación", () => {
     expect(await db.select().from(recetas)).toHaveLength(11);
     // Un solo vehículo (migración 0020): sin Hilux ni CX-30, a 12 km/L.
     const todos = await db.select().from(parametros);
-    expect(todos).toHaveLength(16);
+    expect(todos).toHaveLength(18);
     expect(todos.find((p) => p.clave === "rendimiento_hilux")).toBeUndefined();
     expect(todos.find((p) => p.clave === "rendimiento_cx30")).toBeUndefined();
     expect(todos.find((p) => p.clave === "rendimiento_km_l")?.valor).toBe("12.0000");
+    // Cotización rápida (migración 0021): indirectos de 5% y tarifa por hora.
+    expect(todos.find((p) => p.clave === "pct_indirectos")?.valor).toBe("0.0500");
+    expect(todos.find((p) => p.clave === "tarifa_hora_desarrollo")?.valor).toBe("87.5000");
   });
 
   it("carga los precios de operación de la ficha de desarrollo", async () => {

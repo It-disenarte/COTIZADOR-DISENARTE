@@ -179,6 +179,21 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   en **filas aparte** con la fórmula del PNO (`reventa.operacion`). El descuento por decisión rápida se resta ahí.
   Con conceptos, los artículos siguen en la hoja "Materiales adicionales" y la operación va en los conceptos.
 
+### 6.0 Cotización rápida
+
+Al presionar "Publicidad física" en la lista, una ventana pregunta si se hace **cotización rápida** o el **asistente completo**
+(`boton-nueva-fisica.tsx`; `/cotizaciones/nueva?modo=rapida`). Sigue siendo tipo `fisica`: se reconoce por
+`entrada.rapida = { horasDesarrollo }` (el asistente cambia solo al abrirla), así que usa el mismo PDF, autorización y mensajes.
+
+- **Máximo 3 conceptos**, cada uno con sus insumos del catálogo (se valida también al guardar el borrador). Sin pegar de Excel, IA ni opciones.
+- **Una sola variable: el tiempo de desarrollo en horas** (diseño y producción juntos), paso "Tiempo de desarrollo". Cuesta horas × `tarifa_hora_desarrollo`
+  (parámetro, $87.50 = $700 ÷ 8, **por confirmar con el dueño**) y se reparte entre los conceptos: no sale como fila al cliente.
+- **Fórmula:** `costo directo × 1.10 (margen de error) × 1.05 (indirectos, parámetro pct_indirectos) ÷ 0.70 (utilidad 30%) × 1.16`.
+  Sin consumibles. La utilidad real sale ~39% porque los indirectos suben el precio sin entrar al costo.
+- `imponerRapida()` en `motor.ts` anula instalación, viáticos, traslado, extras, reventa y margen capturado, aunque vengan en la entrada.
+- Pasos: Datos (sin km ni zona) → Levantamiento y materiales → Tiempo de desarrollo → Resumen (`PASOS_RAPIDA`, `pasoDeRapida` en `pasos.ts`).
+- Pruebas: `tests/rapida.test.ts` y el bloque "Cotización rápida" de `tests/pdf.test.ts`.
+
 ### 6.1 Digitalización (segundo tipo de cotización)
 
 Además de la publicidad física, hay cotizaciones de **Digitalización**: páginas web, identidad de marca, Google y
