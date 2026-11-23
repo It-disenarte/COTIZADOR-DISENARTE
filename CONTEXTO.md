@@ -33,7 +33,7 @@ Lo esencial, ya implementado y cubierto por `tests/pno.test.ts`:
   `costo directo` → `× 1.10` (margen de error) → `÷ 0.70` (margen del 30% **sobre venta**) → `× 1.16` (IVA).
   Nunca multiplicar por 1.30. En el código es `factorPrecio()` en `src/lib/motor/motor.ts`.
 - **Valores homologados (apartado 5):** día de instalador y de diseño $700; viáticos $250 local / $500 foráneo;
-  Hilux a 10 km/L; margen 30%; margen de error 10%; IVA 16%. Viven en la tabla `parametros`, editables.
+  un solo vehículo a 12 km/L (fijo, no editable); margen 30%; margen de error 10%; IVA 16%. Viven en la tabla `parametros`, editables.
 - **Comprobación de utilidad (6.8):** `(venta − costo) ÷ venta ≈ 0.30`. Es `margenReal` en cada variante y se
   muestra en el paso Resumen.
 - **Punto de control de la Fase 1:** ninguna comunicación al cliente sin **autorización** del responsable. Sin
@@ -102,7 +102,7 @@ src/
     servicios/        acceso a datos + permisos; lo que usan las rutas
     validacion/       esquemas Zod
     ia/               tareas de Gemini (levantamiento, reventa, alcance, catálogo, mensajes)
-    mapas/            OpenStreetMap: sugerencias de dirección y kilómetros
+    mapas/            enlace a Google Maps desde el taller
     importacion/      lectura de Excel y coincidencia de nombres con el catálogo
     db/schema.ts      esquema Drizzle
 drizzle/              migraciones SQL, se aplican solas en cada despliegue
@@ -281,21 +281,12 @@ cliente** de los insumos (Catálogo → Insumos → "Sugerir con IA"; se revisa 
 - Vercel no acepta peticiones de más de 4.5 MB: los archivos se limitan a 4 MB y las fotos se reducen en el
   navegador. Las rutas de IA llevan `maxDuration = 60`.
 
-### OpenStreetMap (`src/lib/mapas/osm.ts`)
+### Kilómetros (Google Maps)
 
-> Nov. 2026: el cálculo automático de km **ya no se usa en el asistente**. El paso Datos tiene el botón "Abrir Google Maps desde Diseñarte" (`abrir-google-maps.tsx`, enlace en `lib/mapas/google.ts`) y el vendedor copia los km a mano. Las sugerencias de dirección (Photon) siguen; la ruta `/api/distancia` quedó sin uso en pantalla.
-
-Sin cuenta ni llave. **Nominatim** busca direcciones, **OSRM** traza la ruta y **Photon** da las sugerencias
-mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios reales):
-
-- Photon **solo acepta** `lang` = `default`, `en`, `de`, `fr`. Con `es` rechaza toda la consulta con HTTP 400.
-- Nominatim **prohíbe** el autocompletado; por eso las sugerencias van por Photon.
-- En México el mapa casi no tiene números de casa: el número **se quita de la búsqueda** (se conserva en el
-  texto del usuario) porque arrastra los resultados a otras ciudades.
-- Si nada queda cerca del taller, se busca otra vez agregando "San Juan del Río, Querétaro".
-- Las sugerencias se ordenan: primero las que sí contienen lo escrito, luego las más cercanas.
-- `ORIGEN_COORDENADAS` es el punto de salida; si falta o está mal escrita, hay respaldo y **la pantalla lo avisa**.
-- Son servicios donados: se identifican con User-Agent propio y se deja un segundo entre consultas.
+Ya no hay cálculo automático ni sugerencias de dirección (se quitó OpenStreetMap en nov. 2026: no funcionaba bien).
+El paso Datos tiene el botón "Abrir Google Maps desde Diseñarte" (`abrir-google-maps.tsx`, enlace en
+`lib/mapas/google.ts`, sin llave ni cuenta): abre la ruta con el taller como salida y la dirección del cliente como
+destino, y el vendedor copia los km a mano en el campo de abajo. Esos km alimentan la gasolina en Operación.
 
 ---
 
@@ -309,7 +300,7 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
   la IP pública: así el puerto de la base no necesita estar expuesto a internet.
 - Variables en Easypanel (servicio → Entorno): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
   (**obligatoria**, el dominio con https; el login solo se acepta desde ahí, si no responde 403 "Invalid origin"), `BETTER_AUTH_ORIGENES` (otros dominios, separados por comas), `GEMINI_API_KEY`, y opcionales `GEMINI_MODEL` (por defecto
-  `gemini-3.8-flash`), `GEMINI_LIMITE_HORA`, `ORIGEN_COORDENADAS`, `CONTACTO_MAPAS`, `DB_POOL_MAX`.
+  `gemini-3.8-flash`), `GEMINI_LIMITE_HORA`, `DB_POOL_MAX`.
 - La imagen se compila con un `BETTER_AUTH_SECRET` de relleno (Better Auth lo exige al compilar); el real se
   lee al arrancar.
 - `npm run crear-admin` usa tsx y no existe en la imagen: si se pierde el acceso, correrlo desde una PC con
@@ -340,7 +331,6 @@ mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios real
 - Costo real del corte láser: ¿$5.08 o $50.81 por minuto? Cambia el costo de los insumos de acrílico y MDF.
 - Precio de la gasolina Magna (hay alerta si tiene más de 7 días sin actualizarse).
 - Costo del estireno cal. 20 y cal. 40, y del vinil fotoluminiscente.
-- Rendimiento real de la Mazda CX-30 (quedó 14 km/L como punto de partida).
 - Respaldo de la base de datos fuera del VPS.
 - Precios de los servicios digitales sembrados "por capturar" (página adicional, tienda en línea, logotipo,
   manual, fichas de Google, redes sociales, etc.).

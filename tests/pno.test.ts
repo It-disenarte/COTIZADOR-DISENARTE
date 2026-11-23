@@ -111,8 +111,7 @@ describe("Apartado 6: fórmulas oficiales", () => {
     expect(valor("margen")).toBe("0.3000");
     expect(valor("pct_margen_error")).toBe("0.1000");
     expect(valor("iva")).toBe("0.1600");
-    expect(valor("rendimiento_km_l")).toBe("10.0000");
-    expect(valor("rendimiento_hilux")).toBe("10.0000");
+    expect(valor("rendimiento_km_l")).toBe("12.0000");
   });
 
   it("6.8: la comprobación de utilidad viaja en el resultado de cada variante", async () => {

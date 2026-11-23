@@ -68,11 +68,12 @@ describe("Datos semilla de la especificación", () => {
   it("carga insumos, recetas y parámetros en la migración", async () => {
     expect(await db.select().from(insumos)).toHaveLength(39);
     expect(await db.select().from(recetas)).toHaveLength(11);
-    // 16 de la semilla original + el rendimiento de cada vehículo (migración 0010).
+    // Un solo vehículo (migración 0020): sin Hilux ni CX-30, a 12 km/L.
     const todos = await db.select().from(parametros);
-    expect(todos).toHaveLength(18);
-    expect(todos.find((p) => p.clave === "rendimiento_hilux")?.valor).toBe("10.0000");
-    expect(todos.find((p) => p.clave === "rendimiento_cx30")?.valor).toBe("14.0000");
+    expect(todos).toHaveLength(16);
+    expect(todos.find((p) => p.clave === "rendimiento_hilux")).toBeUndefined();
+    expect(todos.find((p) => p.clave === "rendimiento_cx30")).toBeUndefined();
+    expect(todos.find((p) => p.clave === "rendimiento_km_l")?.valor).toBe("12.0000");
   });
 
   it("carga los precios de operación de la ficha de desarrollo", async () => {
@@ -238,6 +239,16 @@ describe("Edición del catálogo por agente_admin", () => {
     expect(res.status).toBe(200);
     const [gasolina] = await db.select().from(parametros).where(eq(parametros.clave, "precio_gasolina_litro"));
     expect(gasolina.valor).toBe("24.5000");
+  });
+
+  it("el rendimiento del vehículo es fijo: solo se edita el precio de la gasolina", async () => {
+    const res = await rutaParametro.PATCH(
+      peticion("/api/parametros/rendimiento_km_l", { metodo: "PATCH", cookie: cookieAgente, cuerpo: { valor: "8" } }),
+      { params: Promise.resolve({ clave: "rendimiento_km_l" }) },
+    );
+    expect(res.status).toBe(403);
+    const [fila] = await db.select().from(parametros).where(eq(parametros.clave, "rendimiento_km_l"));
+    expect(fila.valor).toBe("12.0000");
   });
 });
 

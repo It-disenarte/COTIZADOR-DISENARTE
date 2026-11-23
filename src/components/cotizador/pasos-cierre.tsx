@@ -23,7 +23,6 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
   const editarOperacion = (cambios: Partial<typeof op>) =>
     cambiar((b) => ({ ...b, entrada: { ...b.entrada, operacion: { ...b.entrada.operacion, ...cambios } } }));
   const enCasa = op.trabajoEnInstalacionesDisenarte;
-  const vehiculos = snapshot?.vehiculos ?? [];
 
   const editarSitio = (cambios: Partial<NonNullable<BorradorCotizacion["entrada"]["sitio"]>>) =>
     cambiar((b) => ({
@@ -250,37 +249,6 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
               valor={txt(op.traslado.casetasPorViaje)}
               alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, casetasPorViaje: v } })}
             />
-            {vehiculos.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="vehiculo">Vehículo</Label>
-                <Select
-                  id="vehiculo"
-                  value={vehiculos.find((v) => v.rendimientoKmL === txt(op.traslado.rendimientoKmL))?.clave ?? ""}
-                  onChange={(e) => {
-                    const elegido = vehiculos.find((v) => v.clave === e.target.value);
-                    editarOperacion({ traslado: { ...op.traslado, rendimientoKmL: elegido?.rendimientoKmL ?? "" } });
-                  }}
-                >
-                  <option value="">Otro (captura el rendimiento)</option>
-                  {vehiculos.map((v) => (
-                    <option key={v.clave} value={v.clave}>
-                      {v.etiqueta} · {v.rendimientoKmL} km/L
-                    </option>
-                  ))}
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Llena el rendimiento con el del vehículo que va a hacer el viaje. Los rendimientos se editan en
-                  Catálogo → Parámetros.
-                </p>
-              </div>
-            )}
-            <Campo
-              etiqueta="Rendimiento km/L"
-              ayuda="Vacío = el del parámetro."
-              opcional
-            valor={txt(op.traslado.rendimientoKmL ?? "")}
-              alCambiar={(v) => editarOperacion({ traslado: { ...op.traslado, rendimientoKmL: v } })}
-            />
             {gasolina && (
               <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm sm:col-span-2">
                 <p>
@@ -291,7 +259,7 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
                   </span>
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {gasolina.viajes} viaje(s) redondo(s) de {txt(op.traslado.kmPorTrayecto)} km por trayecto. Las
+                  Rendimiento estándar del vehículo: {gasolina.rendimiento} km/L. {gasolina.viajes} viaje(s) redondo(s) de {txt(op.traslado.kmPorTrayecto)} km por trayecto. Las
                   casetas se suman aparte.
                 </p>
               </div>

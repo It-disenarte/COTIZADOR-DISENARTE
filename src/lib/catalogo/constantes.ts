@@ -129,3 +129,6 @@ export const ETIQUETA_MODALIDAD_WEB: Record<ModalidadWeb, string> = {
   dueno: "Solo dueño",
   ambas: "Las dos, para que el cliente elija",
 };
+
+/** Parámetros que no se editan desde el catálogo: el rendimiento del único vehículo (12 km/L). */
+export const PARAMETROS_FIJOS: string[] = ["rendimiento_km_l"];

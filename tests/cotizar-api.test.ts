@@ -102,7 +102,7 @@ describe("Cotizar con el catálogo real", () => {
     const conPrecio = await calcular(entrada);
     expect(conPrecio.status).toBe(200);
     const { resultado } = await conPrecio.json();
-    expect(resultado.opciones[0].variantes[0].desglose.gasolina).toBe("574.28");
+    expect(resultado.opciones[0].variantes[0].desglose.gasolina).toBe("478.57"); // a 12 km/L, el único vehículo
   });
 
   it("valida la entrada y exige sesión", async () => {

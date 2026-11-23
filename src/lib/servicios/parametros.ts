@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import { PARAMETROS_FIJOS } from "@/lib/catalogo/constantes";
 import { db } from "@/lib/db";
 import { parametros } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
@@ -18,6 +19,9 @@ export async function actualizarParametro(actor: UsuarioSesion | null, clave: st
   return db.transaction(async (tx) => {
     const [antes] = await tx.select().from(parametros).where(eq(parametros.clave, clave));
     if (!antes) noEncontrado("Parámetro");
+    if (PARAMETROS_FIJOS.includes(clave)) {
+      throw new ErrorHttp(403, "El rendimiento del vehículo es fijo (12 km/L). Solo se edita el precio de la gasolina.", "PARAMETRO_FIJO");
+    }
     // Porcentajes y márgenes se guardan como fracción (0.30 = 30%).
     if (antes.unidad === "fracción" && valor != null && Number(valor) >= 1) {
       throw new ErrorHttp(400, "Este parámetro es una fracción: escribe 0.30 para 30%.", "VALIDACION");

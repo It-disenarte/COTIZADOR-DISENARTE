@@ -141,6 +141,13 @@
       "when": 1790782952821,
       "tag": "0019_semilla_servicios_digitales",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790869352821,
+      "tag": "0020_un_solo_vehiculo",
+      "breakpoints": true
     }
   ]
 }

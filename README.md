@@ -208,10 +208,10 @@ el registro de la fecha del siguiente seguimiento.
     del Río (2 km) y "Avenida Tulum, Cancún" sigue mostrando Cancún (1,368 km).
   - `location_bias_scale` de Photon funciona al revés de lo que parece (0.3 sesga fuerte, 1 casi no sesga) y por sí
     solo no arregla estos casos.
-- **Vehículo y gasolina**: en Operación se elige Hilux o Mazda CX-30 y se llena el rendimiento; el paso muestra el
-  costo de gasolina del viaje (km × 2 × viajes ÷ km/L × precio del litro), el mismo cálculo que hace el motor. Los
-  rendimientos son parámetros editables (`rendimiento_hilux` 10 km/L, `rendimiento_cx30` 14 km/L, migración `0010`);
-  el CX-30 es un valor de partida por confirmar con el consumo real.
+- **Vehículo y gasolina**: hay un solo vehículo, fijo a 12 km/L (`rendimiento_km_l`, migración `0020`; ya no hay Hilux
+  ni CX-30 ni se elige vehículo). El paso Operación muestra el costo de gasolina del viaje (km × 2 × viajes ÷ 12 ×
+  precio del litro), el mismo cálculo que hace el motor. Lo único editable es el precio de la gasolina en Catálogo →
+  Parámetros; el rendimiento aparece como "Fijo" y la API lo rechaza. Las cotizaciones anteriores conservan su cálculo.
 
 ## Importar costos al catálogo (Catálogo → Importar costos)
 

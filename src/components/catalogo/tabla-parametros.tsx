@@ -4,6 +4,7 @@ import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Aviso, Badge, Button, Card, Input } from "@/components/ui";
+import { PARAMETROS_FIJOS } from "@/lib/catalogo/constantes";
 import { diasDesde, formatoFechaHora } from "@/lib/formato";
 import type { Parametro } from "@/lib/servicios/parametros";
 import { llamarApi } from "@/lib/utils";
@@ -63,6 +64,7 @@ export function TablaParametros({ parametros, puedeEditar }: { parametros: Param
               {parametros.map((p) => {
                 const desactualizado =
                   p.clave === "precio_gasolina_litro" && (p.valor == null || diasDesde(p.actualizadoEn) > DIAS_AVISO_GASOLINA);
+                const fijo = PARAMETROS_FIJOS.includes(p.clave);
                 return (
                   <tr key={p.clave}>
                     <td className="px-4 py-3 align-top">
@@ -71,7 +73,7 @@ export function TablaParametros({ parametros, puedeEditar }: { parametros: Param
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        {puedeEditar ? (
+                        {puedeEditar && !fijo ? (
                           <Input
                             className="h-9 w-32"
                             inputMode="decimal"
@@ -96,7 +98,9 @@ export function TablaParametros({ parametros, puedeEditar }: { parametros: Param
                     </td>
                     {puedeEditar && (
                       <td className="px-4 py-3 text-right align-top">
-                        {cambiado(p) ? (
+                        {fijo ? (
+                          <Badge>Fijo</Badge>
+                        ) : cambiado(p) ? (
                           <Button size="sm" disabled={ocupado === p.clave} onClick={() => guardar(p)}>
                             Guardar
                           </Button>
