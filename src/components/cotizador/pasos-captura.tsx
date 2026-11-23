@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Button, Card, CardContent, Input, Label, Select } from "@/components/ui";
 import { ETIQUETA_ZONA, type Zona, ZONAS } from "@/lib/catalogo/constantes";
 import type { BorradorCotizacion } from "@/lib/cotizador/estado";
-import type { Lugar } from "@/lib/mapas/osm";
-import { CalcularKm } from "./calcular-km";
+import { AbrirGoogleMaps } from "./abrir-google-maps";
 import { CampoDireccion } from "./campo-direccion";
 
 export type ClienteOpcion = {
@@ -50,8 +48,6 @@ export function PasoDatos<B extends BorradorDatos>({
 }) {
   const sincronizar = alSincronizarCliente ?? ((b: B) => b);
   const cliente = borrador.cliente;
-  // Punto exacto elegido en las sugerencias de dirección (si lo hay).
-  const [lugarElegido, setLugarElegido] = useState<Lugar | null>(null);
   const sugerencias = clientes
     .filter((c) => {
       const q = `${cliente.empresa} ${cliente.nombreContacto}`.trim().toLowerCase();
@@ -180,12 +176,12 @@ export function PasoDatos<B extends BorradorDatos>({
               <CampoDireccion
                 valor={cliente.direccion}
                 alCambiar={(direccion) => editarCliente({ direccion })}
-                alElegirLugar={setLugarElegido}
               />
             </div>
             {conTraslado && (
             <div className="space-y-2">
-              <Label htmlFor="km">Km desde San Juan del Río</Label>
+              <Label htmlFor="km">Km desde Diseñarte (un solo trayecto)</Label>
+              <AbrirGoogleMaps direccion={cliente.direccion} />
               <Input
                 id="km"
                 inputMode="decimal"
@@ -194,10 +190,11 @@ export function PasoDatos<B extends BorradorDatos>({
                 placeholder="58.6"
               />
               <p className="text-xs text-muted-foreground">
-                Un solo trayecto (no ida y vuelta). Se guarda con el cliente y pasa solo al campo “Km por trayecto”
-                del paso de Operación, donde se usa para calcular la gasolina.
+                Abre Google Maps (ya sale desde Diseñarte), escribe la dirección o el nombre de la empresa del cliente
+                y copia aquí los kilómetros que te marque. Anota un solo trayecto (no ida y vuelta). Se guarda con el
+                cliente y pasa solo al campo “Km por trayecto” del paso de Operación, donde se usa para calcular la
+                gasolina.
               </p>
-              <CalcularKm direccion={cliente.direccion} lugar={lugarElegido} alUsar={ponerKm} />
             </div>
             )}
             {conTraslado && (

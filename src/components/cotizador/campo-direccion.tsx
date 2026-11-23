@@ -21,7 +21,7 @@ export function CampoDireccion({
 }: {
   valor: string;
   alCambiar: (direccion: string) => void;
-  alElegirLugar: (lugar: Lugar | null) => void;
+  alElegirLugar?: (lugar: Lugar | null) => void;
 }) {
   const [sugerencias, setSugerencias] = useState<Lugar[]>([]);
   const [abierto, setAbierto] = useState(false);
@@ -83,7 +83,7 @@ export function CampoDireccion({
   function elegir(lugar: Lugar) {
     elegido.current = lugar.etiqueta;
     alCambiar(lugar.etiqueta);
-    alElegirLugar(lugar);
+    alElegirLugar?.(lugar);
     setAbierto(false);
     setSugerencias([]);
   }
@@ -115,7 +115,7 @@ export function CampoDireccion({
           onChange={(e) => {
             alCambiar(e.target.value);
             // Si edita el texto, el punto elegido ya no corresponde.
-            if (elegido.current !== e.target.value) alElegirLugar(null);
+            if (elegido.current !== e.target.value) alElegirLugar?.(null);
           }}
           onFocus={() => sugerencias.length > 0 && setAbierto(true)}
           onKeyDown={alTeclear}

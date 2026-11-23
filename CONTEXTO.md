@@ -283,6 +283,8 @@ cliente** de los insumos (Catálogo → Insumos → "Sugerir con IA"; se revisa 
 
 ### OpenStreetMap (`src/lib/mapas/osm.ts`)
 
+> Nov. 2026: el cálculo automático de km **ya no se usa en el asistente**. El paso Datos tiene el botón "Abrir Google Maps desde Diseñarte" (`abrir-google-maps.tsx`, enlace en `lib/mapas/google.ts`) y el vendedor copia los km a mano. Las sugerencias de dirección (Photon) siguen; la ruta `/api/distancia` quedó sin uso en pantalla.
+
 Sin cuenta ni llave. **Nominatim** busca direcciones, **OSRM** traza la ruta y **Photon** da las sugerencias
 mientras se escribe. Trampas ya resueltas (comprobadas contra los servicios reales):
 
