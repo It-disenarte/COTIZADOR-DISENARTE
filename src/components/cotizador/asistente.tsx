@@ -72,7 +72,7 @@ export function AsistenteCotizacion({
   const ultimoPaso = pasos.length - 1;
   /** Lleva un número de paso del asistente completo (el que usan los errores y alertas) al paso que se ve. */
   const pasoVisible = (completo: number) => (rapida ? pasoDeRapida(completo) : completo);
-  const clave = (rapida ? ["datos", "levantamiento", "tiempo", "resumen"] : ["datos", "levantamiento", "opciones", "operacion", "reventa", "resumen"])[paso];
+  const clave = (rapida ? ["datos", "cotizacion"] : ["datos", "levantamiento", "opciones", "operacion", "reventa", "resumen"])[paso];
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -109,7 +109,7 @@ export function AsistenteCotizacion({
         const completo = pasoDeErrorMotor(error.codigo);
         return { resultado: null, pendiente: { paso: rapida ? pasoDeRapida(completo) : completo, mensaje: error.message } };
       }
-      return { resultado: null, pendiente: { paso: rapida ? PASO_RAPIDA.resumen : PASO.resumen, mensaje: "Faltan datos para calcular." } };
+      return { resultado: null, pendiente: { paso: rapida ? PASO_RAPIDA.cotizacion : PASO.resumen, mensaje: "Faltan datos para calcular." } };
     }
   }, [borrador.entrada, snapshot, rapida]);
 
@@ -226,7 +226,7 @@ export function AsistenteCotizacion({
             })}
           />
         )}
-        {clave === "levantamiento" && (
+        {(clave === "levantamiento" || clave === "cotizacion") && (
           <PasoLevantamiento
             borrador={borrador}
             cambiar={cambiar}
@@ -240,16 +240,24 @@ export function AsistenteCotizacion({
           <PasoOpciones borrador={borrador} cambiar={cambiar} asegurarGuardado={() => guardar({ avisar: true })} />
         )}
         {clave === "operacion" && <PasoOperacion borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
-        {clave === "tiempo" && <PasoTiempoRapida borrador={borrador} cambiar={cambiar} snapshot={snapshot} />}
+        {clave === "cotizacion" && (
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Tiempo de desarrollo</h2>
+            <PasoTiempoRapida borrador={borrador} cambiar={cambiar} snapshot={snapshot} />
+          </section>
+        )}
         {clave === "reventa" && <PasoReventa borrador={borrador} cambiar={cambiar} />}
-        {clave === "resumen" && (
-          <PasoResumen
-            borrador={borrador}
-            cambiar={cambiar}
-            resultado={resultado}
-            autorizada={!!autorizadaEn}
-            pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} />}
-          />
+        {(clave === "resumen" || clave === "cotizacion") && (
+          <section className="space-y-3">
+            {clave === "cotizacion" && <h2 className="text-lg font-semibold">Resumen y propuesta</h2>}
+            <PasoResumen
+              borrador={borrador}
+              cambiar={cambiar}
+              resultado={resultado}
+              autorizada={!!autorizadaEn}
+              pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} />}
+            />
+          </section>
         )}
 
         <div className="flex items-center justify-between gap-3 border-t pt-4">
@@ -310,7 +318,7 @@ export function AsistenteCotizacion({
                   variante={primeraVariante}
                   parametros={snapshot?.parametros ?? null}
                   ajustes={borrador.entrada.ajustes}
-                  irAOperacion={() => irAlPaso(rapida ? PASO_RAPIDA.tiempo : PASO.operacion)}
+                  irAOperacion={() => irAlPaso(rapida ? PASO_RAPIDA.cotizacion : PASO.operacion)}
                   rapida={rapida}
                 />
               </div>

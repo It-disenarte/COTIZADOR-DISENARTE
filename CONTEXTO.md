@@ -191,7 +191,7 @@ Al presionar "Publicidad física" en la lista, una ventana pregunta si se hace *
 - **Fórmula:** `costo directo × 1.10 (margen de error) × 1.05 (indirectos, parámetro pct_indirectos) ÷ 0.70 (utilidad 30%) × 1.16`.
   Sin consumibles. La utilidad real sale ~39% porque los indirectos suben el precio sin entrar al costo.
 - `imponerRapida()` en `motor.ts` anula instalación, viáticos, traslado, extras, reventa y margen capturado, aunque vengan en la entrada.
-- Pasos: Datos (sin km ni zona) → Levantamiento y materiales → Tiempo de desarrollo → Resumen (`PASOS_RAPIDA`, `pasoDeRapida` en `pasos.ts`).
+- **Solo dos secciones** (decisión del dueño): **Datos** (sin km ni zona) y **Cotización**, que junta en una página los conceptos con sus insumos, el tiempo de desarrollo y el resumen con autorización y PDF (`PASOS_RAPIDA`, `pasoDeRapida` en `pasos.ts`).
 - Pruebas: `tests/rapida.test.ts` y el bloque "Cotización rápida" de `tests/pdf.test.ts`.
 
 ### 6.1 Digitalización (segundo tipo de cotización)
