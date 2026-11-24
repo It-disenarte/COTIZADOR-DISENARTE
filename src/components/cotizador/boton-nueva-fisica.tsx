@@ -21,39 +21,49 @@ export function BotonNuevaFisica() {
       >
         <FilePlus2 className="size-4" /> Publicidad física
       </button>
-      {abierto && (
-        <Modal
-          titulo="¿Cómo quieres cotizar?"
-          descripcion="Las dos llevan autorización, PDF y mensajes para el cliente."
-          alCerrar={() => setAbierto(false)}
-          className="max-w-xl"
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Link
-              href="/cotizaciones/nueva?modo=rapida"
-              className="space-y-1 rounded-lg border p-4 hover:border-primary hover:bg-primary/5"
-            >
-              <p className="flex items-center gap-2 font-medium">
-                <Zap className="size-4 text-accent" /> Cotización rápida
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Hasta 3 conceptos con sus insumos y una sola variable: el tiempo de desarrollo en horas.
-              </p>
-            </Link>
-            <Link
-              href="/cotizaciones/nueva"
-              className="space-y-1 rounded-lg border p-4 hover:border-primary hover:bg-primary/5"
-            >
-              <p className="flex items-center gap-2 font-medium">
-                <FilePlus2 className="size-4 text-accent" /> Asistente completo
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Todos los conceptos, opciones, fotos, operación (instalación, viáticos) y reventa o maquila.
-              </p>
-            </Link>
-          </div>
-        </Modal>
-      )}
+      {abierto && <SelectorModoCotizacion alCerrar={() => setAbierto(false)} />}
     </>
+  );
+}
+
+/**
+ * La ventana que pregunta cómo cotizar. Se usa desde el botón de la lista y desde "Nueva cotización" del menú:
+ * como el menú sigue en pantalla al navegar, la ventana se cierra sola al elegir.
+ */
+export function SelectorModoCotizacion({ alCerrar }: { alCerrar: () => void }) {
+  return (
+    <Modal
+      titulo="¿Cómo quieres cotizar?"
+      descripcion="Las dos llevan autorización, PDF y mensajes para el cliente."
+      alCerrar={alCerrar}
+      className="max-w-xl"
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/cotizaciones/nueva?modo=rapida"
+          onClick={alCerrar}
+          className="space-y-1 rounded-lg border p-4 hover:border-primary hover:bg-primary/5"
+        >
+          <p className="flex items-center gap-2 font-medium">
+            <Zap className="size-4 text-accent" /> Cotización rápida
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Hasta 3 conceptos con sus insumos y una sola variable: el tiempo de desarrollo en horas.
+          </p>
+        </Link>
+        <Link
+          href="/cotizaciones/nueva"
+          onClick={alCerrar}
+          className="space-y-1 rounded-lg border p-4 hover:border-primary hover:bg-primary/5"
+        >
+          <p className="flex items-center gap-2 font-medium">
+            <FilePlus2 className="size-4 text-accent" /> Asistente completo
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Todos los conceptos, opciones, fotos, operación (instalación, viáticos) y reventa o maquila.
+          </p>
+        </Link>
+      </div>
+    </Modal>
   );
 }
