@@ -181,9 +181,10 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 
 ### 6.0 Cotización rápida
 
-Al presionar "Publicidad física" en la lista, una ventana pregunta si se hace **cotización rápida** o el **asistente completo**
-(`boton-nueva-fisica.tsx`; `/cotizaciones/nueva?modo=rapida`). Sigue siendo tipo `fisica`: se reconoce por
-`entrada.rapida = { horasDesarrollo }` (el asistente cambia solo al abrirla), así que usa el mismo PDF, autorización y mensajes.
+"Nueva cotización" (menú lateral) y "Publicidad física" (lista) llevan a `/cotizaciones/nueva`, una **pantalla** (no una ventana
+encima, el dueño no la quiso así) que pregunta entre **cotización rápida** (`?modo=rapida`) y **asistente completo** (`?modo=completa`)
+(`elegir-modo.tsx`). Sigue siendo tipo `fisica`: se reconoce por `entrada.rapida = { horasDesarrollo }` (el asistente cambia solo al
+abrirla), así que usa el mismo PDF, autorización y mensajes.
 
 - **Máximo 3 conceptos**, cada uno con sus insumos del catálogo (se valida también al guardar el borrador). Sin pegar de Excel, IA ni opciones.
 - **Una sola variable: el tiempo de desarrollo en horas** (diseño y producción juntos), paso "Tiempo de desarrollo". Cuesta horas × `tarifa_hora_desarrollo`

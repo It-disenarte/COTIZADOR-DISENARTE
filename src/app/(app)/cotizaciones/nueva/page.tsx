@@ -1,13 +1,15 @@
 import { headers } from "next/headers";
 import { AsistenteCotizacion } from "@/components/cotizador/asistente";
 import { AsistenteDigital } from "@/components/cotizador/asistente-digital";
+import { ElegirModoCotizacion } from "@/components/cotizador/elegir-modo";
 import { borradorRapido } from "@/lib/cotizador/estado";
 import { tienePermiso } from "@/lib/permisos";
 import { requireSesion } from "@/lib/sesion";
 import { datosDelAsistente } from "@/lib/servicios/cotizador-datos";
 
 /**
- * /cotizaciones/nueva = publicidad física completa; ?modo=rapida = cotización rápida (máximo 3 conceptos);
+ * /cotizaciones/nueva = pantalla para elegir entre cotización rápida y asistente completo (publicidad física);
+ * ?modo=rapida = cotización rápida (máximo 3 conceptos); ?modo=completa = asistente completo;
  * ?tipo=digital = Digitalización.
  */
 export default async function PaginaNuevaCotizacion({ searchParams }: PageProps<"/cotizaciones/nueva">) {
@@ -15,6 +17,20 @@ export default async function PaginaNuevaCotizacion({ searchParams }: PageProps<
   const { tipo, modo } = await searchParams;
   const digital = tipo === "digital";
   const rapida = !digital && modo === "rapida";
+  const elegir = !digital && modo !== "rapida" && modo !== "completa";
+  if (elegir) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6">
+        <header>
+          <h1 className="text-2xl font-semibold">Nueva cotización</h1>
+          <p className="text-sm text-muted-foreground">
+            Publicidad física. Las dos llevan autorización, PDF y mensajes para el cliente. ¿Cómo quieres cotizar?
+          </p>
+        </header>
+        <ElegirModoCotizacion />
+      </div>
+    );
+  }
   const { clientes, vendedores } = await datosDelAsistente(usuario);
   const propiedades = {
     usuarioId: usuario.id,

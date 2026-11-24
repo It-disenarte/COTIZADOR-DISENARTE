@@ -1,8 +1,7 @@
-import { Globe } from "lucide-react";
+import { FilePlus2, Globe } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { BotonEliminar, BotonPdf } from "@/components/cotizador/acciones-cotizacion";
-import { BotonNuevaFisica } from "@/components/cotizador/boton-nueva-fisica";
 import { BotonDuplicar } from "@/components/cotizador/boton-duplicar";
 import { Badge, Card } from "@/components/ui";
 import { ETIQUETA_ESTADO, ETIQUETA_TIPO_COTIZACION } from "@/lib/catalogo/constantes";
@@ -43,7 +42,12 @@ export default async function PaginaCotizaciones({ searchParams }: PageProps<"/c
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <BotonNuevaFisica />
+          <Link
+            href="/cotizaciones/nueva"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90"
+          >
+            <FilePlus2 className="size-4" /> Publicidad física
+          </Link>
           <Link
             href="/cotizaciones/nueva?tipo=digital"
             className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"

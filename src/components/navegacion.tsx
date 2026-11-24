@@ -4,7 +4,6 @@ import { FilePlus2, FolderClock, House, KeyRound, LogOut, Package, PanelLeftClos
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { SelectorModoCotizacion } from "@/components/cotizador/boton-nueva-fisica";
 import { BotonInstalar } from "@/components/boton-instalar";
 import { Isotipo, Marca } from "@/components/marca";
 import { PantallaCarga } from "@/components/pantalla-carga";
@@ -36,7 +35,6 @@ export function Navegacion({ usuario, inicialOculto = false }: { usuario: Usuari
   const router = useRouter();
   const [oculto, setOculto] = useState(inicialOculto);
   const [saliendo, setSaliendo] = useState(false);
-  const [eligiendoModo, setEligiendoModo] = useState(false);
 
   function alternarMenu() {
     const nuevo = !oculto;
@@ -94,39 +92,24 @@ export function Navegacion({ usuario, inicialOculto = false }: { usuario: Usuari
       >
         {visibles.map(({ href, etiqueta, icono: Icono }) => {
           const activo = ruta === href || (href !== "/inicio" && ruta.startsWith(`${href}/`));
-          const clase = cn(
-            "flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-            oculto && "md:justify-center md:px-0",
-            activo ? "bg-white font-medium text-morado shadow-sm" : "text-white/85 hover:bg-white/10 hover:text-white",
-          );
-          const contenido = (
-            <>
+          return (
+            <Link
+              key={href}
+              href={href}
+              title={oculto ? etiqueta : undefined}
+              aria-current={activo ? "page" : undefined}
+              className={cn(
+                "flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                oculto && "md:justify-center md:px-0",
+                activo ? "bg-white font-medium text-morado shadow-sm" : "text-white/85 hover:bg-white/10 hover:text-white",
+              )}
+            >
               <Icono className="size-4 shrink-0" />
               <span className={cn(oculto && "md:sr-only")}>{etiqueta}</span>
-            </>
-          );
-          // "Nueva cotización" pregunta primero si es rápida o con el asistente completo.
-          if (href === "/cotizaciones/nueva") {
-            return (
-              <button
-                key={href}
-                type="button"
-                onClick={() => setEligiendoModo(true)}
-                title={oculto ? etiqueta : undefined}
-                className={clase}
-              >
-                {contenido}
-              </button>
-            );
-          }
-          return (
-            <Link key={href} href={href} title={oculto ? etiqueta : undefined} aria-current={activo ? "page" : undefined} className={clase}>
-              {contenido}
             </Link>
           );
         })}
       </nav>
-      {eligiendoModo && <SelectorModoCotizacion alCerrar={() => setEligiendoModo(false)} />}
 
       {/* Escritorio: usuario y una acción por renglón (no se cortan con nombres largos). */}
       <div className={cn("hidden border-t border-white/15 md:block", oculto ? "px-2 py-3" : "p-4")}>
