@@ -37,7 +37,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-modal"
-        className={cn("max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border bg-card p-5 shadow-xl", className)}
+        className={cn("max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border bg-card p-5 text-foreground shadow-xl", className)}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
