@@ -414,25 +414,33 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
 
   const opciones: OpcionResultado[] = entrada.opciones.map((opcion) => {
     const porConcepto: CostoConcepto[] = conPiezas.map((f) => {
-      const componentes = opcion.materiales[f.fila.id] ?? [];
-      if (componentes.length === 0) {
-        throw new ErrorMotor(
-          `"${f.fila.concepto || "Concepto sin nombre"}" no tiene insumos en "${opcion.nombre}". Agrégaselos en el paso Levantamiento.`,
-          "CONCEPTO_SIN_INSUMOS",
-        );
-      }
-      for (const componente of componentes) {
-        const insumo = snapshot.insumos[componente.insumoId];
-        if (insumo?.requiereRevision) {
-          alertasGenerales.push({
-            codigo: "INSUMO_POR_REVISAR",
-            mensaje: `El insumo "${insumo.nombre}" está marcado como "Por revisar".`,
-          });
+      try {
+        const componentes = opcion.materiales[f.fila.id] ?? [];
+        if (componentes.length === 0) {
+          throw new ErrorMotor(
+            `"${f.fila.concepto || "Concepto sin nombre"}" no tiene insumos en "${opcion.nombre}". Agrégaselos en el paso Levantamiento.`,
+            "CONCEPTO_SIN_INSUMOS",
+          );
         }
+        for (const componente of componentes) {
+          const insumo = snapshot.insumos[componente.insumoId];
+          if (insumo?.requiereRevision) {
+            alertasGenerales.push({
+              codigo: "INSUMO_POR_REVISAR",
+              mensaje: `El insumo "${insumo.nombre}" está marcado como "Por revisar".`,
+            });
+          }
+        }
+        const materiales = materialesDeConcepto(componentes, snapshot, f.piezas, f.areaM2);
+        const consumibles = entrada.ajustes.aplicaConsumibles ? materiales.times(d(p.pctConsumibles)) : CERO;
+        return { fila: f.fila, piezas: f.piezas, materiales, consumibles, directo: materiales.plus(consumibles) };
+      } catch (error) {
+        // Se le dice al asistente de qué concepto viene, para marcar su casilla de insumos.
+        if (error instanceof ErrorMotor && !error.contexto?.filaId) {
+          throw new ErrorMotor(error.message, error.codigo, { filaId: f.fila.id });
+        }
+        throw error;
       }
-      const materiales = materialesDeConcepto(componentes, snapshot, f.piezas, f.areaM2);
-      const consumibles = entrada.ajustes.aplicaConsumibles ? materiales.times(d(p.pctConsumibles)) : CERO;
-      return { fila: f.fila, piezas: f.piezas, materiales, consumibles, directo: materiales.plus(consumibles) };
     });
 
     const materiales = suma(porConcepto.map((c) => c.materiales));

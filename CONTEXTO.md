@@ -154,6 +154,15 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - Un **borrador** se guarda con solo los datos del paso 1; autorizar, el PDF y los mensajes exigen la cotización
   completa y dicen qué falta.
 - El precio se recalcula **en vivo en el navegador** con el mismo motor del servidor.
+- **Errores marcados casilla por casilla** (asistente de publicidad física, normal y rápida): lo que falta se revisa en
+  este orden: `revisarCaptura` (`src/lib/cotizador/revision.ts`: título, contacto, y por concepto nombre, cantidad,
+  insumos y ancho/alto si lleva un insumo por m²), el esquema Zod y los errores del motor (que traen el `filaId` del
+  concepto). Cada `Pendiente` lleva `campo` = **id del elemento** de pantalla (`fila-<id>-cantidad`, `nombre-<opción>`,
+  `reventa-nombre-0`…). Al presionar "Siguiente", "Autorizar" o "Generar PDF" con algo pendiente sale un cuadro de
+  diálogo que dice qué falta; "Corregir ahora" (o "Ir a la casilla" en el precio en vivo) cambia de sección, centra la
+  casilla, la enfoca y la marca en rojo (`data-error`, estilo en `globals.css`); la marca se quita al editar. Una casilla
+  nueva que pueda fallar necesita su `id` y, en `campoDeRuta` (`validacion/cotizacion.ts`) o en `revisarCaptura`, su regla.
+  No aplica a Digitalización.
 - **Guardado automático:** dos segundos después de la última edición (en cuanto hay título y contacto), sin
   pantalla de carga; el pie del precio en vivo dice "Cambios sin guardar… / Guardando… / Guardado 3:41" o el error
   con "Intentar de nuevo". Solo guarda si alguien editó (abrir una cotización autorizada no la toca) y las

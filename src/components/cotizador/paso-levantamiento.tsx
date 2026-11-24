@@ -28,6 +28,7 @@ import {
 } from "@/lib/motor";
 import { cn } from "@/lib/utils";
 import { FormularioInsumo, type InsumoGuardado } from "./formulario-insumo";
+import { idFila } from "@/lib/cotizador/revision";
 import { MAX_CONCEPTOS_RAPIDA } from "@/lib/motor/motor";
 import { ImportarLevantamiento } from "./ia";
 
@@ -325,6 +326,7 @@ export function PasoLevantamiento({
                       <td className="px-2 py-2">
                         <Input
                           className="h-9 min-w-36"
+                          id={idFila(fila.id, "concepto")}
                           value={fila.concepto}
                           onChange={(e) => editarFila(fila.id, { concepto: e.target.value })}
                           aria-label={`Concepto de la fila ${i + 1}`}
@@ -334,6 +336,7 @@ export function PasoLevantamiento({
                         <Input
                           className="h-9 w-18"
                           inputMode="decimal"
+                          id={idFila(fila.id, "ancho")}
                           value={txt(fila.anchoM)}
                           vacioEsCero
                           onChange={(e) => editarFila(fila.id, { anchoM: e.target.value })}
@@ -344,6 +347,7 @@ export function PasoLevantamiento({
                         <Input
                           className="h-9 w-18"
                           inputMode="decimal"
+                          id={idFila(fila.id, "alto")}
                           value={txt(fila.altoM)}
                           vacioEsCero
                           onChange={(e) => editarFila(fila.id, { altoM: e.target.value })}
@@ -354,6 +358,7 @@ export function PasoLevantamiento({
                         <Input
                           className="h-9 w-18"
                           inputMode="numeric"
+                          id={idFila(fila.id, "cantidad")}
                           value={txt(fila.cantidades[0])}
                           vacioEsCero
                           onChange={(e) => editarFila(fila.id, { cantidades: [e.target.value] })}
@@ -362,6 +367,7 @@ export function PasoLevantamiento({
                       </td>
                       <td className="px-2 py-2">
                         <div
+                          id={idFila(fila.id, "insumos")}
                           onDragOver={(e) => {
                             if (!e.dataTransfer.types.includes(TIPO_ARRASTRE)) return;
                             e.preventDefault();

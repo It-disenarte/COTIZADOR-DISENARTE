@@ -4,9 +4,11 @@ import { Check, ChevronLeft, ChevronRight, FileDown, Loader2, Save, ShieldCheck,
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAvisos } from "@/components/avisos";
+import { Modal } from "@/components/modal";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { Aviso, Button, Card, CardContent } from "@/components/ui";
 import { type BorradorCotizacion, borradorInicial, cuerpoParaGuardar, opcionNueva } from "@/lib/cotizador/estado";
+import { idFila, revisarCaptura } from "@/lib/cotizador/revision";
 import { useGuardadoCotizacion } from "./use-guardado";
 import {
   PASO,
@@ -66,6 +68,8 @@ export function AsistenteCotizacion({
     alEditar: () => setAutorizadaEn(null),
   });
   const [paso, setPaso] = useState(0);
+  /** Cuadro que dice qué falta; `continuar` existe cuando se llegó con "Siguiente". */
+  const [falta, setFalta] = useState<{ pendiente: Pendiente; continuar?: () => void } | null>(null);
   // Cotización rápida: menos pasos y una sola variable (las horas de desarrollo). Se reconoce por la propia entrada.
   const rapida = !!borrador.entrada.rapida;
   const pasos: readonly string[] = rapida ? PASOS_RAPIDA : PASOS;
@@ -100,18 +104,34 @@ export function AsistenteCotizacion({
   // Lo primero que falta (con el paso donde se captura) o el resultado, si ya se puede calcular.
   const { resultado, pendiente } = useMemo((): { resultado: ReturnType<typeof calcular> | null; pendiente: Pendiente | null } => {
     if (!snapshot) return { resultado: null, pendiente: null };
+    const visible = (p: Pendiente): Pendiente => ({ ...p, paso: rapida ? pasoDeRapida(p.paso) : p.paso });
+    // Primero lo que se ve casilla por casilla (título, contacto, cantidad, medidas, insumos), luego el esquema
+    // general y al final los errores del motor (costos faltantes en el catálogo).
+    const revision = revisarCaptura({
+      titulo: borrador.titulo,
+      cliente: { nombreContacto: borrador.cliente.nombreContacto },
+      entrada: borrador.entrada,
+    });
+    if (revision) return { resultado: null, pendiente: visible(revision) };
     const problema = problemaDeEntrada(borrador.entrada);
-    if (problema) return { resultado: null, pendiente: { ...problema, paso: rapida ? pasoDeRapida(problema.paso) : problema.paso } };
+    if (problema) return { resultado: null, pendiente: visible(problema) };
     try {
       return { resultado: calcular(borrador.entrada as EntradaCotizacion, snapshot), pendiente: null };
     } catch (error) {
       if (error instanceof ErrorMotor) {
-        const completo = pasoDeErrorMotor(error.codigo);
-        return { resultado: null, pendiente: { paso: rapida ? pasoDeRapida(completo) : completo, mensaje: error.message } };
+        const filaId = error.contexto?.filaId;
+        return {
+          resultado: null,
+          pendiente: visible({
+            paso: pasoDeErrorMotor(error.codigo),
+            mensaje: error.message,
+            campo: filaId ? idFila(filaId, "insumos") : undefined,
+          }),
+        };
       }
       return { resultado: null, pendiente: { paso: rapida ? PASO_RAPIDA.cotizacion : PASO.resumen, mensaje: "Faltan datos para calcular." } };
     }
-  }, [borrador.entrada, snapshot, rapida]);
+  }, [borrador.titulo, borrador.cliente.nombreContacto, borrador.entrada, snapshot, rapida]);
 
   /**
    * Autoriza el análisis de costos (PNO-COM-01, Fase 1). Solo lo puede hacer el responsable;
@@ -161,6 +181,39 @@ export function AsistenteCotizacion({
     await guardarPendiente();
     setPaso(Math.min(Math.max(destino, 0), ultimoPaso));
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /** Quita la marca roja de las casillas: en cuanto se edita algo, lo que se marcó ya se está corrigiendo. */
+  function quitarMarcas() {
+    document.querySelectorAll('[data-error="true"]').forEach((el) => el.removeAttribute("data-error"));
+  }
+  useEffect(quitarMarcas, [borrador.entrada, borrador.titulo, borrador.cliente.nombreContacto]);
+
+  /**
+   * Lleva a la casilla que falta: cambia de sección si hace falta, la centra en pantalla, la enfoca y la marca
+   * en rojo. Sin casilla conocida (p. ej. un precio de la gasolina por capturar), solo lleva a la sección.
+   */
+  async function corregir(problema: Pendiente) {
+    setFalta(null);
+    if (problema.paso !== paso) await irAlPaso(problema.paso);
+    // El paso nuevo tarda un instante en pintarse.
+    window.setTimeout(() => {
+      quitarMarcas();
+      const casilla = problema.campo ? document.getElementById(problema.campo) : null;
+      if (!casilla) return;
+      casilla.scrollIntoView({ behavior: "smooth", block: "center" });
+      casilla.setAttribute("data-error", "true");
+      casilla.focus({ preventScroll: true });
+    }, 120);
+  }
+
+  /** "Siguiente": si en esta sección falta algo, antes de pasar se dice qué es. */
+  function siguiente() {
+    if (pendiente && pendiente.paso === paso) {
+      setFalta({ pendiente, continuar: () => irAlPaso(paso + 1) });
+      return;
+    }
+    irAlPaso(paso + 1);
   }
 
   const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
@@ -255,9 +308,41 @@ export function AsistenteCotizacion({
               cambiar={cambiar}
               resultado={resultado}
               autorizada={!!autorizadaEn}
-              pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} />}
+              pendiente={pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} corregir={corregir} />}
             />
           </section>
+        )}
+
+        {falta && (
+          <Modal
+            titulo="Falta información"
+            descripcion={`Sección: ${pasos[falta.pendiente.paso] ?? ""}`}
+            alCerrar={() => setFalta(null)}
+            className="max-w-md"
+          >
+            <p className="flex items-start gap-2 text-sm">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <span>{falta.pendiente.mensaje}</span>
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              {falta.continuar && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    const continuar = falta.continuar;
+                    setFalta(null);
+                    continuar?.();
+                  }}
+                >
+                  Continuar sin corregir
+                </Button>
+              )}
+              <Button type="button" onClick={() => corregir(falta.pendiente)}>
+                {falta.pendiente.campo ? "Corregir ahora" : `Ir a ${pasos[falta.pendiente.paso] ?? "la sección"}`}
+              </Button>
+            </div>
+          </Modal>
         )}
 
         <div className="flex items-center justify-between gap-3 border-t pt-4">
@@ -269,7 +354,11 @@ export function AsistenteCotizacion({
               {guardando ? <Loader2 className="animate-spin" /> : <Save />} Guardar borrador
             </Button>
             {paso === ultimoPaso && puedeAutorizar && !autorizadaEn && (
-              <Button type="button" onClick={autorizar} disabled={guardando || !resultado}>
+              <Button
+                type="button"
+                onClick={() => (pendiente ? setFalta({ pendiente }) : autorizar())}
+                disabled={guardando || (!resultado && !pendiente)}
+              >
                 <ShieldCheck /> Autorizar análisis
               </Button>
             )}
@@ -277,15 +366,15 @@ export function AsistenteCotizacion({
               <Button
                 type="button"
                 variant="accent"
-                onClick={generarPdf}
-                disabled={guardando || !resultado || !autorizadaEn}
+                onClick={() => (pendiente ? setFalta({ pendiente }) : generarPdf())}
+                disabled={guardando || (!pendiente && (!resultado || !autorizadaEn))}
                 title={autorizadaEn ? undefined : "Falta autorizar el análisis de costos (PNO-COM-01, Fase 1)"}
               >
                 <FileDown /> Generar PDF
               </Button>
             )}
             {paso < ultimoPaso && (
-              <Button type="button" onClick={() => irAlPaso(paso + 1)}>
+              <Button type="button" onClick={siguiente}>
                 Siguiente <ChevronRight />
               </Button>
             )}
@@ -301,7 +390,7 @@ export function AsistenteCotizacion({
               {borrador.folio && <p className="font-mono text-xs">{borrador.folio}</p>}
             </div>
 
-            {pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} />}
+            {pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} corregir={corregir} />}
 
             {primeraVariante && (
               <div className="space-y-1 text-sm">
@@ -372,12 +461,15 @@ export function AvisoPendiente({
   pasoActual,
   irAlPaso,
   pasos = PASOS,
+  corregir,
 }: {
   pendiente: Pendiente;
   pasoActual: number;
   irAlPaso: (paso: number) => void;
   /** Nombres de los pasos del asistente (física o digital). */
   pasos?: readonly string[];
+  /** Lleva a la casilla que falta y la marca. Sin esto, el botón solo cambia de paso. */
+  corregir?: (pendiente: Pendiente) => void;
 }) {
   return (
     <div className="space-y-2 rounded-md border border-accent/40 bg-accent/5 p-3 text-sm">
@@ -387,10 +479,16 @@ export function AvisoPendiente({
           <span className="font-medium">Falta en “{pasos[pendiente.paso]}”:</span> {pendiente.mensaje}
         </span>
       </p>
-      {pendiente.paso !== pasoActual && (
-        <Button type="button" size="sm" variant="outline" onClick={() => irAlPaso(pendiente.paso)}>
-          Ir a {pasos[pendiente.paso]} <ChevronRight />
+      {corregir && pendiente.campo ? (
+        <Button type="button" size="sm" variant="outline" onClick={() => corregir(pendiente)}>
+          Ir a la casilla <ChevronRight />
         </Button>
+      ) : (
+        pendiente.paso !== pasoActual && (
+          <Button type="button" size="sm" variant="outline" onClick={() => irAlPaso(pendiente.paso)}>
+            Ir a {pasos[pendiente.paso]} <ChevronRight />
+          </Button>
+        )
       )}
     </div>
   );

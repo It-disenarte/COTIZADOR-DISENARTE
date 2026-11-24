@@ -139,3 +139,27 @@
     animation-duration: 1ms;
   }
 }
+
+/* Casilla que falta o está mal: el asistente la marca (data-error) al llevar a la persona hasta ella. */
+@keyframes sacudir-campo {
+  0%, 100% {
+    transform: none;
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+[data-error="true"] {
+  border-color: var(--destructive) !important;
+  background-color: color-mix(in oklab, var(--destructive) 8%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 30%, transparent);
+  animation: sacudir-campo 300ms ease-in-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-error="true"] {
+    animation: none;
+  }
+}

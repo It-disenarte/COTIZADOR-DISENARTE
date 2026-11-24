@@ -285,9 +285,35 @@ export function problemaDeEntrada(entrada: unknown): Pendiente | null {
     ruta = [...ruta, ...interno.path];
     problema = interno;
   }
-  const [, subseccion, indice] = ruta;
+  const [seccion, subseccion, indice, campo] = ruta;
   const fila = subseccion === "filas" && typeof indice === "number" ? `Concepto ${indice + 1}: ` : "";
-  return { paso: pasoDeRuta(ruta), mensaje: `${fila}${problema.message}` };
+  return { paso: pasoDeRuta(ruta), mensaje: `${fila}${problema.message}`, campo: campoDeRuta(entrada, [seccion, subseccion, indice, campo]) };
+}
+
+/** Id de la casilla de pantalla donde se corrige lo que señala el esquema (los ids están en los inputs de cada paso). */
+function campoDeRuta(entrada: unknown, [seccion, subseccion, indice, campo]: PropertyKey[]): string | undefined {
+  const e = (entrada ?? {}) as {
+    levantamiento?: { filas?: { id?: string }[] };
+    opciones?: { id?: string }[];
+  };
+  if (seccion === "levantamiento" && subseccion === "filas" && indice === undefined) {
+    // Falta al menos un concepto: se marca el primero de la tabla.
+    const primera = e.levantamiento?.filas?.[0]?.id;
+    return primera ? `fila-${primera}-concepto` : undefined;
+  }
+  if (seccion === "opciones" && typeof subseccion === "number" && indice === "nombre") {
+    const id = e.opciones?.[subseccion]?.id;
+    return id ? `nombre-${id}` : undefined;
+  }
+  if (seccion === "reventa" && typeof subseccion === "number") {
+    const columna = { nombre: "nombre", precioReferencia: "precio", cantidad: "cantidad" }[String(indice)];
+    return columna ? `reventa-${columna}-${subseccion}` : undefined;
+  }
+  if (seccion === "operacion" && subseccion === "extras" && typeof indice === "number" && campo === "concepto") {
+    return `extra-concepto-${indice}`;
+  }
+  if (seccion === "rapida") return "horas-desarrollo";
+  return undefined;
 }
 
 /**

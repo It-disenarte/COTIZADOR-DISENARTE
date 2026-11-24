@@ -310,6 +310,7 @@ export function PasoOperacion({ borrador, cambiar, snapshot }: Props & { snapsho
           {op.extras.map((extra, i) => (
             <div key={i} className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto]">
               <Input
+                id={`extra-concepto-${i}`}
                 value={extra.concepto}
                 onChange={(e) => editarOperacion({ extras: op.extras.map((x, k) => (k === i ? { ...x, concepto: e.target.value } : x)) })}
                 placeholder="Concepto"

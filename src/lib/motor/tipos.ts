@@ -302,6 +302,8 @@ export class ErrorMotor extends Error {
   constructor(
     message: string,
     public readonly codigo: string,
+    /** De qué concepto viene el error, para marcarlo en pantalla. */
+    public readonly contexto?: { filaId?: string },
   ) {
     super(message);
     this.name = "ErrorMotor";

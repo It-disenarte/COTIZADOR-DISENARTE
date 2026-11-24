@@ -13,7 +13,8 @@ export const PASO_RAPIDA = { datos: 0, cotizacion: 1 } as const;
 export const pasoDeRapida = (paso: number): number => (paso === PASO.datos ? PASO_RAPIDA.datos : PASO_RAPIDA.cotizacion);
 
 /** Algo que falta para poder calcular, con el paso del asistente donde se captura. */
-export type Pendiente = { paso: number; mensaje: string };
+/** `campo` es el id de la casilla donde se corrige, para llevar ahí a la persona y marcarla. */
+export type Pendiente = { paso: number; mensaje: string; campo?: string };
 
 /** Dónde se corrige cada error del motor. Los datos del catálogo se cambian desde el concepto. */
 const PASO_DE_ERROR: Record<string, number> = {
