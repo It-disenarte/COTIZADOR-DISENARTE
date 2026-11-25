@@ -20,6 +20,8 @@ export type InsumoSnapshot = {
   categoria?: string;
   /** Cómo se le nombra al cliente en el PDF. null o ausente = se usa el nombre. */
   nombreCliente?: string | null;
+  /** Fuente o nota del insumo (campo "Fuente / nota" del catálogo). Solo se muestra en el asistente; nunca sale al cliente. */
+  fuente?: string | null;
   /** Archivado: ya no se ofrece en el asistente, pero las cotizaciones que lo usan siguen calculando. */
   archivado?: boolean;
 };

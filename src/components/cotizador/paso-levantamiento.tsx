@@ -3,7 +3,7 @@
 import { ClipboardPaste, Copy, GripVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Button, Card, CardContent, Input, limpiarNumero, Textarea } from "@/components/ui";
+import { Button, Card, CardContent, Input, limpiarNumero, Select, Textarea } from "@/components/ui";
 import type { ModoComponente } from "@/lib/catalogo/constantes";
 import {
   type BorradorCotizacion,
@@ -859,19 +859,33 @@ function PanelCatalogo({
   alAgregar: (arrastre: Arrastre) => void;
 }) {
   const [busqueda, setBusqueda] = useState("");
+  // "" = todas las categorías. Filtrar por tipo de insumo (sustrato, vinil, acrílico…) acorta la búsqueda.
+  const [categoriaElegida, setCategoriaElegida] = useState("");
+
+  /** Categorías con insumos disponibles, con cuántos hay en cada una. */
+  const categorias = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const insumo of Object.values(snapshot?.insumos ?? {})) {
+      if (insumo.archivado) continue;
+      const categoria = insumo.categoria || "Otros";
+      cuenta.set(categoria, (cuenta.get(categoria) ?? 0) + 1);
+    }
+    return [...cuenta.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
+  }, [snapshot]);
 
   const grupos = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     const coincide = (texto: string) => texto.toLowerCase().includes(q);
     const grupos = new Map<string, InsumoSnapshot[]>();
     for (const insumo of Object.values(snapshot?.insumos ?? {})) {
-      if (insumo.archivado || !coincide(insumo.nombre)) continue;
       const categoria = insumo.categoria || "Otros";
+      if (insumo.archivado || !coincide(insumo.nombre)) continue;
+      if (categoriaElegida && categoria !== categoriaElegida) continue;
       grupos.set(categoria, [...(grupos.get(categoria) ?? []), insumo]);
     }
     for (const lista of grupos.values()) lista.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
     return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
-  }, [snapshot, busqueda]);
+  }, [snapshot, busqueda, categoriaElegida]);
 
   const item = (arrastre: Arrastre, nombre: string, detalle: string, insumo: InsumoSnapshot) => (
     <div
@@ -887,6 +901,11 @@ function PanelCatalogo({
       <div className="min-w-0 flex-1">
         <p className="font-medium">{nombre}</p>
         <p className="text-muted-foreground">{detalle}</p>
+        {insumo.fuente?.trim() && (
+          <p className="mt-0.5 line-clamp-2 italic text-muted-foreground" title={insumo.fuente.trim()}>
+            {insumo.fuente.trim()}
+          </p>
+        )}
       </div>
       {puedeEditar && (
         <button
@@ -945,6 +964,24 @@ function PanelCatalogo({
               className="h-9 pl-8"
             />
           </div>
+          <div className="space-y-1">
+            <Select
+              value={categoriaElegida}
+              onChange={(e) => setCategoriaElegida(e.target.value)}
+              aria-label="Filtrar el catálogo por tipo de insumo"
+              className="h-9"
+            >
+              <option value="">Todos los tipos de insumo</option>
+              {categorias.map(([categoria, cuantos]) => (
+                <option key={categoria} value={categoria}>
+                  {categoria} ({cuantos})
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Elige un tipo (sustrato, vinil, acrílico…) para ver solo esos insumos; la búsqueda se hace dentro del tipo.
+            </p>
+          </div>
           {!snapshot && <p className="text-xs text-muted-foreground">Cargando catálogo…</p>}
           <div className={cn("space-y-1.5 overflow-y-auto pr-1", enColumna ? "max-h-[calc(100vh-26rem)] min-h-40" : "max-h-128")}>
             {grupos.map(([categoria, lista]) => (
@@ -963,7 +1000,10 @@ function PanelCatalogo({
               </div>
             ))}
             {snapshot && grupos.length === 0 && (
-              <p className="text-xs text-muted-foreground">Nada coincide con “{busqueda}”.</p>
+              <p className="text-xs text-muted-foreground">
+                Nada coincide{busqueda.trim() && <> con “{busqueda}”</>}
+                {categoriaElegida && <> en {categoriaElegida}</>}.
+              </p>
             )}
           </div>
         </CardContent>

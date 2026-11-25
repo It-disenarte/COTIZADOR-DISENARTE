@@ -44,6 +44,7 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       requiereRevision: i.requiereRevision,
       categoria: i.categoria,
       nombreCliente: i.nombreCliente,
+      fuente: i.fuente,
       archivado: i.archivado,
     };
   }

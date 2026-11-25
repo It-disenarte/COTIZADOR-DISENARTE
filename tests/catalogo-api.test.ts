@@ -200,7 +200,12 @@ describe("Edición del catálogo por agente_admin", () => {
     const { insumo } = await res.json();
     const { obtenerSnapshot } = await import("@/lib/servicios/snapshot");
     const snapshot = await obtenerSnapshot({ id: "x", nombre: "Agente", rol: "agente_admin", activo: true } as never);
-    expect(snapshot.insumos[insumo.id]).toMatchObject({ costo: "123.4567", nombreCliente: "Base de acrílico espejo plata" });
+    expect(snapshot.insumos[insumo.id]).toMatchObject({
+      costo: "123.4567",
+      nombreCliente: "Base de acrílico espejo plata",
+      categoria: "Sustrato",
+      fuente: "Prueba",
+    });
   });
 
   it("edita el costo y archiva el insumo", async () => {

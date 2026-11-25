@@ -143,6 +143,9 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - Las **categorías de los insumos** se eligen de una lista fija (`CATEGORIAS_INSUMO` en `src/lib/catalogo/constantes.ts`)
   en el catálogo, en el asistente y en la importación; una categoría antigua fuera de la lista se sigue mostrando hasta
   que se cambie. Crear y editar insumos (catálogo y asistente) se hace en una ventana (`src/components/modal.tsx`).
+- El **catálogo del paso 2** (`PanelCatalogo` en `paso-levantamiento.tsx`) se filtra por **tipo de insumo** (la categoría) con un
+  selector, además de la búsqueda por nombre, y cada ficha muestra la **fuente / nota** del insumo si la tiene (`insumos.fuente`,
+  viaja en el snapshot; solo interno, nunca sale en el PDF).
 - **Rollo completo** (unidad `rollo`): se captura el precio del rollo, su ancho útil y su largo (`largo_rollo_m`);
   el motor lo lleva a costo por metro y por m² y cobra solo lo usado. El resumen de insumos dice cuántos rollos comprar.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
