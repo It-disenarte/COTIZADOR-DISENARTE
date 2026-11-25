@@ -24,6 +24,8 @@ export type InsumoSnapshot = {
   fuente?: string | null;
   /** Versión de su imagen si tiene una (la ficha del asistente la pide a /api/insumos/<id>/imagen?v=<versión>). */
   imagenVersion?: string | null;
+  /** Nombre del proveedor al que se le compra (solo interno; nunca sale al cliente). */
+  proveedor?: string | null;
   /** Archivado: ya no se ofrece en el asistente, pero las cotizaciones que lo usan siguen calculando. */
   archivado?: boolean;
 };

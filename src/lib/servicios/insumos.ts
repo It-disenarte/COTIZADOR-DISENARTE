@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { cotizaciones, cotizacionVersiones, insumos, recetaComponentes } from "@/lib/db/schema";
+import { cotizaciones, cotizacionVersiones, insumos, proveedores, recetaComponentes } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { ActualizarInsumo, CrearInsumo, GuardarNombresCliente } from "@/lib/validacion/catalogo";
@@ -9,15 +9,21 @@ import { versionesDeImagenesInsumo } from "./imagenes-insumo";
 
 type FilaInsumo = typeof insumos.$inferSelect;
 /** `imagenVersion`: versión de su imagen si tiene (ver imagenes-insumo.ts); solo la trae el listado. */
-export type Insumo = FilaInsumo & { imagenVersion?: string | null };
+export type Insumo = FilaInsumo & { imagenVersion?: string | null; proveedorNombre?: string | null };
 
 export async function listarInsumos(actor: UsuarioSesion | null): Promise<Insumo[]> {
   requirePermiso(actor, "catalogo.ver");
-  const [filas, imagenes] = await Promise.all([
+  const [filas, imagenes, filasProveedores] = await Promise.all([
     db.select().from(insumos).orderBy(asc(insumos.categoria), asc(insumos.nombre)),
     versionesDeImagenesInsumo(),
+    db.select({ id: proveedores.id, nombre: proveedores.nombre }).from(proveedores),
   ]);
-  return filas.map((i) => ({ ...i, imagenVersion: imagenes.get(i.id) ?? null }));
+  const nombres = new Map(filasProveedores.map((p) => [p.id, p.nombre]));
+  return filas.map((i) => ({
+    ...i,
+    imagenVersion: imagenes.get(i.id) ?? null,
+    proveedorNombre: i.proveedorId ? (nombres.get(i.proveedorId) ?? null) : null,
+  }));
 }
 
 export async function crearInsumo(actor: UsuarioSesion | null, datos: CrearInsumo): Promise<Insumo> {
@@ -36,6 +42,10 @@ export async function actualizarInsumo(actor: UsuarioSesion | null, id: string, 
     if (!antes) noEncontrado("Insumo");
 
     const valores = soloDefinidos(cambios);
+    if (valores.proveedorId) {
+      const [existe] = await tx.select({ id: proveedores.id }).from(proveedores).where(eq(proveedores.id, valores.proveedorId));
+      if (!existe) noEncontrado("Proveedor");
+    }
     const costoFinal = valores.costo !== undefined ? valores.costo : antes.costo;
     const unidadFinal = valores.unidadCosto !== undefined ? valores.unidadCosto : antes.unidadCosto;
     if (costoFinal != null && unidadFinal == null) {

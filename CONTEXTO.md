@@ -154,6 +154,12 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   (`imagen-insumo.tsx`). Vive en su tabla `imagenes_insumo` (bytea, una por insumo, se borra con el insumo) para que listar el
   catálogo no cargue los bytes: el snapshot y el listado traen solo `imagenVersion`, y la imagen se pide a
   `/api/insumos/<id>/imagen?v=<versión>` (cacheable; al reemplazarla cambia la versión). Solo interna: nunca sale en el PDF.
+- **Proveedores** (Catálogo → "Proveedores", `proveedores-catalogo.tsx`): lista de proveedores con su ficha (nombre, contacto
+  recurrente, ubicación, etiqueta **confiable / no confiable** y comentario) al lado de la lista de insumos. Se arrastra un insumo
+  a un proveedor y el insumo guarda ese proveedor (`insumos.proveedor_id`, un solo proveedor por insumo; cada insumo también tiene un
+  selector por si no se puede arrastrar). "Sin proveedor" o la X lo quitan; borrar un proveedor deja sus insumos sin proveedor.
+  Es información interna: el nombre viaja en el snapshot (`proveedor`) para la ficha del ojito, y nunca sale en el PDF ni mensajes.
+  Edita quien edita el catálogo; ventas solo lo ve. Pruebas: `tests/proveedores.test.ts`.
 - **Rollo completo** (unidad `rollo`): se captura el precio del rollo, su ancho útil y su largo (`largo_rollo_m`);
   el motor lo lleva a costo por metro y por m² y cobra solo lo usado. El resumen de insumos dice cuántos rollos comprar.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la

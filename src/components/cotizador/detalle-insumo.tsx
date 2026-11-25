@@ -49,6 +49,9 @@ export function DetalleInsumo({ insumo, alCerrar }: { insumo: InsumoSnapshot; al
         <Dato titulo="Nombre para el cliente">
           {insumo.nombreCliente?.trim() || <span className="text-muted-foreground">Igual al nombre (sin uno propio)</span>}
         </Dato>
+        <Dato titulo="Proveedor">
+          {insumo.proveedor || <span className="text-muted-foreground">Sin proveedor asignado</span>}
+        </Dato>
         {insumo.requiereRevision && (
           <Dato titulo="Estado">
             <Badge variant="accent">Por revisar</Badge>

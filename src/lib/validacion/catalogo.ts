@@ -15,6 +15,8 @@ const camposInsumo = {
   largoRolloM: decimalOpcional({ min: 0 }),
   fuente: textoOpcional(1000),
   requiereRevision: z.boolean(),
+  /** A quién se le compra. null = sin proveedor (se asigna arrastrándolo en Catálogo → Proveedores). */
+  proveedorId: z.preprocess((v) => (v === "" ? null : v), Uuid.nullable()).optional(),
 };
 
 const reglasInsumo = (d: { costo?: string | null; unidadCosto?: string | null }, ctx: z.RefinementCtx) => {
@@ -41,6 +43,22 @@ export const GuardarNombresCliente = z.object({
     .max(300),
 });
 export type GuardarNombresCliente = z.infer<typeof GuardarNombresCliente>;
+
+// Proveedores --------------------------------------------------------------------------------
+
+const camposProveedor = {
+  nombre: textoRequerido(200, "Escribe el nombre del proveedor."),
+  contacto: textoOpcional(500),
+  ubicacion: textoOpcional(500),
+  confiable: z.boolean(),
+  comentario: textoOpcional(2000),
+};
+
+export const CrearProveedor = z.object(camposProveedor);
+export type CrearProveedor = z.infer<typeof CrearProveedor>;
+
+export const ActualizarProveedor = z.object({ ...camposProveedor, archivado: z.boolean() }).partial();
+export type ActualizarProveedor = z.infer<typeof ActualizarProveedor>;
 
 // Servicios digitales ------------------------------------------------------------------------
 

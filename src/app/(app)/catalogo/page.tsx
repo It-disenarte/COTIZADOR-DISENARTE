@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { ImportarCatalogo } from "@/components/catalogo/importar-catalogo";
 import { SugerirNombresCliente } from "@/components/catalogo/sugerir-nombres-cliente";
+import { ProveedoresCatalogo } from "@/components/catalogo/proveedores-catalogo";
 import { TablaInsumos } from "@/components/catalogo/tabla-insumos";
 import { TablaParametros } from "@/components/catalogo/tabla-parametros";
 import { TablaServiciosDigitales } from "@/components/catalogo/tabla-servicios-digitales";
@@ -10,11 +11,13 @@ import { tienePermiso } from "@/lib/permisos";
 import { requireSesion } from "@/lib/sesion";
 import { listarInsumos } from "@/lib/servicios/insumos";
 import { listarParametros } from "@/lib/servicios/parametros";
+import { listarProveedores } from "@/lib/servicios/proveedores";
 import { listarServiciosDigitales } from "@/lib/servicios/servicios-digitales";
 import { cn } from "@/lib/utils";
 
 const PESTANAS = [
   { clave: "insumos", etiqueta: "Insumos" },
+  { clave: "proveedores", etiqueta: "Proveedores" },
   { clave: "digitales", etiqueta: "Servicios digitales" },
   { clave: "parametros", etiqueta: "Parámetros" },
   { clave: "importar", etiqueta: "Importar costos", soloEditores: true },
@@ -59,6 +62,13 @@ export default async function PaginaCatalogo({ searchParams }: PageProps<"/catal
       </nav>
 
       {activa === "insumos" && <PestanaInsumos usuario={usuario} puedeEditar={puedeEditar} />}
+      {activa === "proveedores" && (
+        <ProveedoresCatalogo
+          proveedores={await listarProveedores(usuario)}
+          insumos={await listarInsumos(usuario)}
+          puedeEditar={puedeEditar}
+        />
+      )}
       {activa === "digitales" && (
         <TablaServiciosDigitales servicios={await listarServiciosDigitales(usuario)} puedeEditar={puedeEditar} />
       )}

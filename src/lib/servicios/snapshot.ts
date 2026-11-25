@@ -1,6 +1,6 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { insumos, parametros, recetaComponentes, recetas } from "@/lib/db/schema";
+import { insumos, parametros, proveedores, recetaComponentes, recetas } from "@/lib/db/schema";
 import { ErrorHttp } from "@/lib/errores";
 import type { InsumoSnapshot, ParametrosMotor, RecetaSnapshot, Snapshot } from "@/lib/motor";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
@@ -13,12 +13,14 @@ import { versionesDeImagenesInsumo } from "./imagenes-insumo";
 export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snapshot> {
   requirePermiso(actor, "catalogo.ver");
 
-  const [filasInsumos, filasRecetas, filasParametros, imagenes] = await Promise.all([
+  const [filasInsumos, filasRecetas, filasParametros, imagenes, filasProveedores] = await Promise.all([
     db.select().from(insumos),
     db.select().from(recetas).orderBy(asc(recetas.nombre)),
     db.select().from(parametros),
     versionesDeImagenesInsumo(),
+    db.select({ id: proveedores.id, nombre: proveedores.nombre }).from(proveedores),
   ]);
+  const nombreProveedor = new Map(filasProveedores.map((p) => [p.id, p.nombre]));
 
   const componentes = await db
     .select()
@@ -48,6 +50,7 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       nombreCliente: i.nombreCliente,
       fuente: i.fuente,
       imagenVersion: imagenes.get(i.id) ?? null,
+      proveedor: i.proveedorId ? (nombreProveedor.get(i.proveedorId) ?? null) : null,
       archivado: i.archivado,
     };
   }

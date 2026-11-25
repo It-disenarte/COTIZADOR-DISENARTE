@@ -108,6 +108,19 @@ export const zonaEnum = pgEnum("zona", ZONAS);
 const dinero = (nombre: string) => numeric(nombre, { precision: 14, scale: 4 });
 const medida = (nombre: string) => numeric(nombre, { precision: 12, scale: 4 });
 
+/** A quién se le compra. Cada insumo apunta al proveedor al que se le asignó (insumos.proveedor_id). */
+export const proveedores = pgTable("proveedores", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  nombre: text("nombre").notNull(),
+  contacto: text("contacto"),
+  ubicacion: text("ubicacion"),
+  /** Etiqueta "confiable / no confiable": solo orienta a quien compra. */
+  confiable: boolean("confiable").notNull().default(true),
+  comentario: text("comentario"),
+  archivado: boolean("archivado").notNull().default(false),
+  ...tiempos,
+});
+
 export const insumos = pgTable(
   "insumos",
   {
@@ -130,6 +143,8 @@ export const insumos = pgTable(
     /** Rollo completo: su largo en metros. Con el ancho útil convierte el precio del rollo a metro y a m². */
     largoRolloM: medida("largo_rollo_m"),
     fuente: text("fuente"),
+    /** Proveedor al que se le compra; null = sin asignar. Si el proveedor se borra, queda sin asignar. */
+    proveedorId: uuid("proveedor_id").references(() => proveedores.id, { onDelete: "set null" }),
     requiereRevision: boolean("requiere_revision").notNull().default(false),
     archivado: boolean("archivado").notNull().default(false),
     /**

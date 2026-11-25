@@ -162,6 +162,13 @@
       "when": 1791042152821,
       "tag": "0022_imagenes_insumo",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791128552821,
+      "tag": "0023_proveedores",
+      "breakpoints": true
     }
   ]
 }
