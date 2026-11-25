@@ -27,6 +27,7 @@ import {
   type Snapshot,
 } from "@/lib/motor";
 import { cn } from "@/lib/utils";
+import { MiniaturaInsumo } from "@/components/catalogo/imagen-insumo";
 import { FormularioInsumo, type InsumoGuardado } from "./formulario-insumo";
 import { idFila } from "@/lib/cotizador/revision";
 import { MAX_CONCEPTOS_RAPIDA } from "@/lib/motor/motor";
@@ -543,6 +544,7 @@ export function PasoLevantamiento({
           insumo={formulario.insumo}
           conceptoElegido={filas.length ? (filas.find((f) => f.id === destinoElegido())?.concepto ?? "") : null}
           alCerrar={() => setFormulario(null)}
+          alCambiarImagen={recargarCatalogo}
           alGuardar={alGuardarInsumo}
         />
       )}
@@ -898,6 +900,7 @@ function PanelCatalogo({
       className="flex cursor-grab items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs hover:border-primary"
     >
       <GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
+      <MiniaturaInsumo insumoId={insumo.id} version={insumo.imagenVersion} />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{nombre}</p>
         <p className="text-muted-foreground">{detalle}</p>

@@ -45,3 +45,18 @@ export async function subirImagenCotizacion(cotizacionId: string, archivo: File)
   if (!respuesta.ok) throw new Error(datos.error ?? "No se pudo subir la imagen.");
   return datos.id as string;
 }
+
+/** Sube la imagen de un insumo (la reduce a 800 px: en la ficha se ve chica) y devuelve su versión. */
+export async function subirImagenInsumo(insumoId: string, archivo: File): Promise<string> {
+  const reducida = await reducirImagen(archivo, 800);
+  const formulario = new FormData();
+  formulario.append("archivo", new File([reducida], "insumo.jpg", { type: "image/jpeg" }));
+  const respuesta = await fetch(`/api/insumos/${insumoId}/imagen`, {
+    method: "PUT",
+    headers: { "x-cotizador": "1" },
+    body: formulario,
+  });
+  const datos = await respuesta.json().catch(() => ({}));
+  if (!respuesta.ok) throw new Error(datos.error ?? "No se pudo subir la imagen.");
+  return datos.version as string;
+}

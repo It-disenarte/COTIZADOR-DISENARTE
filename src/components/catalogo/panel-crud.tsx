@@ -44,6 +44,17 @@ type Props<T extends { id: string }> = {
   tituloFormulario?: (fila?: T) => string;
   /** Opciones de un select que dependen de la fila (p. ej. conservar una categoría antigua). */
   opcionesDe?: (campo: string, fila?: T) => { valor: string; etiqueta: string }[] | undefined;
+  /**
+   * Algo más dentro del formulario (p. ej. la imagen de un insumo). `elegirPendiente` guarda un archivo para
+   * subirlo cuando se cree la fila; `refrescar` vuelve a cargar la tabla.
+   */
+  extraFormulario?: (contexto: {
+    fila: T | undefined;
+    elegirPendiente: (archivo: File | null) => void;
+    refrescar: () => void;
+  }) => ReactNode;
+  /** Después de crear una fila nueva, con lo que respondió el servidor y el archivo elegido (si hubo). */
+  despuesDeCrear?: (respuesta: unknown, archivo: File) => Promise<void>;
 };
 
 /**
@@ -67,6 +78,8 @@ export function PanelCrud<T extends { id: string }>({
   vacio = "Sin registros.",
   tituloFormulario,
   opcionesDe,
+  extraFormulario,
+  despuesDeCrear,
 }: Props<T>) {
   const router = useRouter();
   const [actualizando, iniciarTransicion] = useTransition();
@@ -76,6 +89,12 @@ export function PanelCrud<T extends { id: string }>({
   const [verArchivados, setVerArchivados] = useState(false);
   const [editando, setEditando] = useState<T | "nuevo" | null>(null);
   const [porEliminar, setPorEliminar] = useState<T | null>(null);
+  const [pendiente, setPendiente] = useState<File | null>(null);
+  /** Abre el formulario de una fila (o el de alta) sin arrastrar el archivo elegido en otro. */
+  const abrir = (que: T | "nuevo") => {
+    setPendiente(null);
+    setEditando(que);
+  };
 
   const visibles = filas.filter((f) => {
     if (!verArchivados && esArchivado(f)) return false;
@@ -94,8 +113,15 @@ export function PanelCrud<T extends { id: string }>({
     const esNuevo = editando === "nuevo";
     setOcupado(true);
     try {
-      await llamarApi(esNuevo ? endpoint : `${endpoint}/${(editando as T).id}`, esNuevo ? "POST" : "PATCH", cuerpo);
+      const respuesta = await llamarApi(esNuevo ? endpoint : `${endpoint}/${(editando as T).id}`, esNuevo ? "POST" : "PATCH", cuerpo);
       avisar({ tipo: "ok", texto: esNuevo ? "Registro creado." : "Cambios guardados." });
+      if (esNuevo && pendiente && despuesDeCrear) {
+        try {
+          await despuesDeCrear(respuesta, pendiente);
+        } catch (e) {
+          avisar({ tipo: "error", texto: `Se creó, pero la imagen no se subió: ${e instanceof Error ? e.message : "falló la subida"}. Agrégala editando el registro.` });
+        }
+      }
       setEditando(null);
       iniciarTransicion(() => router.refresh());
     } catch (e) {
@@ -158,7 +184,7 @@ export function PanelCrud<T extends { id: string }>({
           </label>
         )}
         {puedeEditar && (
-          <Button variant="accent" onClick={() => setEditando("nuevo")}>
+          <Button variant="accent" onClick={() => abrir("nuevo")}>
             <Plus /> {etiquetaNueva}
           </Button>
         )}
@@ -239,6 +265,15 @@ export function PanelCrud<T extends { id: string }>({
                   </div>
                 );
               })}
+              {extraFormulario && (
+                <div className="sm:col-span-2">
+                  {extraFormulario({
+                    fila: editando === "nuevo" ? undefined : editando,
+                    elegirPendiente: setPendiente,
+                    refrescar: () => iniciarTransicion(() => router.refresh()),
+                  })}
+                </div>
+              )}
               <div className="flex justify-end gap-2 sm:col-span-2">
                 <Button type="submit" disabled={deshabilitado}>
                   Guardar
@@ -282,7 +317,7 @@ export function PanelCrud<T extends { id: string }>({
                   {puedeEditar && (
                     <td className="px-4 py-3 align-top">
                       <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" disabled={deshabilitado} onClick={() => setEditando(fila)}>
+                        <Button size="sm" variant="outline" disabled={deshabilitado} onClick={() => abrir(fila)}>
                           <Pencil /> Editar
                         </Button>
                         {archivable && (

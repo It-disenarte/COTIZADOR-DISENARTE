@@ -22,6 +22,8 @@ export type InsumoSnapshot = {
   nombreCliente?: string | null;
   /** Fuente o nota del insumo (campo "Fuente / nota" del catálogo). Solo se muestra en el asistente; nunca sale al cliente. */
   fuente?: string | null;
+  /** Versión de su imagen si tiene una (la ficha del asistente la pide a /api/insumos/<id>/imagen?v=<versión>). */
+  imagenVersion?: string | null;
   /** Archivado: ya no se ofrece en el asistente, pero las cotizaciones que lo usan siguen calculando. */
   archivado?: boolean;
 };

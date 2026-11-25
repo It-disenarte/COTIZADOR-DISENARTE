@@ -1,6 +1,8 @@
 "use client";
 
 import { Badge } from "@/components/ui";
+import { EditorImagenInsumo, MiniaturaInsumo } from "./imagen-insumo";
+import { subirImagenInsumo } from "@/lib/cotizador/imagen";
 import { ETIQUETA_UNIDAD, opcionesCategoria, UNIDADES_COSTO } from "@/lib/catalogo/constantes";
 import { formatoMoneda, formatoNumero } from "@/lib/formato";
 import type { Insumo } from "@/lib/servicios/insumos";
@@ -58,6 +60,18 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
         campo === "categoria" ? opcionesCategoria(i?.categoria).map((c) => ({ valor: c, etiqueta: c })) : undefined
       }
       tituloFormulario={(i) => (i ? `Editar ${i.nombre}` : "Nuevo insumo")}
+      extraFormulario={({ fila, elegirPendiente, refrescar }) => (
+        <EditorImagenInsumo
+          insumoId={fila?.id ?? null}
+          version={fila?.imagenVersion ?? null}
+          alCambiar={refrescar}
+          alElegirPendiente={elegirPendiente}
+        />
+      )}
+      despuesDeCrear={async (respuesta, archivo) => {
+        const { insumo } = respuesta as { insumo: { id: string } };
+        await subirImagenInsumo(insumo.id, archivo);
+      }}
       valores={(i) => ({
         nombre: i?.nombre ?? "",
         nombreCliente: i?.nombreCliente ?? "",
@@ -74,13 +88,16 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
         {
           titulo: "Insumo",
           celda: (i) => (
-            <div className="space-y-1">
+            <div className="flex items-start gap-3">
+              <MiniaturaInsumo insumoId={i.id} version={i.imagenVersion} className="size-12" />
+              <div className="space-y-1">
               <p className="font-medium">{i.nombre}</p>
               {i.nombreCliente && <p className="text-xs">Para el cliente: {i.nombreCliente}</p>}
               <p className="text-xs text-muted-foreground">{i.categoria}</p>
               <div className="flex flex-wrap gap-1">
                 {i.requiereRevision && <Badge variant="accent">Por revisar</Badge>}
                 {i.archivado && <Badge>Archivado</Badge>}
+              </div>
               </div>
             </div>
           ),

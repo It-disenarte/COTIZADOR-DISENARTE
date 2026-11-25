@@ -261,6 +261,21 @@ export const imagenesCotizacion = pgTable(
 );
 
 /**
+ * Una imagen por insumo, para reconocerlo en la ficha del catálogo. Aparte de "insumos" para que listar el
+ * catálogo no cargue los bytes. Se borra con el insumo.
+ */
+export const imagenesInsumo = pgTable("imagenes_insumo", {
+  insumoId: uuid("insumo_id")
+    .primaryKey()
+    .references(() => insumos.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  tamano: integer("tamano").notNull(),
+  datos: bytea("datos").notNull(),
+  subidaPor: uuid("subida_por").references(() => usuarios.id),
+  ...tiempos,
+});
+
+/**
  * Una fila por llamada a Gemini: sirve para el límite por usuario y por hora, y como
  * trazabilidad (qué se pidió, qué respondió, con qué modelo). No guarda los archivos,
  * solo su nombre y tamaño. Son pocas filas: cada llamada es un botón que alguien presiona.

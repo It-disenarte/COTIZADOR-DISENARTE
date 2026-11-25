@@ -4,6 +4,7 @@ import { insumos, parametros, recetaComponentes, recetas } from "@/lib/db/schema
 import { ErrorHttp } from "@/lib/errores";
 import type { InsumoSnapshot, ParametrosMotor, RecetaSnapshot, Snapshot } from "@/lib/motor";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
+import { versionesDeImagenesInsumo } from "./imagenes-insumo";
 
 /**
  * Foto del catálogo con la que se calcula una cotización. Se guarda con cada versión:
@@ -12,10 +13,11 @@ import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snapshot> {
   requirePermiso(actor, "catalogo.ver");
 
-  const [filasInsumos, filasRecetas, filasParametros] = await Promise.all([
+  const [filasInsumos, filasRecetas, filasParametros, imagenes] = await Promise.all([
     db.select().from(insumos),
     db.select().from(recetas).orderBy(asc(recetas.nombre)),
     db.select().from(parametros),
+    versionesDeImagenesInsumo(),
   ]);
 
   const componentes = await db
@@ -45,6 +47,7 @@ export async function obtenerSnapshot(actor: UsuarioSesion | null): Promise<Snap
       categoria: i.categoria,
       nombreCliente: i.nombreCliente,
       fuente: i.fuente,
+      imagenVersion: imagenes.get(i.id) ?? null,
       archivado: i.archivado,
     };
   }

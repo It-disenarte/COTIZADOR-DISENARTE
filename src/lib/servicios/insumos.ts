@@ -5,12 +5,19 @@ import { ErrorHttp } from "@/lib/errores";
 import { requirePermiso, type UsuarioSesion } from "@/lib/permisos";
 import type { ActualizarInsumo, CrearInsumo, GuardarNombresCliente } from "@/lib/validacion/catalogo";
 import { exigirUuid, noEncontrado, soloDefinidos } from "./comun";
+import { versionesDeImagenesInsumo } from "./imagenes-insumo";
 
-export type Insumo = typeof insumos.$inferSelect;
+type FilaInsumo = typeof insumos.$inferSelect;
+/** `imagenVersion`: versión de su imagen si tiene (ver imagenes-insumo.ts); solo la trae el listado. */
+export type Insumo = FilaInsumo & { imagenVersion?: string | null };
 
 export async function listarInsumos(actor: UsuarioSesion | null): Promise<Insumo[]> {
   requirePermiso(actor, "catalogo.ver");
-  return db.select().from(insumos).orderBy(asc(insumos.categoria), asc(insumos.nombre));
+  const [filas, imagenes] = await Promise.all([
+    db.select().from(insumos).orderBy(asc(insumos.categoria), asc(insumos.nombre)),
+    versionesDeImagenesInsumo(),
+  ]);
+  return filas.map((i) => ({ ...i, imagenVersion: imagenes.get(i.id) ?? null }));
 }
 
 export async function crearInsumo(actor: UsuarioSesion | null, datos: CrearInsumo): Promise<Insumo> {

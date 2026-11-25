@@ -155,6 +155,13 @@
       "when": 1790955752821,
       "tag": "0021_cotizacion_rapida",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791042152821,
+      "tag": "0022_imagenes_insumo",
+      "breakpoints": true
     }
   ]
 }

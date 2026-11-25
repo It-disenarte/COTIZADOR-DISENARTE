@@ -146,6 +146,11 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - El **catálogo del paso 2** (`PanelCatalogo` en `paso-levantamiento.tsx`) se filtra por **tipo de insumo** (la categoría) con un
   selector, además de la búsqueda por nombre, y cada ficha muestra la **fuente / nota** del insumo si la tiene (`insumos.fuente`,
   viaja en el snapshot; solo interno, nunca sale en el PDF).
+- Cada insumo puede llevar **una imagen** (JPG o PNG, se reduce a 800 px en el navegador) que sale en su ficha del catálogo
+  del asistente y en la tabla del catálogo. Se sube desde Catálogo → Insumos o desde el formulario del asistente
+  (`imagen-insumo.tsx`). Vive en su tabla `imagenes_insumo` (bytea, una por insumo, se borra con el insumo) para que listar el
+  catálogo no cargue los bytes: el snapshot y el listado traen solo `imagenVersion`, y la imagen se pide a
+  `/api/insumos/<id>/imagen?v=<versión>` (cacheable; al reemplazarla cambia la versión). Solo interna: nunca sale en el PDF.
 - **Rollo completo** (unidad `rollo`): se captura el precio del rollo, su ancho útil y su largo (`largo_rollo_m`);
   el motor lo lleva a costo por metro y por m² y cobra solo lo usado. El resumen de insumos dice cuántos rollos comprar.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la

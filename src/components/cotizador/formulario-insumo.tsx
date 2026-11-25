@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useAvisos } from "@/components/avisos";
+import { EditorImagenInsumo } from "@/components/catalogo/imagen-insumo";
 import { Modal } from "@/components/modal";
 import { PantallaCarga } from "@/components/pantalla-carga";
 import { Button, Checkbox, Input, Label, Select } from "@/components/ui";
 import { ETIQUETA_UNIDAD, opcionesCategoria, UNIDADES_COSTO, type UnidadCosto } from "@/lib/catalogo/constantes";
 import type { InsumoSnapshot } from "@/lib/motor";
+import { subirImagenInsumo } from "@/lib/cotizador/imagen";
 import { llamarApi } from "@/lib/utils";
 
 /** Lo que devuelve la API al crear o editar (la fila del catálogo). */
@@ -18,6 +20,8 @@ type Props = {
   /** Concepto elegido en la tabla, para ofrecer agregarle el insumo nuevo. */
   conceptoElegido: string | null;
   alCerrar: () => void;
+  /** Se cambió la imagen de un insumo que ya existía y se cerró sin guardar: hay que refrescar el catálogo. */
+  alCambiarImagen?: () => void;
   alGuardar: (insumo: InsumoGuardado, agregarAlConcepto: boolean) => void;
 };
 
@@ -26,11 +30,18 @@ type Props = {
  * Se guarda en el catálogo, así que sirve para todas las cotizaciones que se hagan desde ahora;
  * las ya autorizadas conservan el precio con el que se autorizaron.
  */
-export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alGuardar }: Props) {
+export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alCambiarImagen, alGuardar }: Props) {
   const avisar = useAvisos();
   const nuevo = insumo === null;
   const [guardando, setGuardando] = useState(false);
   const [agregar, setAgregar] = useState(true);
+  // Insumo nuevo: la imagen elegida se sube al guardarlo. Insumo existente: el editor la sube al momento.
+  const [imagenPendiente, setImagenPendiente] = useState<File | null>(null);
+  const [imagenCambiada, setImagenCambiada] = useState(false);
+  const cerrar = () => {
+    if (imagenCambiada) alCambiarImagen?.();
+    alCerrar();
+  };
   const [campos, setCampos] = useState({
     nombre: insumo?.nombre ?? "",
     nombreCliente: insumo?.nombreCliente ?? "",
@@ -62,6 +73,13 @@ export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alGuardar 
           })
         : await llamarApi<{ insumo: InsumoGuardado }>(`/api/insumos/${insumo.id}`, "PATCH", cuerpo);
       avisar({ tipo: "ok", texto: nuevo ? `Se agregó "${guardado.nombre}" al catálogo.` : `Se actualizó "${guardado.nombre}".` });
+      if (nuevo && imagenPendiente) {
+        try {
+          await subirImagenInsumo(guardado.id, imagenPendiente);
+        } catch (error) {
+          avisar({ tipo: "error", texto: `El insumo se guardó, pero la imagen no: ${error instanceof Error ? error.message : "falló la subida"}. Agrégala editando el insumo.` });
+        }
+      }
       alGuardar(guardado, nuevo && agregar && conceptoElegido !== null);
     } catch (error) {
       avisar({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo guardar el insumo." });
@@ -73,7 +91,7 @@ export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alGuardar 
     <Modal
       titulo={nuevo ? "Nuevo insumo" : `Editar ${insumo.nombre}`}
       descripcion="Se guarda en el catálogo: sirve para todas las cotizaciones desde ahora. Las ya autorizadas conservan su precio."
-      alCerrar={alCerrar}
+      alCerrar={cerrar}
       className="max-w-lg"
     >
       {guardando && <PantallaCarga mensaje="Guardando el insumo…" />}
@@ -110,6 +128,13 @@ export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alGuardar 
           </Select>
           <p className="text-xs text-muted-foreground">Agrupa el insumo en el catálogo del cotizador.</p>
         </div>
+
+        <EditorImagenInsumo
+          insumoId={insumo?.id ?? null}
+          version={insumo?.imagenVersion ?? null}
+          alCambiar={() => setImagenCambiada(true)}
+          alElegirPendiente={setImagenPendiente}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -177,7 +202,7 @@ export function FormularioInsumo({ insumo, conceptoElegido, alCerrar, alGuardar 
         )}
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={alCerrar}>
+          <Button type="button" variant="ghost" onClick={cerrar}>
             Cancelar
           </Button>
           <Button type="submit" disabled={guardando}>
