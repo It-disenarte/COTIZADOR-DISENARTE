@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPaste, Copy, GripVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ClipboardPaste, Copy, Eye, GripVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Button, Card, CardContent, Input, limpiarNumero, Select, Textarea } from "@/components/ui";
@@ -28,6 +28,7 @@ import {
 } from "@/lib/motor";
 import { cn } from "@/lib/utils";
 import { MiniaturaInsumo } from "@/components/catalogo/imagen-insumo";
+import { DetalleInsumo } from "./detalle-insumo";
 import { FormularioInsumo, type InsumoGuardado } from "./formulario-insumo";
 import { idFila } from "@/lib/cotizador/revision";
 import { MAX_CONCEPTOS_RAPIDA } from "@/lib/motor/motor";
@@ -863,6 +864,8 @@ function PanelCatalogo({
   const [busqueda, setBusqueda] = useState("");
   // "" = todas las categorías. Filtrar por tipo de insumo (sustrato, vinil, acrílico…) acorta la búsqueda.
   const [categoriaElegida, setCategoriaElegida] = useState("");
+  /** Insumo cuya ficha completa está abierta (el ojito de cada ficha). */
+  const [detalle, setDetalle] = useState<InsumoSnapshot | null>(null);
 
   /** Categorías con insumos disponibles, con cuántos hay en cada una. */
   const categorias = useMemo(() => {
@@ -910,31 +913,45 @@ function PanelCatalogo({
           </p>
         )}
       </div>
-      {puedeEditar && (
+      <div className="flex shrink-0 flex-col items-end gap-0.5 self-stretch">
         <button
           type="button"
-          onClick={() => alEditar(insumo)}
-          title="Editar (p. ej. si cambió el precio)"
-          aria-label={`Editar ${nombre}`}
+          onClick={() => setDetalle(insumo)}
+          title="Ver la ficha completa"
+          aria-label={`Ver la ficha completa de ${nombre}`}
           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <Pencil className="size-3.5" />
+          <Eye className="size-3.5" />
         </button>
-      )}
-      <button
-        type="button"
-        onClick={() => alAgregar(arrastre)}
-        title="Agregar al concepto elegido"
-        aria-label={`Agregar ${nombre} al concepto elegido`}
-        className="rounded p-1 hover:bg-muted"
-      >
-        <Plus className="size-4" />
-      </button>
+        <div className="mt-auto flex items-center">
+          {puedeEditar && (
+            <button
+              type="button"
+              onClick={() => alEditar(insumo)}
+              title="Editar (p. ej. si cambió el precio)"
+              aria-label={`Editar ${nombre}`}
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Pencil className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => alAgregar(arrastre)}
+            title="Agregar al concepto elegido"
+            aria-label={`Agregar ${nombre} al concepto elegido`}
+            className="rounded p-1 hover:bg-muted"
+          >
+            <Plus className="size-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 
   return (
     <div className="space-y-3">
+      {detalle && <DetalleInsumo insumo={detalle} alCerrar={() => setDetalle(null)} />}
       <Card>
         <CardContent className="space-y-3 pt-5">
           <div>

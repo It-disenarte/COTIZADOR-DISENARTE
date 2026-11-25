@@ -146,6 +146,9 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
 - El **catálogo del paso 2** (`PanelCatalogo` en `paso-levantamiento.tsx`) se filtra por **tipo de insumo** (la categoría) con un
   selector, además de la búsqueda por nombre, y cada ficha muestra la **fuente / nota** del insumo si la tiene (`insumos.fuente`,
   viaja en el snapshot; solo interno, nunca sale en el PDF).
+- Cada ficha del catálogo del asistente tiene un **ojito** (esquina superior derecha) que abre una ventana con la ficha
+  completa del insumo en grande (`detalle-insumo.tsx`): imagen, nombre, nombre para el cliente, categoría, costo, unidad,
+  medidas, estado "Por revisar" y la nota completa. Solo consulta.
 - Cada insumo puede llevar **una imagen** (JPG o PNG, se reduce a 800 px en el navegador) que sale en su ficha del catálogo
   del asistente y en la tabla del catálogo. Se sube desde Catálogo → Insumos o desde el formulario del asistente
   (`imagen-insumo.tsx`). Vive en su tabla `imagenes_insumo` (bytea, una por insumo, se borra con el insumo) para que listar el
