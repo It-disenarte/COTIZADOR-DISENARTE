@@ -15,8 +15,6 @@ const camposInsumo = {
   largoRolloM: decimalOpcional({ min: 0 }),
   fuente: textoOpcional(1000),
   requiereRevision: z.boolean(),
-  /** A quién se le compra. null = sin proveedor (se asigna arrastrándolo en Catálogo → Proveedores). */
-  proveedorId: z.preprocess((v) => (v === "" ? null : v), Uuid.nullable()).optional(),
 };
 
 const reglasInsumo = (d: { costo?: string | null; unidadCosto?: string | null }, ctx: z.RefinementCtx) => {

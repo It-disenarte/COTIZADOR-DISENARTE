@@ -13,11 +13,11 @@ const { obtenerSnapshot } = await import("@/lib/servicios/snapshot");
 const { listarInsumos } = await import("@/lib/servicios/insumos");
 const rutaUsuarios = await import("@/app/api/usuarios/route");
 const rutaCuentaPassword = await import("@/app/api/cuenta/password/route");
-const rutaInsumo = await import("@/app/api/insumos/[id]/route");
+const rutaVinculo = await import("@/app/api/proveedores/[id]/insumos/[insumoId]/route");
 const rutaProveedores = await import("@/app/api/proveedores/route");
 const rutaProveedor = await import("@/app/api/proveedores/[id]/route");
 
-// Los proveedores son a quien se le compra: tienen su ficha y cada insumo guarda el proveedor al que se le arrastró.
+// Los proveedores son a quien se le compra: un proveedor surte varios insumos y un insumo puede venir de varios.
 
 const ADMIN = { nombre: "Admin", email: "admin@disenartemx.com", password: "Admin-Definitiva-2026" };
 let cookieAdmin = "";
@@ -29,8 +29,20 @@ const actor = { id: "x", nombre: "Agente", rol: "agente_admin", activo: true } a
 async function crear(cuerpo: Record<string, unknown>, cookie = cookieAdmin) {
   return rutaProveedores.POST(peticion("/api/proveedores", { metodo: "POST", cookie, cuerpo }), undefined);
 }
-const asignar = (proveedorId: string | null, cookie = cookieAdmin) =>
-  rutaInsumo.PATCH(peticion(`/api/insumos/${insumoId}`, { metodo: "PATCH", cookie, cuerpo: { proveedorId } }), ctxId(insumoId));
+function vincular(proveedorId: string, metodo: "PUT" | "DELETE" = "PUT", cookie = cookieAdmin, insumo = insumoId) {
+  const manejar = metodo === "PUT" ? rutaVinculo.PUT : rutaVinculo.DELETE;
+  return manejar(peticion(`/api/proveedores/${proveedorId}/insumos/${insumo}`, { metodo, cookie }), {
+    params: Promise.resolve({ id: proveedorId, insumoId: insumo }),
+  });
+}
+
+const proveedoresDe = async (id: string) =>
+  (await listarInsumos(actor)).find((i) => i.id === id)!.proveedores!.map((p) => p.nombre);
+
+const totales = async () => {
+  const lista = await (await rutaProveedores.GET(peticion("/api/proveedores", { cookie: cookieAdmin }), undefined)).json();
+  return Object.fromEntries(lista.proveedores.map((p: { nombre: string; totalInsumos: number }) => [p.nombre, p.totalInsumos]));
+};
 
 beforeAll(async () => {
   await crearPrimerAdmin(ADMIN);
@@ -104,38 +116,39 @@ describe("Proveedores", () => {
     expect((await res.json()).proveedor).toMatchObject({ confiable: false, comentario: "Se atrasó dos veces" });
   });
 
-  it("al asignarle un insumo, el insumo lo guarda y el conteo y el snapshot lo reflejan", async () => {
-    expect((await asignar(proveedorId)).status).toBe(200);
+  it("un insumo puede venir de varios proveedores y un proveedor surtir varios insumos", async () => {
+    const { proveedor: otro } = await (await crear({ nombre: "Acrílicos MX", confiable: true })).json();
+    const [, segundo] = await db.select().from(insumos).limit(2);
 
-    const [insumo] = (await listarInsumos(actor)).filter((i) => i.id === insumoId);
-    expect(insumo).toMatchObject({ proveedorId, proveedorNombre: "Vinilos del Bajío" });
+    expect((await vincular(proveedorId)).status).toBe(200);
+    expect((await vincular(otro.id)).status).toBe(200);
+    expect((await vincular(proveedorId, "PUT", cookieAdmin, segundo.id)).status).toBe(200);
+    // Arrastrarlo dos veces al mismo no lo duplica.
+    expect((await vincular(proveedorId)).status).toBe(200);
 
-    const lista = await (await rutaProveedores.GET(peticion("/api/proveedores", { cookie: cookieAdmin }), undefined)).json();
-    expect(lista.proveedores.find((p: { id: string }) => p.id === proveedorId).totalInsumos).toBe(1);
-
-    expect((await obtenerSnapshot(actor)).insumos[insumoId].proveedor).toBe("Vinilos del Bajío");
+    expect(await proveedoresDe(insumoId)).toEqual(["Acrílicos MX", "Vinilos del Bajío"]);
+    expect(await totales()).toEqual({ "Acrílicos MX": 1, "Vinilos del Bajío": 2 });
+    expect((await obtenerSnapshot(actor)).insumos[insumoId].proveedores).toEqual(["Acrílicos MX", "Vinilos del Bajío"]);
   });
 
-  it("no se le puede asignar un proveedor que no existe, y ventas no asigna", async () => {
-    expect((await asignar("00000000-0000-4000-8000-000000000000")).status).toBe(404);
-    expect((await asignar(proveedorId, cookieVentas)).status).toBe(403);
+  it("quitar un proveedor de un insumo no toca a los demás", async () => {
+    expect((await vincular(proveedorId, "DELETE")).status).toBe(200);
+    expect(await proveedoresDe(insumoId)).toEqual(["Acrílicos MX"]);
   });
 
-  it("al borrar al proveedor, sus insumos se quedan (sin proveedor)", async () => {
+  it("no se asigna un proveedor que no existe, y ventas no asigna ni quita", async () => {
+    expect((await vincular("00000000-0000-4000-8000-000000000000")).status).toBe(404);
+    expect((await vincular(proveedorId, "PUT", cookieVentas)).status).toBe(403);
+    expect((await vincular(proveedorId, "DELETE", cookieVentas)).status).toBe(403);
+  });
+
+  it("al borrar al proveedor, sus insumos se quedan (solo dejan de tenerlo)", async () => {
+    await vincular(proveedorId);
     const res = await rutaProveedor.DELETE(
       peticion(`/api/proveedores/${proveedorId}`, { metodo: "DELETE", cookie: cookieAdmin }),
       ctxId(proveedorId),
     );
     expect(res.status).toBe(200);
-    const [insumo] = (await listarInsumos(actor)).filter((i) => i.id === insumoId);
-    expect(insumo.proveedorId).toBeNull();
-  });
-
-  it("un insumo se deja sin proveedor mandando null", async () => {
-    const { proveedor } = await (await crear({ nombre: "Acrílicos MX", confiable: true })).json();
-    await asignar(proveedor.id);
-    expect((await asignar(null)).status).toBe(200);
-    const [insumo] = (await listarInsumos(actor)).filter((i) => i.id === insumoId);
-    expect(insumo.proveedorId).toBeNull();
+    expect(await proveedoresDe(insumoId)).toEqual(["Acrílicos MX"]);
   });
 });

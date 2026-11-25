@@ -13,13 +13,11 @@ import { cn, llamarApi } from "@/lib/utils";
 import { MiniaturaInsumo } from "./imagen-insumo";
 
 const TIPO_ARRASTRE = "application/x-insumo-proveedor";
-/** Zona para soltar un insumo y dejarlo sin proveedor. */
-const SIN_PROVEEDOR = "sin-proveedor";
 
 /**
  * Proveedores a la izquierda, insumos a la derecha. Se arrastra un insumo a un proveedor para decir "esto se lo
- * compramos a este": el insumo guarda ese proveedor. Para quitarlo se suelta en "Sin proveedor" o se usa la X.
- * Cada insumo también tiene un selector, por si no se puede arrastrar (celular).
+ * compramos a este". Un insumo puede tener varios proveedores: arrastrarlo agrega uno, no reemplaza. La X lo quita.
+ * Cada insumo también tiene un selector para agregar proveedor, por si no se puede arrastrar (celular).
  */
 export function ProveedoresCatalogo({
   proveedores,
@@ -45,25 +43,32 @@ export function ProveedoresCatalogo({
   const q = busqueda.trim().toLowerCase();
   const visibles = activos.filter(
     (i) =>
-      (!soloSinProveedor || !i.proveedorId) &&
-      (q === "" || `${i.nombre} ${i.categoria} ${i.proveedorNombre ?? ""}`.toLowerCase().includes(q)),
+      (!soloSinProveedor || !i.proveedores?.length) &&
+      (q === "" || `${i.nombre} ${i.categoria} ${i.proveedores?.map((p) => p.nombre).join(" ") ?? ""}`.toLowerCase().includes(q)),
   );
-  const sinProveedor = activos.filter((i) => !i.proveedorId).length;
+  const sinProveedor = activos.filter((i) => !i.proveedores?.length).length;
 
-  async function asignar(insumoId: string, proveedorId: string | null) {
+  const loSurte = (insumo: Insumo, proveedorId: string) => !!insumo.proveedores?.some((p) => p.id === proveedorId);
+
+  /** Agrega o quita un proveedor de un insumo; los demás proveedores del insumo no se tocan. */
+  async function vincular(insumoId: string, proveedorId: string, agregar: boolean) {
     const insumo = insumos.find((i) => i.id === insumoId);
-    if (!insumo || (insumo.proveedorId ?? null) === proveedorId) return;
+    const proveedor = proveedores.find((p) => p.id === proveedorId);
+    if (!insumo || !proveedor) return;
+    if (loSurte(insumo, proveedorId) === agregar) {
+      if (agregar) avisar({ tipo: "ok", texto: `${proveedor.nombre} ya surte "${insumo.nombre}".` });
+      return;
+    }
     setOcupado(true);
     try {
-      await llamarApi(`/api/insumos/${insumoId}`, "PATCH", { proveedorId });
-      const destino = proveedores.find((p) => p.id === proveedorId)?.nombre;
+      await llamarApi(`/api/proveedores/${proveedorId}/insumos/${insumoId}`, agregar ? "PUT" : "DELETE");
       avisar({
         tipo: "ok",
-        texto: destino ? `"${insumo.nombre}" se compra con ${destino}.` : `"${insumo.nombre}" quedó sin proveedor.`,
+        texto: agregar ? `"${insumo.nombre}" se compra con ${proveedor.nombre}.` : `${proveedor.nombre} ya no surte "${insumo.nombre}".`,
       });
       iniciarTransicion(() => router.refresh());
     } catch (e) {
-      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo asignar el proveedor." });
+      avisar({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo guardar el proveedor." });
     } finally {
       setOcupado(false);
     }
@@ -114,21 +119,21 @@ export function ProveedoresCatalogo({
       return siguiente;
     });
 
-  /** Props para que un elemento reciba insumos soltados encima (null = quitar el proveedor). */
-  const zona = (destino: string, proveedorId: string | null) => ({
+  /** Props para que la ficha de un proveedor reciba insumos soltados encima. */
+  const zona = (proveedorId: string) => ({
     onDragOver: (e: React.DragEvent) => {
       if (!puedeEditar || !e.dataTransfer.types.includes(TIPO_ARRASTRE)) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setSobre(destino);
+      e.dataTransfer.dropEffect = "copy";
+      setSobre(proveedorId);
     },
-    onDragLeave: () => setSobre((actual) => (actual === destino ? null : actual)),
+    onDragLeave: () => setSobre((actual) => (actual === proveedorId ? null : actual)),
     onDrop: (e: React.DragEvent) => {
       const id = e.dataTransfer.getData(TIPO_ARRASTRE);
       setSobre(null);
       if (!id) return;
       e.preventDefault();
-      void asignar(id, proveedorId);
+      void vincular(id, proveedorId, true);
     },
   });
 
@@ -140,7 +145,8 @@ export function ProveedoresCatalogo({
       {ocupado && <PantallaCarga mensaje="Guardando…" />}
       {puedeEditar && (
         <p className="text-sm text-muted-foreground">
-          Arrastra un insumo (columna derecha) sobre un proveedor para decir que se lo compramos a él.
+          Arrastra un insumo (columna derecha) sobre un proveedor para decir que se lo compramos a él. Un mismo insumo puede tener varios
+          proveedores.
         </p>
       )}
 
@@ -165,12 +171,12 @@ export function ProveedoresCatalogo({
           )}
 
           {proveedores.map((p) => {
-            const suyos = activos.filter((i) => i.proveedorId === p.id);
+            const suyos = activos.filter((i) => loSurte(i, p.id));
             const abierto = abiertos.has(p.id);
             return (
               <Card
                 key={p.id}
-                {...zona(p.id, p.id)}
+                {...zona(p.id)}
                 className={cn("transition-colors", sobre === p.id && "border-accent bg-accent/10 ring-2 ring-accent")}
               >
                 <div className="space-y-2 p-4">
@@ -241,7 +247,7 @@ export function ProveedoresCatalogo({
                               <button
                                 type="button"
                                 disabled={deshabilitado}
-                                onClick={() => asignar(i.id, null)}
+                                onClick={() => vincular(i.id, p.id, false)}
                                 title="Quitar de este proveedor"
                                 aria-label={`Quitar ${i.nombre} de ${p.nombre}`}
                                 className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
@@ -258,17 +264,6 @@ export function ProveedoresCatalogo({
             );
           })}
 
-          {puedeEditar && proveedores.length > 0 && (
-            <div
-              {...zona(SIN_PROVEEDOR, null)}
-              className={cn(
-                "rounded-lg border border-dashed px-4 py-3 text-center text-xs text-muted-foreground transition-colors",
-                sobre === SIN_PROVEEDOR && "border-accent bg-accent/10 text-foreground",
-              )}
-            >
-              Suelta aquí un insumo para dejarlo sin proveedor
-            </div>
-          )}
         </section>
 
         {/* Insumos */}
@@ -305,34 +300,54 @@ export function ProveedoresCatalogo({
                     draggable={puedeEditar}
                     onDragStart={(e) => {
                       e.dataTransfer.setData(TIPO_ARRASTRE, i.id);
-                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.effectAllowed = "copy";
                     }}
                     onDragEnd={() => setSobre(null)}
                     className={cn("flex items-center gap-3 px-3 py-2", puedeEditar && "cursor-grab active:cursor-grabbing")}
                   >
                     {puedeEditar && <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
                     <MiniaturaInsumo insumoId={i.id} version={i.imagenVersion} className="size-10" />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <p className="truncate text-sm font-medium">{i.nombre}</p>
                       <p className="truncate text-xs text-muted-foreground">{i.categoria}</p>
-                    </div>
-                    {puedeEditar ? (
-                      <Select
-                        value={i.proveedorId ?? ""}
-                        disabled={deshabilitado}
-                        onChange={(e) => asignar(i.id, e.target.value || null)}
-                        aria-label={`Proveedor de ${i.nombre}`}
-                        className="h-8 w-40 shrink-0 text-xs"
-                      >
-                        <option value="">Sin proveedor</option>
-                        {proveedores.map((p) => (
-                          <option key={p.id} value={p.id}>
+                      <div className="flex flex-wrap gap-1">
+                        {!i.proveedores?.length && <Badge variant="accent">Sin proveedor</Badge>}
+                        {i.proveedores?.map((p) => (
+                          <Badge key={p.id} className="gap-1">
                             {p.nombre}
-                          </option>
+                            {puedeEditar && (
+                              <button
+                                type="button"
+                                disabled={deshabilitado}
+                                onClick={() => vincular(i.id, p.id, false)}
+                                title="Quitar proveedor"
+                                aria-label={`Quitar ${p.nombre} de ${i.nombre}`}
+                                className="rounded-full text-muted-foreground hover:text-destructive"
+                              >
+                                <X className="size-3" />
+                              </button>
+                            )}
+                          </Badge>
                         ))}
+                      </div>
+                    </div>
+                    {puedeEditar && proveedores.some((p) => !loSurte(i, p.id)) && (
+                      <Select
+                        value=""
+                        disabled={deshabilitado}
+                        onChange={(e) => e.target.value && vincular(i.id, e.target.value, true)}
+                        aria-label={`Agregar proveedor a ${i.nombre}`}
+                        className="h-8 w-36 shrink-0 text-xs"
+                      >
+                        <option value="">+ Proveedor…</option>
+                        {proveedores
+                          .filter((p) => !loSurte(i, p.id))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre}
+                            </option>
+                          ))}
                       </Select>
-                    ) : (
-                      <Badge variant={i.proveedorNombre ? "default" : "accent"}>{i.proveedorNombre ?? "Sin proveedor"}</Badge>
                     )}
                   </li>
                 ))}
@@ -349,7 +364,7 @@ export function ProveedoresCatalogo({
             <p className="text-sm text-muted-foreground">
               Se borra el proveedor para siempre.{" "}
               {porEliminar.totalInsumos > 0
-                ? `Sus ${porEliminar.totalInsumos} insumos no se borran: solo quedan sin proveedor.`
+                ? `Sus insumos (${porEliminar.totalInsumos}) no se borran: solo dejan de tener a este proveedor.`
                 : "No tiene insumos asignados."}
             </p>
             <div className="flex justify-end gap-2">

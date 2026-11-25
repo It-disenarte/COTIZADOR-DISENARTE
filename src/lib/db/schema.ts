@@ -1,4 +1,4 @@
-import { boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 // Imports relativos: drizzle-kit lee este archivo fuera de Next y no resuelve el alias "@/".
 import { sql } from "drizzle-orm";
 import {
@@ -108,7 +108,7 @@ export const zonaEnum = pgEnum("zona", ZONAS);
 const dinero = (nombre: string) => numeric(nombre, { precision: 14, scale: 4 });
 const medida = (nombre: string) => numeric(nombre, { precision: 12, scale: 4 });
 
-/** A quién se le compra. Cada insumo apunta al proveedor al que se le asignó (insumos.proveedor_id). */
+/** A quién se le compra. Qué insumos surte cada uno está en insumos_proveedores. */
 export const proveedores = pgTable("proveedores", {
   id: uuid("id").primaryKey().defaultRandom(),
   nombre: text("nombre").notNull(),
@@ -143,8 +143,6 @@ export const insumos = pgTable(
     /** Rollo completo: su largo en metros. Con el ancho útil convierte el precio del rollo a metro y a m². */
     largoRolloM: medida("largo_rollo_m"),
     fuente: text("fuente"),
-    /** Proveedor al que se le compra; null = sin asignar. Si el proveedor se borra, queda sin asignar. */
-    proveedorId: uuid("proveedor_id").references(() => proveedores.id, { onDelete: "set null" }),
     requiereRevision: boolean("requiere_revision").notNull().default(false),
     archivado: boolean("archivado").notNull().default(false),
     /**
@@ -155,6 +153,21 @@ export const insumos = pgTable(
     ...tiempos,
   },
   (t) => [index("insumos_nombre_idx").on(t.nombre)],
+);
+
+/** Qué proveedores surten cada insumo (muchos a muchos). Se borra con el insumo o con el proveedor. */
+export const insumosProveedores = pgTable(
+  "insumos_proveedores",
+  {
+    insumoId: uuid("insumo_id")
+      .notNull()
+      .references(() => insumos.id, { onDelete: "cascade" }),
+    proveedorId: uuid("proveedor_id")
+      .notNull()
+      .references(() => proveedores.id, { onDelete: "cascade" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.insumoId, t.proveedorId] })],
 );
 
 export const recetas = pgTable("recetas", {

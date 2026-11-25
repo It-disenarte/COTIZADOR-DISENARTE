@@ -54,7 +54,7 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
       eliminable
       nombreDe={(i) => i.nombre}
       avisoEliminar="Se borra del catálogo para siempre. Si alguna cotización lo usa no se podrá eliminar: en ese caso archívalo (botón de la caja), deja de aparecer y esas cotizaciones conservan su precio."
-      texto={(i) => `${i.nombre} ${i.nombreCliente ?? ""} ${i.categoria} ${i.fuente ?? ""} ${i.proveedorNombre ?? ""}`}
+      texto={(i) => `${i.nombre} ${i.nombreCliente ?? ""} ${i.categoria} ${i.fuente ?? ""} ${i.proveedores?.map((p) => p.nombre).join(" ") ?? ""}`}
       campos={CAMPOS}
       opcionesDe={(campo, i) =>
         campo === "categoria" ? opcionesCategoria(i?.categoria).map((c) => ({ valor: c, etiqueta: c })) : undefined
@@ -94,7 +94,9 @@ export function TablaInsumos({ insumos, puedeEditar }: { insumos: Insumo[]; pued
               <p className="font-medium">{i.nombre}</p>
               {i.nombreCliente && <p className="text-xs">Para el cliente: {i.nombreCliente}</p>}
               <p className="text-xs text-muted-foreground">{i.categoria}</p>
-              {i.proveedorNombre && <p className="text-xs text-muted-foreground">Proveedor: {i.proveedorNombre}</p>}
+              {!!i.proveedores?.length && (
+                <p className="text-xs text-muted-foreground">Proveedores: {i.proveedores.map((p) => p.nombre).join(", ")}</p>
+              )}
               <div className="flex flex-wrap gap-1">
                 {i.requiereRevision && <Badge variant="accent">Por revisar</Badge>}
                 {i.archivado && <Badge>Archivado</Badge>}

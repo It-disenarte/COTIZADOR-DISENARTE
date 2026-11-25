@@ -169,6 +169,13 @@
       "when": 1791128552821,
       "tag": "0023_proveedores",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791214952821,
+      "tag": "0024_varios_proveedores",
+      "breakpoints": true
     }
   ]
 }
