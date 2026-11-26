@@ -3,7 +3,7 @@
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, Card, CardContent, Checkbox, Input, Label, Textarea } from "@/components/ui";
-import { type BorradorCotizacion, txt } from "@/lib/cotizador/estado";
+import { type BorradorCotizacion, txt, quitarOpcionDeEntrada } from "@/lib/cotizador/estado";
 import { subirImagenCotizacion } from "@/lib/cotizador/imagen";
 import type { OpcionCotizacion } from "@/lib/motor";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ export function PasoOpciones({ borrador, cambiar, asegurarGuardado }: Props) {
     }));
 
   const quitarOpcion = (id: string) =>
-    cambiar((b) => ({ ...b, entrada: { ...b.entrada, opciones: b.entrada.opciones.filter((o) => o.id !== id) } }));
+    cambiar((b) => ({ ...b, entrada: quitarOpcionDeEntrada(b.entrada, id) }));
 
   return (
     <div className="space-y-6">

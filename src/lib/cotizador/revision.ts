@@ -31,22 +31,26 @@ export function revisarCaptura(borrador: {
 
   const { filas } = borrador.entrada.levantamiento;
   const opciones = borrador.entrada.opciones;
-  for (const [i, fila] of filas.entries()) {
-    const insumosDeLaFila = opciones.map((o) => o.materiales[fila.id] ?? []);
+  for (const fila of filas) {
+    // Cada concepto se revisa contra los insumos de su opción, y se numera como se ve en esa tabla.
+    const suyas = opciones.filter((o) => !fila.opcionId || o.id === fila.opcionId);
+    const i = filas.filter((f) => f.opcionId === fila.opcionId).indexOf(fila);
+    const enOpcion = opciones.length > 1 && suyas[0] ? ` (${suyas[0].nombre})` : "";
+    const insumosDeLaFila = suyas.map((o) => o.materiales[fila.id] ?? []);
     const nombre = fila.concepto.trim();
     const cantidad = fila.cantidades.reduce<number>((suma, c) => suma + numero(c), 0);
     const enBlanco =
       !nombre && cantidad <= 0 && numero(fila.anchoM) <= 0 && numero(fila.altoM) <= 0 && insumosDeLaFila.every((l) => l.length === 0);
     if (enBlanco) continue;
 
-    const de = nombre ? `“${nombre}”` : `la fila ${i + 1}`;
+    const de = (nombre ? `“${nombre}”` : `la fila ${i + 1}`) + enOpcion;
     const problema = (campo: Parameters<typeof idFila>[1], mensaje: string): Pendiente => ({
       paso: PASO.levantamiento,
       campo: idFila(fila.id, campo),
       mensaje,
     });
 
-    if (!nombre) return problema("concepto", `Falta el nombre del concepto de la fila ${i + 1}.`);
+    if (!nombre) return problema("concepto", `Falta el nombre del concepto de la fila ${i + 1}${enOpcion}.`);
     if (cantidad <= 0) return problema("cantidad", `Falta la cantidad de ${de}: escribe cuántas piezas lleva.`);
     if (insumosDeLaFila.some((lista) => lista.length === 0)) {
       return problema("insumos", `${de} no tiene insumos: arrastra o agrega al menos uno del catálogo.`);

@@ -104,7 +104,12 @@ export async function generarPdf(datos: DatosPdf): Promise<Uint8Array> {
   lienzo.alAbrirPagina = (l) => marcoInterior(l, fondoInterior);
 
   // Una venta de pura reventa o maquila no tiene levantamiento que consolidar.
-  if (datos.resultado.opciones.length > 0) consolidado(lienzo, datos);
+  // Si todas las opciones producen lo mismo va un solo consolidado; si no, uno por opción.
+  const porOpcion = datos.resultado.opciones.map((o) => ({ nombre: o.nombre, levantamiento: o.levantamiento ?? datos.resultado.levantamiento }));
+  const iguales = new Set(porOpcion.map((o) => JSON.stringify(o.levantamiento))).size === 1;
+  for (const { nombre, levantamiento } of iguales ? porOpcion.slice(0, 1) : porOpcion) {
+    consolidado(lienzo, levantamiento, iguales ? null : nombre);
+  }
   for (const opcion of datos.resultado.opciones) {
     const imagen = await incrustarImagen(doc, datos.imagenes?.get(opcion.id ?? opcion.recetaId));
     for (const variante of opcion.variantes) {
@@ -247,10 +252,9 @@ export function marcoInterior(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
  * Consolidado del levantamiento: qué se va a producir. Las cotizaciones de antes podían repartir
  * por áreas (una columna por área); ahora cada área es un concepto y hay una sola columna.
  */
-function consolidado(lienzo: Lienzo, datos: DatosPdf) {
-  const { levantamiento } = datos.resultado;
+function consolidado(lienzo: Lienzo, levantamiento: DatosPdf["resultado"]["levantamiento"], opcion: string | null) {
   lienzo.nuevaPagina();
-  lienzo.titulo(`Consolidado del levantamiento: ${levantamiento.piezas} piezas`);
+  lienzo.titulo(`${opcion ? `Consolidado de ${opcion}` : "Consolidado del levantamiento"}: ${levantamiento.piezas} piezas`);
 
   const areas = levantamiento.porArea.length > 1 ? levantamiento.porArea.map((a) => a.area) : [];
   const anchoMedida = 72;

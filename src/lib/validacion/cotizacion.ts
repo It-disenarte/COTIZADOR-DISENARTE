@@ -60,6 +60,8 @@ function esquemaEntrada(modo: "borrador" | "completa") {
   const FilaLevantamiento = z.object({
     // Opcional: las cotizaciones anteriores no lo traen; el motor les asigna uno.
     id: IdLocal.optional(),
+    // La opción dueña del concepto. Sin ella (cotizaciones anteriores) el motor lo copia a cada opción.
+    opcionId: IdLocal.optional(),
     concepto: texto(200, "Escribe el concepto."),
     anchoM: medida({ min: 0 }),
     altoM: medida({ min: 0 }),
@@ -90,7 +92,8 @@ function esquemaEntrada(modo: "borrador" | "completa") {
         .min(minimo(1), { error: "Agrega al menos un área." })
         .max(50),
       // El mínimo de una fila se revisa abajo: una venta de pura reventa o maquila no lleva conceptos.
-      filas: z.array(FilaLevantamiento).max(500),
+      // Cada opción lleva sus propios conceptos, así que el tope es de todas juntas.
+      filas: z.array(FilaLevantamiento).max(1000),
     }),
     opciones: z
       .array(
@@ -286,8 +289,15 @@ export function problemaDeEntrada(entrada: unknown): Pendiente | null {
     problema = interno;
   }
   const [seccion, subseccion, indice, campo] = ruta;
-  const fila = subseccion === "filas" && typeof indice === "number" ? `Concepto ${indice + 1}: ` : "";
+  const fila = subseccion === "filas" && typeof indice === "number" ? `Concepto ${numeroDeConcepto(entrada, indice)}: ` : "";
   return { paso: pasoDeRuta(ruta), mensaje: `${fila}${problema.message}`, campo: campoDeRuta(entrada, [seccion, subseccion, indice, campo]) };
+}
+
+/** Número del concepto como se ve en pantalla: dentro de su opción (la lista guardada las junta todas). */
+function numeroDeConcepto(entrada: unknown, indice: number): number {
+  const filas = (entrada as { levantamiento?: { filas?: { opcionId?: string }[] } } | null)?.levantamiento?.filas ?? [];
+  const opcionId = filas[indice]?.opcionId;
+  return filas.slice(0, indice).filter((f) => f.opcionId === opcionId).length + 1;
 }
 
 /** Id de la casilla de pantalla donde se corrige lo que señala el esquema (los ids están en los inputs de cada paso). */

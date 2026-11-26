@@ -30,8 +30,8 @@ const elegir = (valor: unknown, respaldo: unknown): Decimal => d((vacio(valor) ?
 // Levantamiento (6.2)
 // ---------------------------------------------------------------------------
 
-function calcularLevantamiento(entrada: EntradaNormalizada) {
-  const { areas, filas } = entrada.levantamiento;
+function calcularLevantamiento(entrada: EntradaNormalizada, filas = entrada.levantamiento.filas) {
+  const { areas } = entrada.levantamiento;
 
   // Casilla vacía = 0 (el asistente calcula con lo que hay en pantalla).
   const valor = (v: unknown) => d(vacio(v) ? 0 : (v as never));
@@ -392,7 +392,8 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
   const entrada = imponerRapida(normalizarEntrada(entradaCapturada, snapshot), snapshot);
   const p = snapshot.parametros;
   const indirectos = indirectosDe(entrada, snapshot);
-  const { piezas, detalle, resumen } = calcularLevantamiento(entrada);
+  // De todas las opciones juntas: solo para saber si hay algo que producir.
+  const todo = calcularLevantamiento(entrada);
   const margen = elegir(entrada.ajustes.margen, p.margen);
   const pctError = d(p.pctMargenError);
   const iva = d(p.iva);
@@ -400,19 +401,30 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
 
   // Venta de pura reventa o maquila: no hay nada que producir, así que no hay opciones de material.
   // La propuesta es la tabla de artículos más la operación en filas aparte.
-  if (piezas.lte(0) && entrada.reventa.length > 0) {
+  if (todo.piezas.lte(0) && entrada.reventa.length > 0) {
     alertasDeOperacion(entrada, snapshot, alertasGenerales);
     const operacion = operacionAparte(entrada, snapshot, factorPrecio(margen, pctError, entrada.ajustes.aplicaMargenError, indirectos));
     const reventa = calcularReventa(entrada, snapshot, alertasGenerales, operacion);
-    return { levantamiento: resumen, opciones: [], reventa, alertas: dedupe(alertasGenerales) };
+    return { levantamiento: todo.resumen, opciones: [], reventa, alertas: dedupe(alertasGenerales) };
   }
-  if (piezas.lte(0)) throw new ErrorMotor("El levantamiento no tiene piezas.", "SIN_PIEZAS");
+  if (todo.piezas.lte(0)) throw new ErrorMotor("El levantamiento no tiene piezas.", "SIN_PIEZAS");
   if (entrada.opciones.length === 0) throw new ErrorMotor("Agrega al menos una opción.", "SIN_OPCIONES");
 
-  // Un concepto sin piezas no se cotiza (p. ej. una fila que se dejó a medias).
-  const conPiezas = detalle.filter((f) => f.piezas.gt(0));
-
   const opciones: OpcionResultado[] = entrada.opciones.map((opcion) => {
+    // Cada opción se calcula solo con sus conceptos.
+    const { piezas, detalle, resumen } = calcularLevantamiento(
+      entrada,
+      entrada.levantamiento.filas.filter((f) => f.opcionId === opcion.id),
+    );
+    if (piezas.lte(0)) {
+      throw new ErrorMotor(
+        `“${opcion.nombre}” no tiene conceptos con cantidad. Agrégalos en el paso Levantamiento o quita esa opción.`,
+        "SIN_PIEZAS",
+      );
+    }
+    // Un concepto sin piezas no se cotiza (p. ej. una fila que se dejó a medias).
+    const conPiezas = detalle.filter((f) => f.piezas.gt(0));
+
     const porConcepto: CostoConcepto[] = conPiezas.map((f) => {
       try {
         const componentes = opcion.materiales[f.fila.id] ?? [];
@@ -517,7 +529,7 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
 
     if (!vacio(opcion.precioObjetivo)) aplicarPrecioObjetivo(variantes, d(opcion.precioObjetivo as never), iva);
 
-    return { id: opcion.id, recetaId: opcion.id, nombre: opcion.nombre, descripcionPdf: opcion.descripcion ?? null, variantes };
+    return { id: opcion.id, recetaId: opcion.id, nombre: opcion.nombre, descripcionPdf: opcion.descripcion ?? null, variantes, levantamiento: resumen };
   });
 
   alertasDeOperacion(entrada, snapshot, alertasGenerales);
@@ -525,7 +537,8 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
   const reventa = calcularReventa(entrada, snapshot, alertasGenerales);
 
   return {
-    levantamiento: resumen,
+    // El resumen general (precio en vivo, mensajes) es el de la primera opción.
+    levantamiento: opciones[0].levantamiento!,
     opciones,
     reventa,
     alertas: dedupe(alertasGenerales),

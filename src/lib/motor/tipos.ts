@@ -78,6 +78,8 @@ export type Snapshot = {
 export type FilaLevantamiento = {
   /** Identifica el concepto para ligarle sus insumos. Las cotizaciones viejas no lo traen. */
   id?: string;
+  /** Opción a la que pertenece: cada opción tiene sus propios conceptos. Las cotizaciones anteriores no lo traen. */
+  opcionId?: string;
   concepto: string;
   anchoM: Numerico;
   altoM: Numerico;
@@ -271,6 +273,8 @@ export type OpcionResultado = {
   nombre: string;
   descripcionPdf: string | null;
   variantes: Variante[];
+  /** Los conceptos de esta opción (cada una tiene los suyos). Los resultados anteriores no lo traen. */
+  levantamiento?: ResultadoCotizacion["levantamiento"];
 };
 
 export type ReventaResultado = {

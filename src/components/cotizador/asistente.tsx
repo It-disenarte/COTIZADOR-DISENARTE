@@ -22,7 +22,7 @@ import {
   QUE_HACER_ALERTA,
 } from "@/lib/cotizador/pasos";
 import { formatoMoneda } from "@/lib/formato";
-import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type ResultadoCotizacion, type Snapshot } from "@/lib/motor";
+import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type ResultadoCotizacion, type Snapshot, repartirFilasPorOpcion } from "@/lib/motor";
 import { cn, llamarApi } from "@/lib/utils";
 import { problemaDeEntrada } from "@/lib/validacion/cotizacion";
 import { PasoLevantamiento } from "./paso-levantamiento";
@@ -61,13 +61,17 @@ export function AsistenteCotizacion({
     inicial: () => {
       const base = inicial ?? borradorInicial(usuarioId);
       // Siempre hay al menos una opción, para que la tabla del levantamiento reciba insumos.
-      return base.entrada.opciones.length ? base : { ...base, entrada: { ...base.entrada, opciones: [opcionNueva(1)] } };
+      const entrada = base.entrada.opciones.length ? base.entrada : { ...base.entrada, opciones: [opcionNueva(1)] };
+      // Cada concepto queda con su opción desde el principio.
+      return { ...base, entrada: repartirFilasPorOpcion(entrada) };
     },
     cuerpo: cuerpoParaGuardar,
     // Al editar, la autorización anterior deja de valer: el servidor la borra al guardar.
     alEditar: () => setAutorizadaEn(null),
   });
   const [paso, setPaso] = useState(0);
+  /** Opción que se está viendo en el levantamiento; vive aquí para poder ir a la casilla de cualquier opción. */
+  const [indiceOpcion, setIndiceOpcion] = useState(0);
   /** Cuadro que dice qué falta; `continuar` existe cuando se llegó con "Siguiente". */
   const [falta, setFalta] = useState<{ pendiente: Pendiente; continuar?: () => void } | null>(null);
   // Cotización rápida: menos pasos y una sola variable (las horas de desarrollo). Se reconoce por la propia entrada.
@@ -195,6 +199,10 @@ export function AsistenteCotizacion({
    */
   async function corregir(problema: Pendiente) {
     setFalta(null);
+    // Si la casilla es de un concepto de otra opción, primero se muestra esa opción.
+    const fila = borrador.entrada.levantamiento.filas.find((f) => problema.campo?.startsWith(`fila-${f.id}-`));
+    const indice = borrador.entrada.opciones.findIndex((o) => o.id === fila?.opcionId);
+    if (indice >= 0) setIndiceOpcion(indice);
     if (problema.paso !== paso) await irAlPaso(problema.paso);
     // El paso nuevo tarda un instante en pintarse.
     window.setTimeout(() => {
@@ -284,6 +292,8 @@ export function AsistenteCotizacion({
             borrador={borrador}
             cambiar={cambiar}
             snapshot={snapshot}
+            indiceOpcion={indiceOpcion}
+            setIndiceOpcion={setIndiceOpcion}
             ranuraCatalogo={ranuraCatalogo}
             puedeEditarCatalogo={puedeEditarCatalogo}
             recargarCatalogo={recargarCatalogo}

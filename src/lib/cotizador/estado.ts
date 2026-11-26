@@ -140,7 +140,7 @@ function conceptosPorArea(areas: string[], filas: FilaConAreas[]): { fila: FilaC
   const varias = areas.length > 1;
   return filas.flatMap((fila) => {
     const conCantidad = areas.map((area, j) => ({ area, cantidad: txt(fila.cantidades[j]) })).filter((c) => num(c.cantidad) > 0);
-    const base = { anchoM: fila.anchoM, altoM: fila.altoM };
+    const base = { anchoM: fila.anchoM, altoM: fila.altoM, opcionId: fila.opcionId };
     if (!varias || conCantidad.length <= 1) {
       // Una sola área con piezas (o ninguna): se queda como está, con esa cantidad.
       const unica = conCantidad[0];
@@ -192,6 +192,37 @@ export function agregarLevantamientoLeido(
   const nuevas = conceptosPorArea(leido.areas, leido.filas.filter(conDatos)).map((n) => ({ ...n.fila, id: nuevoId() }));
   const previas = modo === "reemplazar" ? [] : actual.filas.filter(conDatos);
   return { areas: [COLUMNA_CANTIDAD], filas: [...previas, ...nuevas] };
+}
+
+/**
+ * Opción nueva a partir de otra: copia sus conceptos (como conceptos propios, con id nuevo) y sus insumos, para
+ * cambiar solo lo distinto. Desde aquí lo que se agregue, edite o quite en una no toca a la otra.
+ */
+export function agregarOpcionCopiando(entrada: EntradaNormalizada, base: OpcionCotizacion | undefined, nueva: OpcionCotizacion): EntradaNormalizada {
+  const materiales: OpcionCotizacion["materiales"] = {};
+  const descripciones: NonNullable<OpcionCotizacion["descripciones"]> = {};
+  const copias = entrada.levantamiento.filas
+    .filter((f) => base && f.opcionId === base.id)
+    .map((f) => {
+      const id = nuevoId();
+      if (base?.materiales[f.id]) materiales[id] = base.materiales[f.id].map((c) => ({ ...c }));
+      if (base?.descripciones?.[f.id]) descripciones[id] = base.descripciones[f.id];
+      return { ...f, id, cantidades: [...f.cantidades], opcionId: nueva.id };
+    });
+  return {
+    ...entrada,
+    levantamiento: { ...entrada.levantamiento, filas: [...entrada.levantamiento.filas, ...copias] },
+    opciones: [...entrada.opciones, { ...nueva, materiales, descripciones }],
+  };
+}
+
+/** Quita una opción junto con sus conceptos. */
+export function quitarOpcionDeEntrada(entrada: EntradaNormalizada, id: string): EntradaNormalizada {
+  return {
+    ...entrada,
+    levantamiento: { ...entrada.levantamiento, filas: entrada.levantamiento.filas.filter((f) => f.opcionId !== id) },
+    opciones: entrada.opciones.filter((o) => o.id !== id),
+  };
 }
 
 // Los valores del formulario viajan como texto; estas dos ayudan a leerlos.

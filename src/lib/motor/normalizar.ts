@@ -70,5 +70,44 @@ export function normalizarEntrada(entrada: EntradaCotizacion, snapshot: Pick<Sna
       preciosManuales,
     };
   });
-  return { ...entrada, levantamiento: { ...entrada.levantamiento, filas }, opciones };
+  return repartirFilasPorOpcion({ ...entrada, levantamiento: { ...entrada.levantamiento, filas }, opciones });
+}
+
+/**
+ * Cada opción es dueña de sus conceptos. Antes la tabla era una sola para todas: esos conceptos sin dueño se
+ * copian a cada opción (con sus insumos, precio y descripción), así que nada cambia de precio y desde ahí cada
+ * opción se edita por separado. Idempotente: con dueño ya asignado, sale igual.
+ */
+export function repartirFilasPorOpcion(entrada: EntradaNormalizada): EntradaNormalizada {
+  const { opciones } = entrada;
+  if (opciones.length === 0) return entrada;
+  const { filas } = entrada.levantamiento;
+  const idsOpcion = new Set(opciones.map((o) => o.id));
+  // Un concepto de una opción que ya no existe se descarta: se fue con ella.
+  const vigentes = filas.filter((f) => !f.opcionId || idsOpcion.has(f.opcionId));
+  if (vigentes.length === filas.length && filas.every((f) => f.opcionId)) return entrada;
+
+  const usados = new Set(vigentes.map((f) => f.id));
+  const nuevas = opciones.map((o) => ({
+    ...o,
+    materiales: { ...o.materiales },
+    preciosManuales: { ...(o.preciosManuales ?? {}) },
+    descripciones: { ...(o.descripciones ?? {}) },
+  }));
+  const repartidas = vigentes.flatMap((fila): FilaConId[] => {
+    if (fila.opcionId) return [fila];
+    return nuevas.map((opcion, i) => {
+      if (i === 0) return { ...fila, opcionId: opcion.id };
+      // Id derivado (no al azar): convertir dos veces la misma cotización da lo mismo.
+      let id = `${fila.id.slice(0, 34)}-o${i + 1}`;
+      for (let n = 2; usados.has(id); n++) id = `${fila.id.slice(0, 30)}-o${i + 1}-${n}`;
+      usados.add(id);
+      for (const mapa of [opcion.materiales, opcion.preciosManuales, opcion.descripciones] as Record<string, unknown>[]) {
+        if (mapa[fila.id] !== undefined) mapa[id] = mapa[fila.id];
+        delete mapa[fila.id];
+      }
+      return { ...fila, id, opcionId: opcion.id };
+    });
+  });
+  return { ...entrada, levantamiento: { ...entrada.levantamiento, filas: repartidas }, opciones: nuevas };
 }

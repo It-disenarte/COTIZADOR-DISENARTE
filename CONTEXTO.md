@@ -165,8 +165,12 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   el motor lo lleva a costo por metro y por m² y cobra solo lo usado. El resumen de insumos dice cuántos rollos comprar.
 - **Ya no hay recetas** (se quitaron en sept. 2026): ni en el catálogo ni en el asistente. Sus tablas siguen en la
   base, sin pantalla, solo para convertir las cotizaciones anteriores.
-- Una **opción** es una página del PDF. Casi siempre hay una; si el cliente quiere comparar materiales se agrega
-  otra (copia los insumos de la actual). El precio manual se captura por concepto.
+- Una **opción** es una página del PDF y es **independiente** (decisión del dueño): tiene sus propios conceptos e insumos
+  (`fila.opcionId`), así que agregar, cambiar o quitar en una no toca las demás. Casi siempre hay una; "+ Agregar opción" crea
+  una copia de la actual (`agregarOpcionCopiando`). El motor calcula cada opción solo con sus conceptos; la operación y la
+  reventa son de toda la cotización. Las cotizaciones de antes (una tabla para todas) se reparten solas, sin cambiar precios
+  (`repartirFilasPorOpcion`). En el PDF hay un solo consolidado si las opciones producen lo mismo, o uno por opción si no.
+  El precio en vivo (piezas, m²) y los mensajes toman la primera opción. El precio manual se captura por concepto.
 - Las cotizaciones anteriores (una receta por opción) se convierten solas al abrirlas o calcularlas
   (`src/lib/motor/normalizar.ts`): cada concepto recibe los insumos de la receta y el costo no cambia.
 - Un **borrador** se guarda con solo los datos del paso 1; autorizar, el PDF y los mensajes exigen la cotización

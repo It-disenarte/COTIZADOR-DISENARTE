@@ -13,6 +13,8 @@ import {
   num,
   opcionNueva,
   txt,
+  agregarOpcionCopiando,
+  quitarOpcionDeEntrada,
 } from "@/lib/cotizador/estado";
 import { formatoMoneda } from "@/lib/formato";
 import {
@@ -38,6 +40,9 @@ type Props = {
   borrador: BorradorCotizacion;
   cambiar: (cambios: (b: BorradorCotizacion) => BorradorCotizacion) => void;
   snapshot: Snapshot | null;
+  /** Opción que se está editando: cada una tiene sus propios conceptos. */
+  indiceOpcion: number;
+  setIndiceOpcion: (indice: number) => void;
   /** Lugar en la columna derecha del asistente (debajo del precio en vivo) donde va el catálogo. */
   ranuraCatalogo?: HTMLElement | null;
   /** Quien edita el catálogo puede crear o corregir insumos desde aquí. */
@@ -94,6 +99,8 @@ export function PasoLevantamiento({
   borrador,
   cambiar,
   snapshot,
+  indiceOpcion,
+  setIndiceOpcion,
   ranuraCatalogo,
   puedeEditarCatalogo = false,
   recargarCatalogo,
@@ -101,18 +108,19 @@ export function PasoLevantamiento({
   /** Formulario abierto: null = cerrado; { insumo: null } = nuevo. */
   const [formulario, setFormulario] = useState<{ insumo: InsumoSnapshot | null } | null>(null);
   const pantallaGrande = usePantallaGrande();
-  const { filas } = borrador.entrada.levantamiento;
+  const todasLasFilas = borrador.entrada.levantamiento.filas;
   const opciones = borrador.entrada.opciones;
-  const [indiceOpcion, setIndiceOpcion] = useState(0);
   const activa = Math.min(indiceOpcion, Math.max(opciones.length - 1, 0));
   const opcion = opciones[activa];
+  // La tabla muestra solo los conceptos de la opción que se está viendo.
+  const filas = todasLasFilas.filter((f) => f.opcionId === opcion?.id);
   const [filaElegida, setFilaElegida] = useState<string | null>(filas[0]?.id ?? null);
   const [pegado, setPegado] = useState<string | null>(null);
   const [filaEncima, setFilaEncima] = useState<string | null>(null);
   const [opcionPorQuitar, setOpcionPorQuitar] = useState<string | null>(null);
   // Cotización rápida: una sola opción y máximo 3 conceptos, sin pegar de Excel ni importar con IA.
   const rapida = !!borrador.entrada.rapida;
-  const limiteAlcanzado = rapida && borrador.entrada.levantamiento.filas.length >= MAX_CONCEPTOS_RAPIDA;
+  const limiteAlcanzado = rapida && filas.length >= MAX_CONCEPTOS_RAPIDA;
 
   const editarEntrada = (transformar: (e: BorradorCotizacion["entrada"]) => BorradorCotizacion["entrada"]) =>
     cambiar((b) => ({ ...b, entrada: transformar(b.entrada) }));
@@ -121,7 +129,13 @@ export function PasoLevantamiento({
     editarEntrada((e) => ({ ...e, levantamiento: { ...e.levantamiento, ...cambios } }));
 
   const editarFila = (id: string, cambios: Partial<(typeof filas)[number]>) =>
-    editarLevantamiento({ filas: filas.map((f) => (f.id === id ? { ...f, ...cambios } : f)) });
+    editarLevantamiento({ filas: todasLasFilas.map((f) => (f.id === id ? { ...f, ...cambios } : f)) });
+
+  /** Pone los conceptos de la opción activa; los de las otras opciones no se tocan. */
+  const ponerFilas = (nuevas: typeof filas) =>
+    editarLevantamiento({
+      filas: [...todasLasFilas.filter((f) => f.opcionId !== opcion?.id), ...nuevas.map((f) => ({ ...f, opcionId: opcion?.id }))],
+    });
 
   const editarOpcionActiva = (transformar: (o: OpcionCotizacion) => OpcionCotizacion) =>
     editarEntrada((e) => ({ ...e, opciones: e.opciones.map((o, i) => (i === activa ? transformar(o) : o)) }));
@@ -157,7 +171,7 @@ export function PasoLevantamiento({
     editarEntrada((e) => ({
       ...e,
       levantamiento: { ...e.levantamiento, filas: e.levantamiento.filas.filter((f) => f.id !== id) },
-      // Sus insumos y su precio manual se van con él, en todas las opciones.
+      // Sus insumos y su precio manual se van con él.
       opciones: e.opciones.map((o) => ({
         ...o,
         materiales: sinClave(o.materiales, id),
@@ -169,20 +183,14 @@ export function PasoLevantamiento({
 
   function quitarOpcion(id: string) {
     const indice = opciones.findIndex((o) => o.id === id);
-    editarEntrada((e) => ({ ...e, opciones: e.opciones.filter((o) => o.id !== id) }));
+    editarEntrada((e) => quitarOpcionDeEntrada(e, id));
     setOpcionPorQuitar(null);
     if (indice !== -1 && indice <= activa) setIndiceOpcion(Math.max(activa - 1, 0));
   }
 
   function agregarOpcion() {
-    // La opción nueva parte de la actual: solo se cambia lo que sea distinto.
-    const base = opcion;
-    const nueva = opcionNueva(opciones.length + 1);
-    if (base) {
-      nueva.materiales = JSON.parse(JSON.stringify(base.materiales));
-      nueva.descripciones = { ...(base.descripciones ?? {}) };
-    }
-    editarEntrada((e) => ({ ...e, opciones: [...e.opciones, nueva] }));
+    // La opción nueva parte de una copia de la actual; desde ahí es independiente.
+    editarEntrada((e) => agregarOpcionCopiando(e, opcion, opcionNueva(opciones.length + 1)));
     setIndiceOpcion(opciones.length);
   }
 
@@ -228,7 +236,7 @@ export function PasoLevantamiento({
                   key={o.id}
                   className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/5 py-1 pl-3 pr-1 text-sm"
                 >
-                  ¿Quitar “{o.nombre || `Opción ${i + 1}`}” y sus insumos?
+                  ¿Quitar “{o.nombre || `Opción ${i + 1}`}” con sus conceptos?
                   <button
                     type="button"
                     onClick={() => quitarOpcion(o.id)}
@@ -274,9 +282,10 @@ export function PasoLevantamiento({
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Casi siempre basta con una opción. Si el cliente quiere comparar materiales, agrega otra: se copian los
-            insumos de la opción actual y cambias solo lo que sea distinto. Cada opción es una página del PDF; su
-            nombre y su foto se capturan en el paso siguiente. Si agregaste una de más, quítala con la ×.
+            Casi siempre basta con una opción. Si el cliente quiere comparar, agrega otra: empieza como copia de la
+            actual y de ahí es independiente (agregar, cambiar o quitar conceptos e insumos en una no toca las demás).
+            Cada opción es una página del PDF; su nombre y su foto se capturan en el paso siguiente. Si agregaste una de
+            más, quítala con la ×.
           </p>
           <p className="text-xs text-muted-foreground">
             ¿Todo lo que se vende es de reventa o maquila? Deja esta tabla vacía y captúralo en el paso “Reventa y
@@ -474,7 +483,7 @@ export function PasoLevantamiento({
               title={limiteAlcanzado ? `La cotización rápida admite máximo ${MAX_CONCEPTOS_RAPIDA} conceptos` : undefined}
               onClick={() => {
                 const fila = filaNueva();
-                editarLevantamiento({ filas: [...filas, fila] });
+                ponerFilas([...filas, fila]);
                 setFilaElegida(fila.id);
               }}
             >
@@ -489,7 +498,7 @@ export function PasoLevantamiento({
               <ImportarLevantamiento
                 alAplicar={(leido, modo) =>
                   // Si el documento reparte por áreas, cada área entra como concepto propio.
-                  editarLevantamiento(agregarLevantamientoLeido(borrador.entrada.levantamiento, leido, modo))
+                  ponerFilas(agregarLevantamientoLeido({ ...borrador.entrada.levantamiento, filas }, leido, modo).filas)
                 }
               />
             )}
@@ -519,14 +528,14 @@ export function PasoLevantamiento({
                 className="min-h-28 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Reemplaza la tabla. Los insumos se vuelven a asignar después, porque los conceptos son nuevos.
+                Reemplaza la tabla de esta opción. Los insumos se vuelven a asignar después, porque los conceptos son nuevos.
               </p>
               <Button
                 type="button"
                 size="sm"
                 onClick={() => {
                   const nuevas = filasDesdeTsv(pegado);
-                  if (nuevas.length) editarLevantamiento({ filas: nuevas });
+                  if (nuevas.length) ponerFilas(nuevas);
                   setPegado(null);
                 }}
               >
