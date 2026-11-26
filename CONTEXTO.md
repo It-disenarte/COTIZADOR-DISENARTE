@@ -170,7 +170,8 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   una copia de la actual (`agregarOpcionCopiando`). El motor calcula cada opción solo con sus conceptos; la operación y la
   reventa son de toda la cotización. Las cotizaciones de antes (una tabla para todas) se reparten solas, sin cambiar precios
   (`repartirFilasPorOpcion`). En el PDF hay un solo consolidado si las opciones producen lo mismo, o uno por opción si no.
-  El precio en vivo (piezas, m²) y los mensajes toman la primera opción. El precio manual se captura por concepto.
+  El precio en vivo muestra la **opción que se está viendo** (se cambia con las pestañas del
+  levantamiento o tocando su renglón en la lista de totales del panel); los mensajes toman la primera. El precio manual se captura por concepto.
 - Las cotizaciones anteriores (una receta por opción) se convierten solas al abrirlas o calcularlas
   (`src/lib/motor/normalizar.ts`): cada concepto recibe los insumos de la receta y el costo no cambia.
 - Un **borrador** se guarda con solo los datos del paso 1; autorizar, el PDF y los mensajes exigen la cotización

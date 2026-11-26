@@ -224,7 +224,11 @@ export function AsistenteCotizacion({
     irAlPaso(paso + 1);
   }
 
-  const primeraVariante = resultado?.opciones[0]?.variantes.at(-1) ?? null;
+  // El precio en vivo es el de la opción que se está viendo (si se quitó la última, el de la anterior).
+  const indiceVisible = Math.min(indiceOpcion, Math.max(borrador.entrada.opciones.length - 1, 0));
+  const opcionVisible = resultado?.opciones[indiceVisible] ?? null;
+  const varianteVisible = opcionVisible?.variantes.at(-1) ?? null;
+  const produccionVisible = opcionVisible?.levantamiento ?? resultado?.levantamiento;
   // Todas las alertas: las generales y las de cada opción (margen bajo, precio a mano), sin repetir.
   const todasLasAlertas = resultado
     ? [...resultado.alertas, ...resultado.opciones.flatMap((o) => o.variantes.flatMap((v) => v.alertas))]
@@ -402,19 +406,20 @@ export function AsistenteCotizacion({
 
             {pendiente && <AvisoPendiente pendiente={pendiente} pasoActual={paso} irAlPaso={irAlPaso} pasos={pasos} corregir={corregir} />}
 
-            {primeraVariante && (
+            {varianteVisible && (
               <div className="space-y-1 text-sm">
-                <p className="text-2xl font-semibold">{formatoMoneda(primeraVariante.total)}</p>
+                {(resultado?.opciones.length ?? 0) > 1 && <p className="font-medium text-primary">{opcionVisible?.nombre}</p>}
+                <p className="text-2xl font-semibold">{formatoMoneda(varianteVisible.total)}</p>
                 <p className="text-muted-foreground">
-                  {resultado?.levantamiento.piezas} piezas · {resultado?.levantamiento.areaM2} m²
+                  {produccionVisible?.piezas} piezas · {produccionVisible?.areaM2} m²
                 </p>
                 <p className="text-muted-foreground">
-                  {(primeraVariante.conceptos?.length ?? 1) > 1 ? "Unitario promedio" : "Unitario"}{" "}
-                  {formatoMoneda(primeraVariante.unitario)}
+                  {(varianteVisible.conceptos?.length ?? 1) > 1 ? "Unitario promedio" : "Unitario"}{" "}
+                  {formatoMoneda(varianteVisible.unitario)}
                 </p>
-                <p className="text-muted-foreground">Subtotal {formatoMoneda(primeraVariante.subtotal)}</p>
+                <p className="text-muted-foreground">Subtotal {formatoMoneda(varianteVisible.subtotal)}</p>
                 <ComposicionDelCosto
-                  variante={primeraVariante}
+                  variante={varianteVisible}
                   parametros={snapshot?.parametros ?? null}
                   ajustes={borrador.entrada.ajustes}
                   irAOperacion={() => irAlPaso(rapida ? PASO_RAPIDA.cotizacion : PASO.operacion)}
@@ -427,21 +432,31 @@ export function AsistenteCotizacion({
 
             {resultado && resultado.opciones.length > 1 && (
               <div className="space-y-1 border-t pt-2 text-xs">
-                {resultado.opciones.map((o) => (
-                  <p key={o.id ?? o.recetaId} className="flex justify-between gap-2">
-                    <span className="truncate text-muted-foreground">{o.nombre}</span>
+                {resultado.opciones.map((o, i) => (
+                  <button
+                    key={o.id ?? o.recetaId}
+                    type="button"
+                    onClick={() => setIndiceOpcion(i)}
+                    aria-pressed={i === indiceVisible}
+                    title="Ver esta opción"
+                    className={cn(
+                      "flex w-full justify-between gap-2 rounded px-1.5 py-1 text-left hover:bg-muted",
+                      i === indiceVisible && "bg-primary/10 font-medium text-primary",
+                    )}
+                  >
+                    <span className={cn("truncate", i !== indiceVisible && "text-muted-foreground")}>{o.nombre}</span>
                     <span>{formatoMoneda(o.variantes.at(-1)?.total ?? "0")}</span>
-                  </p>
+                  </button>
                 ))}
               </div>
             )}
 
-            {resultado && resultado.reventa.items.length > 0 && primeraVariante && (
+            {resultado && resultado.reventa.items.length > 0 && varianteVisible && (
               <ReventaEnVivo
                 total={resultado.reventa.total}
                 articulos={resultado.reventa.items.length}
-                totalOpcion={primeraVariante.total}
-                variasOpciones={resultado.opciones.length > 1}
+                totalOpcion={varianteVisible.total}
+                nombreOpcion={resultado.opciones.length > 1 ? (opcionVisible?.nombre ?? null) : null}
               />
             )}
 
@@ -652,12 +667,13 @@ function ReventaEnVivo({
   total,
   articulos,
   totalOpcion,
-  variasOpciones,
+  nombreOpcion,
 }: {
   total: string;
   articulos: number;
   totalOpcion: string;
-  variasOpciones: boolean;
+  /** Con varias opciones, cuál se está sumando. */
+  nombreOpcion: string | null;
 }) {
   return (
     <div className="space-y-1 border-t pt-2 text-sm">
@@ -668,7 +684,7 @@ function ReventaEnVivo({
         <span className="tabular-nums">{formatoMoneda(total)}</span>
       </p>
       <p className="flex justify-between gap-2 font-medium">
-        <span>Total de la propuesta{variasOpciones ? " (con la opción 1)" : ""}</span>
+        <span>Total de la propuesta{nombreOpcion ? ` (con ${nombreOpcion})` : ""}</span>
         <span className="tabular-nums">{formatoMoneda((Number(totalOpcion) + Number(total)).toFixed(2))}</span>
       </p>
     </div>
