@@ -132,12 +132,12 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     expect(archivo.byteLength).toBeLessThan(5 * 1024 * 1024);
     expect(new TextDecoder().decode(archivo.slice(0, 5))).toBe("%PDF-");
 
-    // Portada, bienvenidos, por qué, proceso, consolidado, la opción, reventa y condiciones.
+    // Portada, bienvenidos, por qué, proceso, la opción, reventa y condiciones.
     const { paginas } = await textoDelPdf(archivo);
-    expect(paginas).toBeGreaterThanOrEqual(8);
+    expect(paginas).toBeGreaterThanOrEqual(7);
   });
 
-  it("incluye portada, consolidado, precios y condiciones comerciales", async () => {
+  it("incluye portada, precios y condiciones comerciales", async () => {
     const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${cotizacionId}/pdf`, { cookie }), ctxId(cotizacionId));
     const { texto } = await textoDelPdf(new Uint8Array(await res.arrayBuffer()));
 
@@ -155,9 +155,9 @@ describe("Criterio de la fase 5: el PDF de la propuesta", () => {
     expect(texto).toMatch(/condiciones\s+comerciales/i);
     expect(texto).toContain("70% de anticipo y 30% al entregar");
 
-    // Consolidado y cotización
-    expect(texto).toContain("Consolidado del levantamiento: 169 piezas");
-    expect(texto).toContain("CENDI");
+    // Cotización: va directo a la tabla de precios, sin hojas de consolidado que alarguen la propuesta.
+    expect(texto).not.toContain("Consolidado");
+    expect(texto).not.toContain("Área total de producción");
     expect(texto).toContain("Estireno cal. 40 + impresión");
     expect(texto).toContain("5-7 días");
     // Resumen de alcance capturado (o redactado con la IA): el del proyecto va arriba de la tabla...

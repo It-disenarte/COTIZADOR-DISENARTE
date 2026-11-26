@@ -169,7 +169,8 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Maquila → Opc
   (`fila.opcionId`), así que agregar, cambiar o quitar en una no toca las demás. Casi siempre hay una; "+ Agregar opción" crea
   una copia de la actual (`agregarOpcionCopiando`). El motor calcula cada opción solo con sus conceptos; la operación y la
   reventa son de toda la cotización. Las cotizaciones de antes (una tabla para todas) se reparten solas, sin cambiar precios
-  (`repartirFilasPorOpcion`). En el PDF hay un solo consolidado si las opciones producen lo mismo, o uno por opción si no.
+  (`repartirFilasPorOpcion`). El PDF **no lleva consolidado del levantamiento** (el dueño lo quitó en nov. 2026: hacía larguísimas las propuestas):
+  va directo a la tabla de precios de cada opción.
   El precio en vivo muestra la **opción que se está viendo** (se cambia con las pestañas del
   levantamiento o tocando su renglón en la lista de totales del panel); los mensajes toman la primera. El precio manual se captura por concepto.
 - Las cotizaciones anteriores (una receta por opción) se convierten solas al abrirlas o calcularlas
@@ -206,7 +207,7 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Maquila → Opc
   el campo va en la tarjeta de reventa (`ajustes.precioObjetivo`) y reparte entre artículos y filas de operación.
 - **Reventa** (paso "Reventa"): lo que se compra y se vende **tal cual**, con el 35% de `pct_reventa` sobre lo que nos cuesta.
   Si **todo** es reventa, la tabla del levantamiento se deja vacía: el resultado no trae opciones (`opciones: []`), el PDF no
-  lleva consolidado y los artículos son la cotización, con la operación (diseño, mano de obra, envío e instalación, extras)
+  lleva páginas de opciones y los artículos son la cotización, con la operación (diseño, mano de obra, envío e instalación, extras)
   en **filas aparte** con la fórmula del PNO (`reventa.operacion`). El descuento por decisión rápida se resta ahí. Con
   conceptos o maquila, los artículos siguen en la hoja "Materiales adicionales" y la operación va en los conceptos.
 - **Maquila** (paso "Maquila", `paso-maquila.tsx`; separada de la reventa por decisión del dueño): un **producto** con nombre,
@@ -214,7 +215,7 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Maquila → Opc
   medida propia para los de m²) y **horas** de trabajo (totales). Cada parte lleva su regla (decisión del dueño): maquila
   × (1 + `pct_reventa`); insumos, consumibles y horas (× `tarifa_hora_desarrollo`) con la fórmula del PNO. Se guarda en
   `opciones[].maquilas` (cada opción tiene los suyos); sus insumos, precio manual y descripción usan los mismos mapas que
-  los conceptos, por id del producto. El motor lo trata como un concepto más (misma tabla del PDF, consolidado, reparto de
+  los conceptos, por id del producto. El motor lo trata como un concepto más (misma tabla del PDF, reparto de
   la operación y precio deseado). **El cliente solo ve el nombre** (y la descripción, si se escribe): nunca la maquila, quién
   la hace ni los insumos. La comprobación del 30% usa `margenPropio` (sin la maquila); en pura maquila no aplica. La
   cotización rápida no lleva maquila. Lo capturado antes como maquila en la reventa sigue ahí con su mismo precio.
@@ -295,6 +296,7 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Sin "petición de acción" en la propuesta | El dueño la quitó (sept. 2026) aunque el PNO la menciona; no sale en PDF ni mensajes |
 | Sin escenario "piloto y volumen" en pantalla | El dueño lo quitó (sept. 2026); el motor lo sigue calculando para cotizaciones anteriores |
 | Sin columnas por área | El dueño prefiere un concepto por área; las cotizaciones de antes se abren con un concepto por área (`separarAreasEnConceptos`) |
+| Sin consolidado en el PDF | El dueño (nov. 2026): con varias opciones e insumos las propuestas quedaban eternas |
 | Sin recetas | El dueño las quitó (sept. 2026): cada concepto lleva sus insumos directamente; las tablas quedan solo para cotizaciones anteriores |
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
 | Sin búsqueda de precios de reventa con IA | El dueño la consideró irrelevante (sept. 2026): el precio de compra se captura a mano |

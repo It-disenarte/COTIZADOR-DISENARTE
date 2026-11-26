@@ -103,13 +103,6 @@ export async function generarPdf(datos: DatosPdf): Promise<Uint8Array> {
   // Todas las páginas de cotización llevan el marco interior, con su encabezado y su pie.
   lienzo.alAbrirPagina = (l) => marcoInterior(l, fondoInterior);
 
-  // Una venta de pura reventa o maquila no tiene levantamiento que consolidar.
-  // Si todas las opciones producen lo mismo va un solo consolidado; si no, uno por opción.
-  const porOpcion = datos.resultado.opciones.map((o) => ({ nombre: o.nombre, levantamiento: o.levantamiento ?? datos.resultado.levantamiento }));
-  const iguales = new Set(porOpcion.map((o) => JSON.stringify(o.levantamiento))).size === 1;
-  for (const { nombre, levantamiento } of iguales ? porOpcion.slice(0, 1) : porOpcion) {
-    consolidado(lienzo, levantamiento, iguales ? null : nombre);
-  }
   for (const opcion of datos.resultado.opciones) {
     const imagen = await incrustarImagen(doc, datos.imagenes?.get(opcion.id ?? opcion.recetaId));
     for (const variante of opcion.variantes) {
@@ -247,43 +240,6 @@ export function marcoInterior(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
 }
 
 // Páginas de cotización ----------------------------------------------------------------------
-
-/**
- * Consolidado del levantamiento: qué se va a producir. Las cotizaciones de antes podían repartir
- * por áreas (una columna por área); ahora cada área es un concepto y hay una sola columna.
- */
-function consolidado(lienzo: Lienzo, levantamiento: DatosPdf["resultado"]["levantamiento"], opcion: string | null) {
-  lienzo.nuevaPagina();
-  lienzo.titulo(`${opcion ? `Consolidado de ${opcion}` : "Consolidado del levantamiento"}: ${levantamiento.piezas} piezas`);
-
-  const areas = levantamiento.porArea.length > 1 ? levantamiento.porArea.map((a) => a.area) : [];
-  const anchoMedida = 72;
-  const anchoTotal = 52;
-  const anchoAreas = Math.min(72, (lienzo.anchoUtil - 200 - anchoMedida - anchoTotal) / Math.max(areas.length, 1));
-  const columnas: Columna[] = [
-    { titulo: "Concepto", ancho: lienzo.anchoUtil - anchoMedida - anchoAreas * areas.length - anchoTotal },
-    { titulo: "Medida", ancho: anchoMedida, alineacion: "centro" },
-    ...areas.map((area) => ({ titulo: area, ancho: anchoAreas, alineacion: "centro" as const })),
-    { titulo: areas.length ? "Total" : "Cantidad", ancho: anchoTotal, alineacion: "centro" },
-  ];
-
-  const filas: Celda[][] = levantamiento.filas.map((fila) => [
-    fila.concepto || "Sin concepto",
-    Number(fila.anchoM) > 0 || Number(fila.altoM) > 0 ? `${fila.anchoM}×${fila.altoM}` : "Pieza",
-    ...(areas.length ? fila.cantidades.map((c) => (Number(c) > 0 ? c : "—")) : []),
-    fila.piezas,
-  ]);
-  filas.push([
-    [{ texto: "Totales", negrita: true }],
-    "",
-    ...(areas.length ? levantamiento.porArea.map((a) => [{ texto: a.piezas, negrita: true }]) : []),
-    [{ texto: String(levantamiento.piezas), negrita: true }],
-  ]);
-
-  tabla(lienzo, columnas, filas, { estilo: "oscura", centrarVertical: true });
-  lienzo.espacio(12);
-  lienzo.texto(`Área total de producción: ${levantamiento.areaM2} m²`, { tamano: 9, color: COLOR.suave });
-}
 
 export const columnasCotizacion = (): Columna[] => [
   { titulo: "Cantidad", ancho: 66, alineacion: "centro" },

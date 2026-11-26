@@ -309,8 +309,7 @@ el registro de la fecha del siguiente seguimiento.
   sin saltos si más adelante se pegan las exportaciones de Canva.
 - **Se genera al momento y no se guarda** (cambio sobre la sección 10.2, a petición del equipo): cada descarga
   arma el PDF con la versión vigente de la cotización. No hay carpeta de PDFs ni rutas en disco.
-- **Contenido**: portada, Bienvenidos, ¿Por qué Diseñarte México?, Proceso de trabajo, consolidado del
-  levantamiento por áreas, una página por opción de material (y por modalidad A/B), materiales adicionales cuando
+- **Contenido**: portada, Bienvenidos, ¿Por qué Diseñarte México?, Proceso de trabajo, una página por opción de material (y por modalidad A/B), materiales adicionales cuando
   hay reventa, y condiciones comerciales. Los textos fijos y los datos de contacto y bancarios viven en
   `src/lib/pdf/marca.ts`, listos para editarse sin tocar el código del documento.
 - **La leyenda del diseño** va impresa en cada página de cotización, como exige la sección 10.1.
