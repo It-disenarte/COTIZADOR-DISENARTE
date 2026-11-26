@@ -112,6 +112,8 @@ function esquemaEntrada(modo: "borrador" | "completa") {
             descripciones: z.record(IdLocal, textoOpcional(1000)).optional(),
             // Precio final deseado (subtotal sin IVA): el aumento se reparte entre los conceptos.
             precioObjetivo: decimalOpcional({ min: 0 }).optional(),
+            // Aumento en porcentaje sobre el precio calculado (cotización rápida).
+            aumentoPct: decimalOpcional({ min: 0, max: 1000 }).optional(),
           }),
           // Forma anterior (una receta para todo el levantamiento): la siguen mandando las
           // pestañas que quedaron abiertas durante un despliegue. El servidor la convierte.

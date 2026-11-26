@@ -146,6 +146,11 @@ export type OpcionCotizacion = {
    * diferencia se reparte entre sus filas según lo que pesa cada una. Vacío = el calculado.
    */
   precioObjetivo?: Numerico | null;
+  /**
+   * Aumento al precio calculado, en porcentaje (10 = 10% más). Se usa en la cotización rápida en lugar del precio
+   * deseado y se recalcula solo si cambian los costos. Si hay los dos, manda este.
+   */
+  aumentoPct?: Numerico | null;
 };
 
 /** Forma anterior: una receta para todo el levantamiento. Se convierte sola al calcular. */

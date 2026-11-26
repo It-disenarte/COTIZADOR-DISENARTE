@@ -4,7 +4,7 @@ import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Badge, Button, Card, CardContent, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { type BorradorCotizacion, num, txt } from "@/lib/cotizador/estado";
 import { formatoFraccion, formatoMoneda } from "@/lib/formato";
-import type { ResultadoCotizacion, Snapshot } from "@/lib/motor";
+import type { ResultadoCotizacion, Snapshot, Variante, OpcionCotizacion } from "@/lib/motor";
 
 import { cn } from "@/lib/utils";
 import { RedactarAlcance } from "./ia";
@@ -750,29 +750,44 @@ export function PasoResumen({
               </div>
 
               {/* El precio deseado es de la opción: se captura en su modalidad principal (la última). */}
-              {indiceVariante === opcion.variantes.length - 1 && (
-                <div className="space-y-2 border-t pt-4">
-                  <Campo
-                    etiqueta={`Precio final deseado (sin IVA)${resultado.opciones.length > 1 ? ` · ${opcion.nombre}` : ""}`}
-                    ayuda={
-                      v.subtotalCalculado
-                        ? `Calculado: ${formatoMoneda(v.subtotalCalculado)}. Se agregan ${formatoMoneda(v.ajustePrecio ?? "0")} repartidos entre los conceptos según lo que pesa cada uno; así salen en el PDF. Total con IVA: ${formatoMoneda(v.total)}. Bórralo para volver al calculado.`
-                        : `Opcional. Calculado: ${formatoMoneda(v.subtotal)}. Si escribes un precio mayor, la diferencia se reparte sola entre los conceptos según lo que pesa cada uno, y el PDF sale con esos precios.`
-                    }
-                    opcional
-                    valor={txt(borrador.entrada.opciones.find((o) => o.id === opcion.id)?.precioObjetivo ?? "")}
-                    alCambiar={(valor) =>
+              {indiceVariante === opcion.variantes.length - 1 &&
+                (entrada.rapida ? (
+                  <AjustePrecioFinal
+                    variante={v}
+                    opcion={borrador.entrada.opciones.find((o) => o.id === opcion.id)}
+                    alCambiar={(cambios) =>
                       cambiar((b) => ({
                         ...b,
                         entrada: {
                           ...b.entrada,
-                          opciones: b.entrada.opciones.map((o) => (o.id === opcion.id ? { ...o, precioObjetivo: valor } : o)),
+                          opciones: b.entrada.opciones.map((o) => (o.id === opcion.id ? { ...o, ...cambios } : o)),
                         },
                       }))
                     }
                   />
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-2 border-t pt-4">
+                    <Campo
+                      etiqueta={`Precio final deseado (sin IVA)${resultado.opciones.length > 1 ? ` · ${opcion.nombre}` : ""}`}
+                      ayuda={
+                        v.subtotalCalculado
+                          ? `Calculado: ${formatoMoneda(v.subtotalCalculado)}. Se agregan ${formatoMoneda(v.ajustePrecio ?? "0")} repartidos entre los conceptos según lo que pesa cada uno; así salen en el PDF. Total con IVA: ${formatoMoneda(v.total)}. Bórralo para volver al calculado.`
+                          : `Opcional. Calculado: ${formatoMoneda(v.subtotal)}. Si escribes un precio mayor, la diferencia se reparte sola entre los conceptos según lo que pesa cada uno, y el PDF sale con esos precios.`
+                      }
+                      opcional
+                      valor={txt(borrador.entrada.opciones.find((o) => o.id === opcion.id)?.precioObjetivo ?? "")}
+                      alCambiar={(valor) =>
+                        cambiar((b) => ({
+                          ...b,
+                          entrada: {
+                            ...b.entrada,
+                            opciones: b.entrada.opciones.map((o) => (o.id === opcion.id ? { ...o, precioObjetivo: valor } : o)),
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
 
               {/* El precio manual es por concepto y vale para todas las modalidades: se captura una vez. */}
               {indiceVariante === 0 && (v.conceptos?.length ?? 0) > 0 && (
@@ -907,6 +922,53 @@ export function PasoResumen({
 }
 
 // Piezas compartidas --------------------------------------------------------------------------
+
+/**
+ * Precio final de la cotización rápida: se le agrega un porcentaje o se escribe el número. Son dos formas de lo
+ * mismo, así que llenar una vacía la otra. El aumento se reparte entre los conceptos y así sale en el PDF.
+ */
+function AjustePrecioFinal({
+  variante: v,
+  opcion,
+  alCambiar,
+}: {
+  variante: Variante;
+  opcion: OpcionCotizacion | undefined;
+  alCambiar: (cambios: Pick<OpcionCotizacion, "precioObjetivo" | "aumentoPct">) => void;
+}) {
+  const calculado = v.subtotalCalculado ?? v.subtotal;
+  return (
+    <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+      <div>
+        <p className="text-sm font-medium">Ajustar el precio final</p>
+        <p className="text-xs text-muted-foreground">
+          Opcional. Llena solo una de las dos casillas. El aumento se reparte entre los conceptos y así sale en el PDF.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Campo
+          etiqueta="Aumentar en porcentaje (%)"
+          ayuda="Por ejemplo 10 = 10% más sobre el precio calculado."
+          opcional
+          valor={txt(opcion?.aumentoPct ?? "")}
+          alCambiar={(valor) => alCambiar({ aumentoPct: valor, precioObjetivo: "" })}
+        />
+        <Campo
+          etiqueta="O escribe el precio final (sin IVA)"
+          ayuda="Debe ser mayor al calculado; este ajuste no baja el precio."
+          opcional
+          valor={txt(opcion?.precioObjetivo ?? "")}
+          alCambiar={(valor) => alCambiar({ precioObjetivo: valor, aumentoPct: "" })}
+        />
+      </div>
+      <p className="text-sm">
+        Calculado {formatoMoneda(calculado)}
+        {v.ajustePrecio ? ` + ${formatoMoneda(v.ajustePrecio)}` : ""} = <span className="font-medium">{formatoMoneda(v.subtotal)}</span> sin
+        IVA · <span className="font-semibold">{formatoMoneda(v.total)}</span> con IVA
+      </p>
+    </div>
+  );
+}
 
 function Campo({
   etiqueta,

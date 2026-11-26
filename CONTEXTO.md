@@ -225,6 +225,8 @@ abrirla), así que usa el mismo PDF, autorización y mensajes.
   Sin consumibles. La utilidad real sale ~39% porque los indirectos suben el precio sin entrar al costo.
 - `imponerRapida()` en `motor.ts` anula instalación, viáticos, traslado, extras, reventa y margen capturado, aunque vengan en la entrada.
 - **Solo dos secciones** (decisión del dueño): **Datos** (sin km ni zona) y **Cotización**, que junta en una página los conceptos con sus insumos, el tiempo de desarrollo y el resumen con autorización y PDF (`PASOS_RAPIDA`, `pasoDeRapida` en `pasos.ts`).
+- **Precio final** (al final de la página): se aumenta por **porcentaje** (`opciones[].aumentoPct`, se recalcula si cambian los
+  costos) o escribiendo el número sin IVA (`precioObjetivo`); llenar uno vacía el otro. Solo sube.
 - Pruebas: `tests/rapida.test.ts` y el bloque "Cotización rápida" de `tests/pdf.test.ts`.
 
 ### 6.1 Digitalización (segundo tipo de cotización)

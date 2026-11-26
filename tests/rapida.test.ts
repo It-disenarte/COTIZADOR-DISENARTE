@@ -141,3 +141,33 @@ describe("Cotización rápida: validación", () => {
     expect(problemaDeEntrada(completa)).toBeNull();
   });
 });
+
+describe("Cotización rápida: ajuste del precio final", () => {
+  const base = calcular(entradaRapida("8"), snapshot).opciones[0].variantes[0];
+  const con = (ajuste: { aumentoPct?: string; precioObjetivo?: string }) => {
+    const entrada = entradaRapida("8");
+    entrada.opciones = [{ ...entrada.opciones[0], ...ajuste } as (typeof entrada.opciones)[number]];
+    return calcular(entrada, snapshot).opciones[0].variantes[0];
+  };
+
+  it("un porcentaje sube el precio calculado y las filas del PDF suman lo mismo", () => {
+    const v = con({ aumentoPct: "10" });
+    expect(Number(v.subtotal)).toBeCloseTo(Number(base.subtotal) * 1.1, 1);
+    expect(v.subtotalCalculado).toBe(base.subtotal);
+    expect(v.filas.reduce((s, f) => s + Number(f.subtotal), 0)).toBeCloseTo(Number(v.subtotal), 2);
+    expect(Number(v.total)).toBeCloseTo(Number(v.subtotal) * 1.16, 1);
+  });
+
+  it("también se puede escribir el número", () => {
+    const objetivo = (Number(base.subtotal) + 500).toFixed(2);
+    expect(con({ precioObjetivo: objetivo }).subtotal).toBe(objetivo);
+  });
+
+  it("vacío o cero no cambia nada, y el porcentaje se guarda", () => {
+    expect(con({ aumentoPct: "" }).subtotal).toBe(base.subtotal);
+    expect(con({ aumentoPct: "0" }).subtotal).toBe(base.subtotal);
+    const entrada = entradaRapida("8");
+    entrada.opciones = [{ ...entrada.opciones[0], aumentoPct: "15" } as (typeof entrada.opciones)[number]];
+    expect(EntradaBorrador.parse({ ...entrada, opciones: entrada.opciones }).opciones[0]).toMatchObject({ aumentoPct: "15" });
+  });
+});

@@ -527,7 +527,13 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
       });
     });
 
-    if (!vacio(opcion.precioObjetivo)) aplicarPrecioObjetivo(variantes, d(opcion.precioObjetivo as never), iva);
+    const aumento = vacio(opcion.aumentoPct) ? CERO : d(opcion.aumentoPct as never);
+    if (aumento.gt(0)) {
+      const calculado = d(variantes[variantes.length - 1].subtotal);
+      aplicarPrecioObjetivo(variantes, round2(calculado.times(aumento.div(100).plus(1))), iva);
+    } else if (!vacio(opcion.precioObjetivo)) {
+      aplicarPrecioObjetivo(variantes, d(opcion.precioObjetivo as never), iva);
+    }
 
     return { id: opcion.id, recetaId: opcion.id, nombre: opcion.nombre, descripcionPdf: opcion.descripcion ?? null, variantes, levantamiento: resumen };
   });
