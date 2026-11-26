@@ -241,6 +241,9 @@ export function marcoInterior(lienzo: Lienzo, fondo: PDFEmbeddedPage) {
 
 // Páginas de cotización ----------------------------------------------------------------------
 
+/** Lo que ocupan los totales y la nota del IVA bajo la tabla, para tablas que no caben en una hoja. */
+const RESERVA_TOTALES = 110;
+
 export const columnasCotizacion = (): Columna[] => [
   { titulo: "Cantidad", ancho: 66, alineacion: "centro" },
   { titulo: "Tiempo estimado", ancho: 76, alineacion: "centro" },
@@ -268,53 +271,56 @@ function paginaDeOpcion(
   }
   lienzo.espacio(14);
 
-  const tiempo = datos.tiempoEstimado ?? "Por definir";
-  const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
-  const alcance: { texto: string; negrita?: boolean }[] = [{ texto: `Concepto: ${concepto}`, negrita: true }];
-  if (datos.alcance?.resumen?.trim()) alcance.push({ texto: datos.alcance.resumen.trim() });
-  if (descripcion) alcance.push({ texto: `Descripción: ${descripcion}`, negrita: true });
-  // PNO-COM-01, 7.1.7 y 8.4: se anuncia el retiro de gráficos previos cuando aplica.
-  if (datos.sitio?.retiroGraficosPrevios) {
-    alcance.push({ texto: "Incluye el retiro y acondicionamiento de los gráficos previos." });
-  }
-  if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
-
-  // Cotizaciones con insumos por concepto: cada fila dice su concepto y su descripción en viñetas
-  // (como las propuestas hechas a mano), y lo que es de todo el proyecto va arriba de la tabla.
-  // Las de antes (una receta para todo) conservan el alcance dentro de su única fila.
-  const porConcepto = !!variante.conceptos;
-  if (porConcepto) {
-    // Cada fila dice su concepto; arriba va el del proyecto completo.
-    const general = [{ texto: `Proyecto: ${concepto}`, negrita: true }, ...alcance.slice(1)];
-    for (const parrafo of general) lienzo.texto(parrafo.texto, { tamano: 9, negrita: parrafo.negrita });
-    if (general.length) lienzo.espacio(10);
-  }
-
-  const celdaConcepto = (fila: Variante["filas"][number]): Celda => {
-    const celda: Exclude<Celda, string> = [{ texto: `Concepto: ${fila.concepto}`, negrita: true }];
-    if (fila.descripcion?.length) {
-      celda.push({ texto: "Descripción:", negrita: true });
-      for (const vineta of fila.descripcion) celda.push({ texto: `• ${vineta}`, pegado: true });
+  lienzo.ajustarAPagina(() => {
+    const tiempo = datos.tiempoEstimado ?? "Por definir";
+    const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
+    const alcance: { texto: string; negrita?: boolean }[] = [{ texto: `Concepto: ${concepto}`, negrita: true }];
+    if (datos.alcance?.resumen?.trim()) alcance.push({ texto: datos.alcance.resumen.trim() });
+    if (descripcion) alcance.push({ texto: `Descripción: ${descripcion}`, negrita: true });
+    // PNO-COM-01, 7.1.7 y 8.4: se anuncia el retiro de gráficos previos cuando aplica.
+    if (datos.sitio?.retiroGraficosPrevios) {
+      alcance.push({ texto: "Incluye el retiro y acondicionamiento de los gráficos previos." });
     }
-    return celda;
-  };
+    if (datos.incluyeEnvio) alcance.push({ texto: "Incluye envío", negrita: true });
 
-  const filas: Celda[][] = variante.filas.map((fila, i) => [
-    fila.cantidad,
-    tiempo,
-    porConcepto ? celdaConcepto(fila) : i === 0 ? alcance : [{ texto: fila.concepto, negrita: true }],
-    [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
-    `${formatoMoneda(fila.subtotal)} MXN`,
-  ]);
+    // Cotizaciones con insumos por concepto: cada fila dice su concepto y su descripción en viñetas
+    // (como las propuestas hechas a mano), y lo que es de todo el proyecto va arriba de la tabla.
+    // Las de antes (una receta para todo) conservan el alcance dentro de su única fila.
+    const porConcepto = !!variante.conceptos;
+    if (porConcepto) {
+      // Cada fila dice su concepto; arriba va el del proyecto completo.
+      const general = [{ texto: `Proyecto: ${concepto}`, negrita: true }, ...alcance.slice(1)];
+      for (const parrafo of general) lienzo.texto(parrafo.texto, { tamano: 9, negrita: parrafo.negrita });
+      if (general.length) lienzo.espacio(10);
+    }
 
-  tabla(lienzo, columnasCotizacion(), filas, {
-    estilo: "reticula",
-    tamano: 8.8,
-    alturaMinima: porConcepto ? 48 : 70,
-    centrarVertical: true,
+    const celdaConcepto = (fila: Variante["filas"][number]): Celda => {
+      const celda: Exclude<Celda, string> = [{ texto: `Concepto: ${fila.concepto}`, negrita: true }];
+      if (fila.descripcion?.length) {
+        celda.push({ texto: "Descripción:", negrita: true });
+        for (const vineta of fila.descripcion) celda.push({ texto: `• ${vineta}`, pegado: true });
+      }
+      return celda;
+    };
+
+    const filas: Celda[][] = variante.filas.map((fila, i) => [
+      fila.cantidad,
+      tiempo,
+      porConcepto ? celdaConcepto(fila) : i === 0 ? alcance : [{ texto: fila.concepto, negrita: true }],
+      [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
+      `${formatoMoneda(fila.subtotal)} MXN`,
+    ]);
+
+    tabla(lienzo, columnasCotizacion(), filas, {
+      estilo: "reticula",
+      tamano: 8.8,
+      alturaMinima: porConcepto ? 48 : 70,
+      reservaFinal: RESERVA_TOTALES,
+      centrarVertical: true,
+    });
+    bloqueTotales(lienzo, variante);
+    cierreDeCotizacion(lienzo, datos);
   });
-  bloqueTotales(lienzo, variante);
-  cierreDeCotizacion(lienzo, datos);
 
   if (imagen) dibujarImagen(lienzo, imagen);
 }
@@ -334,44 +340,47 @@ function materialesAdicionales(lienzo: Lienzo, datos: DatosPdf) {
   lienzo.titulo(soloReventa ? datos.titulo : "Materiales adicionales", { tamano: 16, color: COLOR.tinta });
   lienzo.espacio(14);
 
-  if (soloReventa) {
-    const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
-    lienzo.texto(`Proyecto: ${concepto}`, { tamano: 9, negrita: true });
-    if (datos.alcance?.resumen?.trim()) lienzo.texto(datos.alcance.resumen.trim(), { tamano: 9 });
-    lienzo.espacio(10);
-  }
+  lienzo.ajustarAPagina(() => {
+    if (soloReventa) {
+      const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
+      lienzo.texto(`Proyecto: ${concepto}`, { tamano: 9, negrita: true });
+      if (datos.alcance?.resumen?.trim()) lienzo.texto(datos.alcance.resumen.trim(), { tamano: 9 });
+      lienzo.espacio(10);
+    }
 
-  const tiempo = datos.tiempoEstimado ?? "Por definir";
-  const filas: Celda[][] = reventa.items.map((item) => {
-    const alcance = [{ texto: `Concepto: ${item.nombre}`, negrita: true }];
-    // Sin conceptos, el envío sale en su propia fila.
-    if (datos.incluyeEnvio && !soloReventa) alcance.push({ texto: "Incluye envío", negrita: true });
-    return [
-      item.cantidad,
-      tiempo,
-      alcance,
-      [{ texto: `${formatoMoneda(item.unitario)} MXN`, negrita: true }],
-      `${formatoMoneda(item.subtotal)} MXN`,
-    ];
-  });
-  for (const fila of reventa.operacion ?? []) {
-    filas.push([
-      fila.cantidad,
-      tiempo,
-      [{ texto: `Concepto: ${fila.concepto}`, negrita: true }],
-      [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
-      `${formatoMoneda(fila.subtotal)} MXN`,
-    ]);
-  }
+    const tiempo = datos.tiempoEstimado ?? "Por definir";
+    const filas: Celda[][] = reventa.items.map((item) => {
+      const alcance = [{ texto: `Concepto: ${item.nombre}`, negrita: true }];
+      // Sin conceptos, el envío sale en su propia fila.
+      if (datos.incluyeEnvio && !soloReventa) alcance.push({ texto: "Incluye envío", negrita: true });
+      return [
+        item.cantidad,
+        tiempo,
+        alcance,
+        [{ texto: `${formatoMoneda(item.unitario)} MXN`, negrita: true }],
+        `${formatoMoneda(item.subtotal)} MXN`,
+      ];
+    });
+    for (const fila of reventa.operacion ?? []) {
+      filas.push([
+        fila.cantidad,
+        tiempo,
+        [{ texto: `Concepto: ${fila.concepto}`, negrita: true }],
+        [{ texto: `${formatoMoneda(fila.unitario)} MXN`, negrita: true }],
+        `${formatoMoneda(fila.subtotal)} MXN`,
+      ]);
+    }
 
-  tabla(lienzo, columnasCotizacion(), filas, {
-    estilo: "reticula",
-    tamano: 8.8,
-    alturaMinima: soloReventa ? 48 : 58,
-    centrarVertical: true,
+    tabla(lienzo, columnasCotizacion(), filas, {
+      estilo: "reticula",
+      tamano: 8.8,
+      alturaMinima: soloReventa ? 48 : 58,
+      reservaFinal: RESERVA_TOTALES,
+      centrarVertical: true,
+    });
+    bloqueTotales(lienzo, { subtotal: reventa.subtotal, descuento: reventa.descuento ?? "0", iva: reventa.iva, total: reventa.total });
+    cierreDeCotizacion(lienzo, datos);
   });
-  bloqueTotales(lienzo, { subtotal: reventa.subtotal, descuento: reventa.descuento ?? "0", iva: reventa.iva, total: reventa.total });
-  cierreDeCotizacion(lienzo, datos);
 }
 
 export function bloqueTotales(lienzo: Lienzo, variante: Pick<Variante, "subtotal" | "descuento" | "iva" | "total">) {

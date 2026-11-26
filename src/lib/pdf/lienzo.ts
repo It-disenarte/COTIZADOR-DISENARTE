@@ -1,4 +1,5 @@
 import {
+  concatTransformationMatrix,
   type PDFDocument,
   type PDFFont,
   type PDFPage,
@@ -25,6 +26,18 @@ export const COLOR = {
 /** Área útil de las páginas interiores: entre la onda del encabezado y la barra del pie. */
 export const MARGEN = { x: 45, arriba: 125, abajo: 100 };
 
+/** Hasta cuánto se reduce una hoja para que quepa entera; más chico ya no se lee. */
+const ESCALA_MINIMA = 0.65;
+
+/** Página que no dibuja nada: sirve para medir cuánto ocupa un bloque antes de pintarlo. */
+const PAGINA_DE_MEDIR = {
+  drawText() {},
+  drawRectangle() {},
+  drawLine() {},
+  drawImage() {},
+  pushOperators() {},
+} as unknown as PDFPage;
+
 type OpcionesTexto = {
   tamano?: number;
   negrita?: boolean;
@@ -45,6 +58,8 @@ export class Lienzo {
   paginas = 0;
   /** Se ejecuta al abrir cada página nueva (fondo del marco, encabezado, pie). */
   alAbrirPagina?: (lienzo: Lienzo) => void;
+  /** Mientras se mide o se dibuja un bloque ajustado a la hoja, nada salta de página. */
+  private sinSaltos = false;
 
   constructor(
     readonly doc: PDFDocument,
@@ -68,9 +83,45 @@ export class Lienzo {
     return this.pagina;
   }
 
+  noCabe(alto: number): boolean {
+    return !this.sinSaltos && this.y - alto < MARGEN.abajo;
+  }
+
   /** Abre página nueva si lo que sigue no cabe en el espacio restante. */
   asegurarEspacio(alto: number) {
-    if (this.y - alto < MARGEN.abajo) this.nuevaPagina();
+    if (this.noCabe(alto)) this.nuevaPagina();
+  }
+
+  /**
+   * Dibuja un bloque entero en lo que queda de la hoja: si no cabe, lo reduce (centrado) para que los
+   * totales no se vayan solos a otra página. Si habría que reducirlo demasiado, se reparte en varias
+   * hojas como siempre. "dibujar" se ejecuta dos veces (medir y pintar): solo debe dibujar.
+   */
+  ajustarAPagina(dibujar: () => void) {
+    const pagina = this.pagina;
+    const inicio = this.y;
+
+    this.pagina = PAGINA_DE_MEDIR;
+    this.sinSaltos = true;
+    dibujar();
+    const alto = inicio - this.y;
+    this.pagina = pagina;
+    this.y = inicio;
+
+    const escala = Math.min(1, (inicio - MARGEN.abajo) / alto);
+    if (escala === 1 || escala < ESCALA_MINIMA) {
+      this.sinSaltos = false;
+      dibujar();
+      return;
+    }
+    pagina.pushOperators(
+      pushGraphicsState(),
+      concatTransformationMatrix(escala, 0, 0, escala, ((1 - escala) * PAGINA.ancho) / 2, (1 - escala) * inicio),
+    );
+    dibujar();
+    pagina.pushOperators(popGraphicsState());
+    this.sinSaltos = false;
+    this.y = inicio - alto * escala;
   }
 
   espacio(alto: number) {
@@ -175,13 +226,15 @@ type OpcionesTabla = {
   estilo?: "oscura" | "reticula";
   /** Centra verticalmente el contenido de cada celda. */
   centrarVertical?: boolean;
+  /** Alto de lo que va debajo (totales): la última fila salta de página con ello para no dejarlos solos. */
+  reservaFinal?: number;
 };
 
 const RELLENO = 8;
 
 /** Tabla con encabezado que se repite si el contenido salta de página. */
 export function tabla(lienzo: Lienzo, columnas: Columna[], filas: Celda[][], opciones: OpcionesTabla = {}) {
-  const { tamano = 8.5, alturaMinima = 22, estilo = "oscura", centrarVertical = false } = opciones;
+  const { tamano = 8.5, alturaMinima = 22, estilo = "oscura", centrarVertical = false, reservaFinal = 0 } = opciones;
   const interlineado = tamano * 1.4;
   const anchoTotal = columnas.reduce((suma, c) => suma + c.ancho, 0);
   const x0 = MARGEN.x + (lienzo.anchoUtil - anchoTotal) / 2;
@@ -248,7 +301,7 @@ export function tabla(lienzo: Lienzo, columnas: Columna[], filas: Celda[][], opc
     });
     const alto = Math.max(alturaMinima, ...celdas.map((c) => c.length * interlineado + 14));
 
-    if (lienzo.y - alto < MARGEN.abajo) {
+    if (lienzo.noCabe(alto + (indiceFila === filas.length - 1 ? reservaFinal : 0))) {
       lienzo.nuevaPagina();
       dibujarEncabezado();
     }

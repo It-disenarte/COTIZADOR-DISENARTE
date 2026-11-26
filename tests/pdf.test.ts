@@ -323,6 +323,48 @@ describe("Foto de referencia por opción", () => {
   });
 });
 
+describe("Totales en la misma hoja que su tabla", () => {
+  /** Propuesta con tantos conceptos como se pida, y el texto de cada página por separado. */
+  async function paginasCon(conceptos: number) {
+    const base = cotizacionGandhi(recetaId);
+    const filas = Array.from({ length: conceptos }, (_, i) => ({
+      concepto: `Letrero número ${i + 1}`,
+      anchoM: "0.5",
+      altoM: "0.3",
+      cantidades: ["2"],
+    }));
+    const cuerpo = {
+      ...base,
+      titulo: `Letreros ${conceptos}`,
+      entrada: { ...base.entrada, levantamiento: { areas: ["Cantidad"], filas }, reventa: [] },
+    };
+    const creada = await rutaCotizaciones.POST(peticion("/api/cotizaciones", { metodo: "POST", cookie, cuerpo }), undefined);
+    const id = (await creada.json()).id;
+    await autorizar(id);
+    const res = await rutaPdf.GET(peticion(`/api/cotizaciones/${id}/pdf`, { cookie }), ctxId(id));
+    const archivo = new Uint8Array(await res.arrayBuffer());
+    if (process.env.PDF_SALIDA) await (await import("node:fs/promises")).writeFile(`${process.env.PDF_SALIDA}-${conceptos}.pdf`, archivo);
+    const { text } = await extractText(await getDocumentProxy(archivo), { mergePages: false });
+    return (text as string[]).map((t) => t.replace(/\s+/g, " "));
+  }
+
+  const conTotales = /Los precios unitarios y subtotales no incluyen IVA/;
+
+  it("si por poco no cabe, la hoja se reduce y los totales no se van solos a otra página", async () => {
+    const paginas = await paginasCon(6);
+    const conFilas = paginas.filter((p) => p.includes("Concepto: Letrero"));
+    expect(conFilas).toHaveLength(1);
+    expect(conFilas[0]).toContain("Concepto: Letrero número 6");
+    expect(conFilas[0]).toMatch(conTotales);
+  });
+
+  it("si son demasiados conceptos para una hoja, los totales acompañan a las últimas filas", async () => {
+    const paginas = await paginasCon(25);
+    expect(paginas.filter((p) => p.includes("Concepto: Letrero")).length).toBeGreaterThan(1);
+    expect(paginas.find((p) => conTotales.test(p))).toContain("Concepto: Letrero número 25");
+  });
+});
+
 describe("Nombre del archivo", () => {
   it("quita acentos y caracteres raros, y usa guion bajo", () => {
     expect(nombreArchivo({ folio: "COT-14092026-01", titulo: "Señalética protección civil", solicitante: "Claudia P." })).toBe(

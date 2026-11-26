@@ -135,81 +135,83 @@ function presupuesto(lienzo: Lienzo, datos: DatosPdfDigital, escenario: Escenari
     lienzo.espacio(8);
   }
 
-  const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
-  lienzo.texto(`Proyecto: ${concepto}`, { tamano: 9.5, negrita: true });
-  if (datos.alcance?.resumen?.trim()) lienzo.texto(datos.alcance.resumen.trim(), { tamano: 9, color: COLOR.suave, interlineado: 12.5 });
-  lienzo.espacio(8);
-
-  const tiempo = datos.tiempoEstimado || "Por definir";
-
-  if (escenario.renta) {
-    lienzo.texto("Modalidad renta", { tamano: 10, negrita: true, color: COLOR.morado });
-    lienzo.espacio(4);
-    tablaServicios(lienzo, escenario.filasRenta, tiempo);
-    lienzo.espacio(8);
-    renglones(
-      lienzo,
-      [
-        ["Activación (incluye el primer mes)", `${formatoMoneda(escenario.renta.activacion)} MXN`],
-        [`Mensualidad a partir del mes 2 (${escenario.renta.meses - 1} pagos)`, `${formatoMoneda(escenario.renta.mensualidad)} MXN`],
-        [`Total de los ${escenario.renta.meses} meses (IVA incluido)`, `${formatoMoneda(escenario.renta.totalPrimerAno)} MXN`],
-      ],
-      { destacado: true },
-    );
-    lienzo.espacio(8);
-  }
-
-  if (escenario.unico) {
-    lienzo.texto(escenario.clave === "renta" ? "Servicios de pago único" : "Pago único", {
-      tamano: 10,
-      negrita: true,
-      color: COLOR.morado,
-    });
-    lienzo.espacio(4);
-    tablaServicios(lienzo, escenario.filasUnicas, tiempo);
-    bloqueTotales(lienzo, { subtotal: escenario.unico.subtotal, descuento: "0", iva: escenario.unico.iva, total: escenario.unico.total });
-
-    const pctFiniquito = 100 - Number(escenario.unico.anticipoPct);
-    lienzo.texto("Esquema de pagos", { tamano: 10, negrita: true, color: COLOR.morado });
-    lienzo.texto(
-      `Anticipo ${escenario.unico.anticipoPct}%: ${formatoMoneda(escenario.unico.anticipo)} MXN · Finiquito ${pctFiniquito}% al entregar: ${formatoMoneda(escenario.unico.finiquito)} MXN (IVA incluido).`,
-      { tamano: 9, color: COLOR.suave, interlineado: 12.5 },
-    );
+  lienzo.ajustarAPagina(() => {
+    const concepto = datos.alcance?.concepto?.trim() || datos.titulo;
+    lienzo.texto(`Proyecto: ${concepto}`, { tamano: 9.5, negrita: true });
+    if (datos.alcance?.resumen?.trim()) lienzo.texto(datos.alcance.resumen.trim(), { tamano: 9, color: COLOR.suave, interlineado: 12.5 });
     lienzo.espacio(8);
 
-    for (const promocion of escenario.unico.promociones) {
-      lienzo.asegurarEspacio(70);
-      lienzo.texto(`${promocion.nombre}: ${promocion.descuentoPct}% de descuento`, { tamano: 10, negrita: true, color: COLOR.morado });
-      lienzo.texto(
-        `Descuento: -${formatoMoneda(promocion.descuento)} MXN · Pago de contado: ${formatoMoneda(promocion.total)} MXN con IVA.`,
-        { tamano: 9, interlineado: 12.5 },
+    const tiempo = datos.tiempoEstimado || "Por definir";
+
+    if (escenario.renta) {
+      lienzo.texto("Modalidad renta", { tamano: 10, negrita: true, color: COLOR.morado });
+      lienzo.espacio(4);
+      tablaServicios(lienzo, escenario.filasRenta, tiempo);
+      lienzo.espacio(8);
+      renglones(
+        lienzo,
+        [
+          ["Activación (incluye el primer mes)", `${formatoMoneda(escenario.renta.activacion)} MXN`],
+          [`Mensualidad a partir del mes 2 (${escenario.renta.meses - 1} pagos)`, `${formatoMoneda(escenario.renta.mensualidad)} MXN`],
+          [`Total de los ${escenario.renta.meses} meses (IVA incluido)`, `${formatoMoneda(escenario.renta.totalPrimerAno)} MXN`],
+        ],
+        { destacado: true },
       );
-      if (promocion.regalo) lienzo.texto(`+ ${promocion.regalo.toUpperCase()}`, { tamano: 9, negrita: true });
-      if (promocion.validaHasta) {
-        lienzo.texto(`Promoción válida hasta el ${formatoFecha(promocion.validaHasta)}.`, { tamano: 8.5, color: COLOR.suave });
-      }
       lienzo.espacio(8);
     }
-  }
 
-  if (escenario.mensual) {
-    lienzo.texto("Servicios mensuales", { tamano: 10, negrita: true, color: COLOR.morado });
-    lienzo.espacio(4);
-    tablaServicios(lienzo, escenario.filasMensuales, "Mensual");
-    lienzo.espacio(8);
-    renglones(
-      lienzo,
-      [
-        ["Subtotal al mes", `${formatoMoneda(escenario.mensual.subtotal)} MXN`],
-        ["IVA 16%", `${formatoMoneda(escenario.mensual.iva)} MXN`],
-        ["Total al mes", `${formatoMoneda(escenario.mensual.total)} MXN`],
-      ],
-      { destacado: true },
-    );
-    lienzo.espacio(8);
-  }
+    if (escenario.unico) {
+      lienzo.texto(escenario.clave === "renta" ? "Servicios de pago único" : "Pago único", {
+        tamano: 10,
+        negrita: true,
+        color: COLOR.morado,
+      });
+      lienzo.espacio(4);
+      tablaServicios(lienzo, escenario.filasUnicas, tiempo);
+      bloqueTotales(lienzo, { subtotal: escenario.unico.subtotal, descuento: "0", iva: escenario.unico.iva, total: escenario.unico.total });
 
-  cierre(lienzo, datos);
+      const pctFiniquito = 100 - Number(escenario.unico.anticipoPct);
+      lienzo.texto("Esquema de pagos", { tamano: 10, negrita: true, color: COLOR.morado });
+      lienzo.texto(
+        `Anticipo ${escenario.unico.anticipoPct}%: ${formatoMoneda(escenario.unico.anticipo)} MXN · Finiquito ${pctFiniquito}% al entregar: ${formatoMoneda(escenario.unico.finiquito)} MXN (IVA incluido).`,
+        { tamano: 9, color: COLOR.suave, interlineado: 12.5 },
+      );
+      lienzo.espacio(8);
+
+      for (const promocion of escenario.unico.promociones) {
+        lienzo.asegurarEspacio(70);
+        lienzo.texto(`${promocion.nombre}: ${promocion.descuentoPct}% de descuento`, { tamano: 10, negrita: true, color: COLOR.morado });
+        lienzo.texto(
+          `Descuento: -${formatoMoneda(promocion.descuento)} MXN · Pago de contado: ${formatoMoneda(promocion.total)} MXN con IVA.`,
+          { tamano: 9, interlineado: 12.5 },
+        );
+        if (promocion.regalo) lienzo.texto(`+ ${promocion.regalo.toUpperCase()}`, { tamano: 9, negrita: true });
+        if (promocion.validaHasta) {
+          lienzo.texto(`Promoción válida hasta el ${formatoFecha(promocion.validaHasta)}.`, { tamano: 8.5, color: COLOR.suave });
+        }
+        lienzo.espacio(8);
+      }
+    }
+
+    if (escenario.mensual) {
+      lienzo.texto("Servicios mensuales", { tamano: 10, negrita: true, color: COLOR.morado });
+      lienzo.espacio(4);
+      tablaServicios(lienzo, escenario.filasMensuales, "Mensual");
+      lienzo.espacio(8);
+      renglones(
+        lienzo,
+        [
+          ["Subtotal al mes", `${formatoMoneda(escenario.mensual.subtotal)} MXN`],
+          ["IVA 16%", `${formatoMoneda(escenario.mensual.iva)} MXN`],
+          ["Total al mes", `${formatoMoneda(escenario.mensual.total)} MXN`],
+        ],
+        { destacado: true },
+      );
+      lienzo.espacio(8);
+    }
+
+    cierre(lienzo, datos);
+  });
 }
 
 function cierre(lienzo: Lienzo, datos: DatosPdfDigital) {

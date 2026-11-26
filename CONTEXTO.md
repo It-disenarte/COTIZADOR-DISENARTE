@@ -320,6 +320,9 @@ Detalles que costaron trabajo y conviene no volver a descubrir:
   `embedPages`, o todo el diseño sube 8.58 pt y queda una franja blanca abajo.
 - El marco se copia **una sola vez** por documento; si no, la textura de fondo (~1 MB) se duplica por página.
 - Las texturas se reducen a 1400 px al extraer el marco: el PDF pasa de 3.5 MB a ~2 MB.
+- **Cada opción cabe en su hoja** (decisión del dueño): tabla, totales y notas se miden y, si no caben, se reducen juntos
+  (`Lienzo.ajustarAPagina`, hasta el 65%). Si ni así caben, se reparten en varias hojas y los totales acompañan a las
+  últimas filas. La foto de referencia no entra en el ajuste. Lo que se dibuje dentro se ejecuta dos veces (medir y pintar).
 - La página de cotización del Canva original traía la tabla **como imagen**; por eso el script la quita.
 
 ---
