@@ -1,8 +1,8 @@
 // Pasos del asistente. Módulo puro: lo usan la pantalla y el servidor (para decir dónde falta algo).
 
-export const PASOS = ["Datos", "Levantamiento y materiales", "Opciones y fotos", "Operación", "Reventa y maquila", "Resumen"] as const;
+export const PASOS = ["Datos", "Levantamiento y materiales", "Maquila", "Opciones y fotos", "Operación", "Reventa", "Resumen"] as const;
 
-export const PASO = { datos: 0, levantamiento: 1, opciones: 2, operacion: 3, reventa: 4, resumen: 5 } as const;
+export const PASO = { datos: 0, levantamiento: 1, maquila: 2, opciones: 3, operacion: 4, reventa: 5, resumen: 6 } as const;
 
 // Cotización rápida: solo dos secciones. Los números de arriba (PASO) siguen identificando dónde falta algo; esto los
 // lleva a la sección que sí existe: los datos del cliente, o todo lo demás (conceptos, tiempo y resumen) en una sola.
@@ -20,6 +20,7 @@ export type Pendiente = { paso: number; mensaje: string; campo?: string };
 const PASO_DE_ERROR: Record<string, number> = {
   SIN_PIEZAS: PASO.levantamiento,
   SIN_OPCIONES: PASO.levantamiento,
+  MAQUILA_SIN_COSTO: PASO.maquila,
   CONCEPTO_SIN_INSUMOS: PASO.levantamiento,
   SIN_COSTO: PASO.levantamiento,
   SIN_ANCHO_UTIL: PASO.levantamiento,

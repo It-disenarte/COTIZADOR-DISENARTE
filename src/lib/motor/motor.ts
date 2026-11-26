@@ -12,6 +12,7 @@ import {
   type FilaPdf,
   type InsumoSnapshot,
   type OpcionCotizacion,
+  type ProductoMaquila,
   type OpcionResultado,
   type ResultadoCotizacion,
   type ReventaResultado,
@@ -352,6 +353,28 @@ function factorPrecio(margen: Decimal, pctError: Decimal, aplicaError: boolean, 
 /** Máximo de conceptos de una cotización rápida. */
 export const MAX_CONCEPTOS_RAPIDA = 3;
 
+/** Tarifa por hora de trabajo propio (cotización rápida y productos de maquila). */
+const tarifaHora = (p: Snapshot["parametros"]): Decimal =>
+  vacio(p.tarifaHoraDesarrollo) ? d(p.tarifaDisenoDia).div(8) : d(p.tarifaHoraDesarrollo as never);
+
+/** Utilidad sin contar la maquila ni su recargo; null si fuera de eso no hay costo propio que comprobar. */
+function utilidadPropia(subtotal: Decimal, costoTotal: Decimal, maquila: Decimal, precioMaquila: Decimal): Decimal | null {
+  const venta = subtotal.minus(precioMaquila);
+  const costo = costoTotal.minus(maquila);
+  return costo.gt(0) && venta.gt(0) ? venta.minus(costo).div(venta) : null;
+}
+
+/** Un producto de maquila visto como fila del levantamiento: así calculan igual sus piezas e insumos. */
+export function filaDeProducto(producto: ProductoMaquila): FilaConId {
+  return {
+    id: producto.id,
+    concepto: producto.nombre,
+    anchoM: producto.anchoM,
+    altoM: producto.altoM,
+    cantidades: [producto.cantidad],
+  };
+}
+
 /**
  * Cotización rápida: lo único que se captura aparte de los conceptos es el tiempo de desarrollo, en horas.
  * Todo lo demás de la operación se anula, para que lo que haya quedado de otra captura no sume costo, y el
@@ -360,18 +383,18 @@ export const MAX_CONCEPTOS_RAPIDA = 3;
 function imponerRapida(entrada: EntradaNormalizada, snapshot: Snapshot): EntradaNormalizada {
   if (!entrada.rapida) return entrada;
   const p = snapshot.parametros;
-  const tarifaHora = vacio(p.tarifaHoraDesarrollo) ? d(p.tarifaDisenoDia).div(8) : d(p.tarifaHoraDesarrollo as never);
   const horas = d(vacio(entrada.rapida.horasDesarrollo) ? 0 : (entrada.rapida.horasDesarrollo as never));
   const op = entrada.operacion;
   return {
     ...entrada,
     incluyeEnvio: false,
     reventa: [],
+    opciones: entrada.opciones.map((o) => ({ ...o, maquilas: [] })),
     operacion: {
       ...op,
       trabajoEnInstalacionesDisenarte: true,
       diasDiseno: 0,
-      disenoMontoManual: horas.times(tarifaHora).toString(),
+      disenoMontoManual: horas.times(tarifaHora(p)).toString(),
       produccion: { personas: 0, dias: 0 },
       instalacion: { incluye: false, personas: 0, dias: 0, escalaPorPieza: false },
       viaticos: { ...op.viaticos, personas: 0, dias: 0, montoDiaManual: null },
@@ -393,7 +416,10 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
   const p = snapshot.parametros;
   const indirectos = indirectosDe(entrada, snapshot);
   // De todas las opciones juntas: solo para saber si hay algo que producir.
-  const todo = calcularLevantamiento(entrada);
+  const todo = calcularLevantamiento(entrada, [
+    ...entrada.levantamiento.filas,
+    ...entrada.opciones.flatMap((o) => (o.maquilas ?? []).map(filaDeProducto)),
+  ]);
   const margen = elegir(entrada.ajustes.margen, p.margen);
   const pctError = d(p.pctMargenError);
   const iva = d(p.iva);
@@ -412,9 +438,16 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
 
   const opciones: OpcionResultado[] = entrada.opciones.map((opcion) => {
     // Cada opción se calcula solo con sus conceptos.
-    const { piezas, detalle, resumen } = calcularLevantamiento(
+    const productos = new Map((opcion.maquilas ?? []).map((m) => [m.id, m]));
+    const filasOpcion = [
+      ...entrada.levantamiento.filas.filter((f) => f.opcionId === opcion.id),
+      ...[...productos.values()].map(filaDeProducto),
+    ];
+    const { piezas, detalle } = calcularLevantamiento(entrada, filasOpcion);
+    // En el consolidado (lo lee el cliente) la maquila va por pieza: su medida solo sirve para calcular insumos.
+    const { resumen } = calcularLevantamiento(
       entrada,
-      entrada.levantamiento.filas.filter((f) => f.opcionId === opcion.id),
+      filasOpcion.map((f) => (productos.has(f.id) ? { ...f, anchoM: "0", altoM: "0" } : f)),
     );
     if (piezas.lte(0)) {
       throw new ErrorMotor(
@@ -428,7 +461,14 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
     const porConcepto: CostoConcepto[] = conPiezas.map((f) => {
       try {
         const componentes = opcion.materiales[f.fila.id] ?? [];
-        if (componentes.length === 0) {
+        const producto = productos.get(f.fila.id);
+        if (producto && !producto.partes.some((parte) => !vacio(parte.costo))) {
+          throw new ErrorMotor(
+            `"${producto.nombre || "Producto sin nombre"}" no tiene maquila capturada. Escribe qué nos hacen y cuánto cuesta en el paso Maquila.`,
+            "MAQUILA_SIN_COSTO",
+          );
+        }
+        if (!producto && componentes.length === 0) {
           throw new ErrorMotor(
             `"${f.fila.concepto || "Concepto sin nombre"}" no tiene insumos en "${opcion.nombre}". Agrégaselos en el paso Levantamiento.`,
             "CONCEPTO_SIN_INSUMOS",
@@ -445,7 +485,19 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
         }
         const materiales = materialesDeConcepto(componentes, snapshot, f.piezas, f.areaM2);
         const consumibles = entrada.ajustes.aplicaConsumibles ? materiales.times(d(p.pctConsumibles)) : CERO;
-        return { fila: f.fila, piezas: f.piezas, materiales, consumibles, directo: materiales.plus(consumibles) };
+        // Maquila: lo que nos cobran (por pieza) va aparte porque lleva otro recargo; las horas son trabajo nuestro.
+        const maquila = suma((producto?.partes ?? []).map((parte) => d(vacio(parte.costo) ? 0 : (parte.costo as never)))).times(f.piezas);
+        const manoObra = producto ? d(vacio(producto.horas) ? 0 : (producto.horas as never)).times(tarifaHora(p)) : CERO;
+        return {
+          fila: f.fila,
+          piezas: f.piezas,
+          materiales,
+          consumibles,
+          maquila,
+          manoObra,
+          esMaquila: !!producto,
+          directo: suma([materiales, consumibles, manoObra]),
+        };
       } catch (error) {
         // Se le dice al asistente de qué concepto viene, para marcar su casilla de insumos.
         if (error instanceof ErrorMotor && !error.contexto?.filaId) {
@@ -502,12 +554,17 @@ export function calcular(entradaCapturada: EntradaCotizacion, snapshot: Snapshot
           : CERO;
       const instalacionPorPieza = instalacionPorPiezaUnitario.times(piezas);
 
-      const variable = suma([materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza]);
+      const maquila = suma(porConcepto.map((c) => c.maquila));
+      const manoObraMaquila = suma(porConcepto.map((c) => c.manoObra));
+      const variable = suma([materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza, maquila, manoObraMaquila]);
       const fijos = calcularFijos(entrada, snapshot, incluirInstalacion, amortizarDisenoEntre);
       const costos: Costos = {
         variable,
         fijos,
-        desglose: armarDesglose({ materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza, variable }, fijos),
+        desglose: {
+          ...armarDesglose({ materiales, consumibles, produccion, instalacionPorPieza, extrasPorPieza, variable }, fijos),
+          ...(porConcepto.some((c) => c.esMaquila) ? { maquila: money(maquila), manoObraMaquila: money(manoObraMaquila) } : {}),
+        },
       };
       return calcularVariante({
         clave,
@@ -606,6 +663,7 @@ function repartirEnFilas(filas: FilaConPrecio[], objetivo: Decimal): boolean {
 
 function repartirAumento(v: Variante, objetivo: Decimal, iva: Decimal) {
   const descuento = d(v.descuento);
+  const subtotalAnterior = d(v.subtotal);
   // El descuento se resta después: las filas tienen que sumar el objetivo más el descuento.
   if (!repartirEnFilas(v.filas, objetivo.plus(descuento))) return;
 
@@ -624,6 +682,15 @@ function repartirAumento(v: Variante, objetivo: Decimal, iva: Decimal) {
   v.iva = total.minus(subtotal).toFixed(2);
   v.total = total.toFixed(2);
   v.margenReal = subtotal.gt(0) ? subtotal.minus(costo).div(subtotal).toDecimalPlaces(4).toString() : "0";
+  if (v.margenPropio != null) {
+    // La maquila y su recargo no cambian al subir el precio: todo el aumento es de lo nuestro.
+    const antes = d(v.margenPropio);
+    const maquila = d(v.desglose.maquila ?? 0);
+    const costoPropio = d(v.desglose.costoTotal).minus(maquila);
+    const ventaAntes = costoPropio.div(d(1).minus(antes));
+    const venta = ventaAntes.plus(subtotal.minus(subtotalAnterior));
+    v.margenPropio = venta.gt(0) ? venta.minus(costoPropio).div(venta).toDecimalPlaces(4).toString() : v.margenPropio;
+  }
   if (v.conceptos?.length) {
     const piezas = suma(v.conceptos.map((c) => d(c.piezas)));
     const subConceptos = suma(v.conceptos.map((c) => d(c.subtotal)));
@@ -704,7 +771,18 @@ function descripcionDeConcepto(opcion: OpcionCotizacion, filaId: string, snapsho
   return [...new Set(nombres)];
 }
 
-type CostoConcepto = { fila: FilaConId; piezas: Decimal; materiales: Decimal; consumibles: Decimal; directo: Decimal };
+type CostoConcepto = {
+  fila: FilaConId;
+  piezas: Decimal;
+  materiales: Decimal;
+  consumibles: Decimal;
+  /** Lo que nos cobran por maquila: no lleva la fórmula del PNO sino el recargo de reventa. */
+  maquila: Decimal;
+  manoObra: Decimal;
+  esMaquila: boolean;
+  /** Costo propio (insumos, consumibles y mano de obra): el que lleva la fórmula del PNO. */
+  directo: Decimal;
+};
 
 function calcularVariante(args: {
   clave: Variante["clave"];
@@ -732,16 +810,19 @@ function calcularVariante(args: {
 
   // Lo que no es de un concepto en particular (producción y, si se prorratea, la operación) se
   // reparte según el costo directo de cada concepto. Si todo costara cero, según sus piezas.
-  const directoTotal = suma(porConcepto.map((c) => c.directo));
+  const pesoDe = (c: CostoConcepto) => c.directo.plus(c.maquila);
+  const directoTotal = suma(porConcepto.map(pesoDe));
   const compartido = prorratear ? produccion.plus(costos.fijos.total) : produccion;
   const costoDe = (c: CostoConcepto) => {
-    const peso = directoTotal.gt(0) ? c.directo.div(directoTotal) : c.piezas.div(piezas);
+    const peso = directoTotal.gt(0) ? pesoDe(c).div(directoTotal) : c.piezas.div(piezas);
     return c.directo.plus(porPiezaUnitario.times(c.piezas)).plus(compartido.times(peso));
   };
+  /** Cada parte con su regla: lo nuestro con la fórmula del PNO y la maquila con el recargo de reventa. */
+  const recargo = d(p.pctReventa).plus(1);
+  const precioDe = (c: CostoConcepto, conFactor: Decimal) => costoDe(c).times(conFactor).plus(c.maquila.times(recargo));
 
   const conceptos: ConceptoResultado[] = porConcepto.map((c) => {
-    const costo = costoDe(c);
-    const unitarioCalculado = costo.times(factor).div(c.piezas);
+    const unitarioCalculado = precioDe(c, factor).div(c.piezas);
     const nombre = c.fila.concepto || opcion.nombre;
 
     const manual = opcion.preciosManuales?.[c.fila.id];
@@ -763,11 +844,12 @@ function calcularVariante(args: {
       filaId: c.fila.id,
       concepto: nombre,
       piezas: c.piezas.toString(),
-      costo: money(c.directo),
+      costo: money(c.directo.plus(c.maquila)),
       unitarioCalculado: unitarioCalculado.toDecimalPlaces(4).toString(),
       unitario: unitarioMostrado.toFixed(2),
       subtotal: money(unitarioMostrado.times(c.piezas)),
-      descripcion: descripcionDeConcepto(opcion, c.fila.id, snapshot),
+      // De un producto de maquila el cliente solo ve el nombre: no se listan sus insumos.
+      descripcion: c.esMaquila ? [] : descripcionDeConcepto(opcion, c.fila.id, snapshot),
     };
   });
 
@@ -796,21 +878,26 @@ function calcularVariante(args: {
 
   const costoTotal = costos.variable.plus(costos.fijos.total);
   const margenReal = subtotal.gt(0) ? subtotal.minus(costoTotal).div(subtotal) : CERO;
-  if (margenReal.lt(d(p.alertaMargenMinimo))) {
+  const maquilaTotal = suma(porConcepto.map((c) => c.maquila));
+  const propio = porConcepto.some((c) => c.esMaquila)
+    ? utilidadPropia(subtotal, costoTotal, maquilaTotal, maquilaTotal.times(recargo))
+    : undefined;
+  const aRevisar = propio === undefined ? margenReal : propio;
+  if (aRevisar && aRevisar.lt(d(p.alertaMargenMinimo))) {
     alertas.push({
       codigo: "MARGEN_BAJO",
-      mensaje: `El margen real de "${etiqueta}" es ${margenReal.times(100).toDecimalPlaces(1)}%, por debajo del mínimo.`,
+      mensaje: `El margen real de "${etiqueta}" es ${aRevisar.times(100).toDecimalPlaces(1)}%, por debajo del mínimo.`,
     });
   }
 
   // Unitario de la opción: con un solo concepto es el suyo; con varios, el promedio.
   const subtotalConceptos = suma(conceptos.map((c) => d(c.subtotal)));
-  const unitarioCalculado = suma(porConcepto.map((c) => costoDe(c).times(factor))).div(piezas);
+  const unitarioCalculado = suma(porConcepto.map((c) => precioDe(c, factor))).div(piezas);
   const unitario = conceptos.length === 1 ? d(conceptos[0].unitario) : round2(subtotalConceptos.div(piezas));
 
   const escenarios = p.escenariosMargen.map((escenario) => {
     const factorEscenario = factorPrecio(d(escenario), pctError, entrada.ajustes.aplicaMargenError, indirectos);
-    const subtotalEscenario = suma(porConcepto.map((c) => round2(costoDe(c).times(factorEscenario).div(c.piezas)).times(c.piezas)));
+    const subtotalEscenario = suma(porConcepto.map((c) => round2(precioDe(c, factorEscenario).div(c.piezas)).times(c.piezas)));
     const operacionAparte = prorratear ? CERO : round2(costos.fijos.total.times(factorEscenario));
     return {
       margen: d(escenario).toString(),
@@ -832,6 +919,7 @@ function calcularVariante(args: {
     iva: ivaMonto.toFixed(2),
     total: total.toFixed(2),
     margenReal: margenReal.toDecimalPlaces(4).toString(),
+    ...(propio === undefined ? {} : { margenPropio: propio?.toDecimalPlaces(4).toString() ?? null }),
     escenarios,
     alertas,
   };

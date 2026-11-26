@@ -23,7 +23,12 @@ export function ListaVerificacion({
 }) {
   const { entrada } = borrador;
   const conTexto = (valor: unknown) => typeof valor === "string" && valor.trim().length > 0;
-  const utilidadMinima = Math.min(...resultado.opciones.flatMap((o) => o.variantes.map((v) => Number(v.margenReal))));
+  // Con maquila se comprueba solo lo nuestro; una opción de pura maquila (null) no tiene qué comprobar.
+  const utilidadMinima = Math.min(
+    ...resultado.opciones.flatMap((o) =>
+      o.variantes.flatMap((v) => (v.margenPropio === null ? [] : [Number(v.margenPropio ?? v.margenReal)])),
+    ),
+  );
   // Una venta de pura reventa o maquila no lleva la comprobación del 30%: su utilidad es la de reventa.
   const soloReventa = resultado.opciones.length === 0;
   const sinRevisar = resultado.alertas.some((a) => a.codigo === "INSUMO_POR_REVISAR");
@@ -51,7 +56,8 @@ export function ListaVerificacion({
       ? null
       : {
           texto: "La utilidad comprobada llega al 30%",
-          ok: Number.isFinite(utilidadMinima) && utilidadMinima >= 0.3,
+          // Infinity = ninguna opción tiene algo que comprobar (todo es maquila).
+          ok: utilidadMinima >= 0.3,
           obligatorio: true,
           nota: "Revisa el cálculo: la comprobación del apartado 6.8 quedó por debajo de lo autorizado.",
         },

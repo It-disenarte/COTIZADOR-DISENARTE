@@ -24,6 +24,7 @@ import {
   costoDeConcepto,
   ErrorMotor,
   type FilaConId,
+  filaDeProducto,
   type InsumoSnapshot,
   type OpcionCotizacion,
   type Snapshot,
@@ -54,7 +55,7 @@ type Props = {
 // Desde "lg" existe la columna derecha del asistente; debajo de eso, todo va en una sola columna.
 const CONSULTA_PANTALLA_GRANDE = "(min-width: 1024px)";
 
-function usePantallaGrande(): boolean {
+export function usePantallaGrande(): boolean {
   return useSyncExternalStore(
     (avisar) => {
       const consulta = window.matchMedia(CONSULTA_PANTALLA_GRANDE);
@@ -70,8 +71,8 @@ const sinClave = <T,>(objeto: Record<string, T>, clave: string): Record<string, 
   Object.fromEntries(Object.entries(objeto).filter(([k]) => k !== clave));
 
 /** Lo que se arrastra del catálogo: el id de un insumo. */
-type Arrastre = { tipo: "insumo"; id: string };
-const TIPO_ARRASTRE = "application/x-disenarte-catalogo";
+export type Arrastre = { tipo: "insumo"; id: string };
+export const TIPO_ARRASTRE = "application/x-disenarte-catalogo";
 
 const UNIDAD_CORTA: Record<string, string> = {
   m2: "m²",
@@ -89,7 +90,7 @@ const UNIDAD_CORTA: Record<string, string> = {
  * Cómo se consume un insumo recién agregado, según cómo se compra. Un rollo sin ancho útil
  * (vinil de rotulación) va por metros lineales por pieza: los metros salen del escaneo.
  */
-function modoInicial(insumo: Pick<InsumoSnapshot, "unidadCosto" | "anchoUtilM">): ModoComponente {
+export function modoInicial(insumo: Pick<InsumoSnapshot, "unidadCosto" | "anchoUtilM">): ModoComponente {
   if (insumo.unidadCosto === "ml" || insumo.unidadCosto === "rollo") return insumo.anchoUtilM ? "por_m2" : "por_ml";
   if (insumo.unidadCosto === "m2" || insumo.unidadCosto === "lamina") return "por_m2";
   return "por_pieza";
@@ -516,7 +517,9 @@ export function PasoLevantamiento({
           </p>
         </Card>
 
-        {opcion && snapshot && <ResumenInsumos opcion={opcion} filas={filas} snapshot={snapshot} />}
+        {opcion && snapshot && (
+          <ResumenInsumos opcion={opcion} filas={[...filas, ...(opcion.maquilas ?? []).map(filaDeProducto)]} snapshot={snapshot} />
+        )}
 
         {pegado !== null && (
           <Card>
@@ -585,7 +588,7 @@ const numeroCorto = (valor: number) => valor.toLocaleString("es-MX", { maximumFr
  * - "Escribir otra cantidad" pasa a una cantidad total escrita a mano (queda marcada como tal,
  *   para que quien autoriza vea que no salió de las medidas); se puede volver al cálculo.
  */
-function ChipInsumo({
+export function ChipInsumo({
   componente,
   fila,
   snapshot,
@@ -852,7 +855,7 @@ function ResumenInsumos({ opcion, filas, snapshot }: { opcion: OpcionCotizacion;
   );
 }
 
-function PanelCatalogo({
+export function PanelCatalogo({
   snapshot,
   enColumna,
   filaElegida,

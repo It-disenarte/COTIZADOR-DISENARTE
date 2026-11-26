@@ -8,6 +8,11 @@ const entero = z.coerce.number().int().min(0).max(9999);
 
 const enBlanco = (v: unknown) => v === undefined || v === null || String(v).trim() === "" || Number(v) === 0;
 
+const hayMaquila = (entrada: unknown): boolean => {
+  const opciones = (entrada as { opciones?: { maquilas?: unknown[] }[] } | null)?.opciones;
+  return Array.isArray(opciones) && opciones.some((o) => !!o?.maquilas?.length);
+};
+
 /**
  * En una venta de pura reventa o maquila el levantamiento se queda vacío (la fila en blanco con que
  * empieza toda cotización). Esas filas no cuentan si hay artículos de reventa o si toda la tabla está
@@ -28,7 +33,7 @@ function quitarFilasEnBlanco(entrada: unknown): unknown {
       ),
   );
   const hayReventa = Array.isArray(e.reventa) && e.reventa.length > 0;
-  if (!hayReventa && llenas.length > 0) return entrada;
+  if (!hayReventa && !hayMaquila(entrada) && llenas.length > 0) return entrada;
   return { ...e, levantamiento: { ...e.levantamiento, filas: llenas } };
 }
 
@@ -77,6 +82,26 @@ function esquemaEntrada(modo: "borrador" | "completa") {
     cantidad: numero({ min: 0 }),
   });
 
+  // Producto de maquila: lo que nos hacen fuera más nuestros insumos (en `materiales`) y horas.
+  const ProductoMaquila = z.object({
+    id: IdLocal,
+    nombre: texto(200, "Escribe el nombre del producto de maquila."),
+    cantidad: numero({ min: 0 }),
+    anchoM: medida({ min: 0 }),
+    altoM: medida({ min: 0 }),
+    horas: numero({ min: 0, max: 10000 }),
+    partes: z
+      .array(
+        z.object({
+          concepto: texto(200, "Escribe qué nos hacen en la maquila."),
+          proveedor: textoOpcional(200).optional(),
+          // Un costo sin escribir no debe pasar como gratis.
+          costo: numeroExigido({ min: 0 }),
+        }),
+      )
+      .max(20),
+  });
+
   const Extra = z.object({
     concepto: texto(200, "Escribe el concepto del extra."),
     monto: numero({ min: 0 }),
@@ -105,6 +130,7 @@ function esquemaEntrada(modo: "borrador" | "completa") {
             descripcion: textoOpcional(600).optional(),
             // Foto de referencia para la página de esta opción en el PDF.
             imagenId: Uuid.nullable().optional(),
+            maquilas: z.array(ProductoMaquila).max(50).optional(),
             // Insumos de cada concepto, por id de fila.
             materiales: z.record(IdLocal, z.array(Componente).max(40)),
             preciosManuales: z.record(IdLocal, decimalOpcional({ min: 0 })).optional(),
@@ -226,11 +252,11 @@ function esquemaEntrada(modo: "borrador" | "completa") {
   return z.preprocess(
     quitarFilasEnBlanco,
     refinado.superRefine((entrada, ctx) => {
-      if (entrada.levantamiento.filas.length === 0 && entrada.reventa.length === 0 && !entrada.rapida) {
+      if (entrada.levantamiento.filas.length === 0 && entrada.reventa.length === 0 && !hayMaquila(entrada) && !entrada.rapida) {
         ctx.addIssue({
           code: "custom",
           path: ["levantamiento", "filas"],
-          message: "Agrega al menos un concepto, o artículos de reventa o maquila en el paso Reventa y maquila.",
+          message: "Agrega al menos un concepto, un producto en el paso Maquila o artículos en el paso Reventa.",
         });
       }
       if (entrada.rapida && entrada.levantamiento.filas.length === 0) {
@@ -261,6 +287,7 @@ function pasoDeRuta(ruta: PropertyKey[]): number {
     case "levantamiento":
       return PASO.levantamiento;
     case "opciones":
+      if (campo === "maquilas") return PASO.maquila;
       // El nombre y la descripción de la opción se capturan en "Opciones y fotos"; sus insumos, en el levantamiento.
       return campo === "nombre" || campo === "descripcion" ? PASO.opciones : PASO.levantamiento;
     case "tiempoEstimado":

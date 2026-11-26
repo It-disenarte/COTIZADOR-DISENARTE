@@ -83,7 +83,7 @@ describe("Cotización de pura reventa o maquila", () => {
 
   it("sin artículos ni conceptos avisa qué falta", async () => {
     const { pendiente } = await crear(ventaSoloReventa({ reventa: [] }));
-    expect(pendiente).toMatch(/^Levantamiento y materiales: Agrega al menos un concepto, o artículos de reventa o maquila/);
+    expect(pendiente).toMatch(/^Levantamiento y materiales: Agrega al menos un concepto, un producto en el paso Maquila/);
   });
 
   it("un campo numérico que se dejó vacío cuenta como 0, salvo lo que nos cuesta un artículo", async () => {
@@ -97,7 +97,7 @@ describe("Cotización de pura reventa o maquila", () => {
     const sinPrecio = ventaSoloReventa({
       reventa: [{ nombre: "Extintor PQS 4.5 kg", precioReferencia: "", cantidad: "4", link: "", verificado: true }],
     });
-    expect((await crear(sinPrecio)).pendiente).toMatch(/^Reventa y maquila:/);
+    expect((await crear(sinPrecio)).pendiente).toMatch(/^Reventa:/);
   });
 
   it("con precio deseado, el aumento se reparte entre artículos y operación", async () => {

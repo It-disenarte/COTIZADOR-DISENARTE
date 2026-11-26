@@ -1,5 +1,6 @@
 import type { Zona } from "@/lib/catalogo/constantes";
 import type { EntradaNormalizada, FilaConId, OpcionCotizacion } from "@/lib/motor";
+import type { ProductoMaquila } from "@/lib/motor/tipos";
 
 /** Id corto para conceptos y opciones. No necesita ser global: solo único dentro de la cotización. */
 export const nuevoId = (): string => Math.random().toString(36).slice(2, 10);
@@ -209,12 +210,29 @@ export function agregarOpcionCopiando(entrada: EntradaNormalizada, base: OpcionC
       if (base?.descripciones?.[f.id]) descripciones[id] = base.descripciones[f.id];
       return { ...f, id, cantidades: [...f.cantidades], opcionId: nueva.id };
     });
+  const maquilas = (base?.maquilas ?? []).map((m) => {
+    const id = nuevoId();
+    if (base?.materiales[m.id]) materiales[id] = base.materiales[m.id].map((c) => ({ ...c }));
+    if (base?.descripciones?.[m.id]) descripciones[id] = base.descripciones[m.id];
+    return { ...m, id, partes: m.partes.map((parte) => ({ ...parte })) };
+  });
   return {
     ...entrada,
     levantamiento: { ...entrada.levantamiento, filas: [...entrada.levantamiento.filas, ...copias] },
-    opciones: [...entrada.opciones, { ...nueva, materiales, descripciones }],
+    opciones: [...entrada.opciones, { ...nueva, materiales, descripciones, maquilas }],
   };
 }
+
+/** Producto de maquila en blanco, con su primera maquila por llenar. */
+export const productoMaquilaNuevo = (): ProductoMaquila => ({
+  id: nuevoId(),
+  nombre: "",
+  cantidad: "1",
+  anchoM: "0",
+  altoM: "0",
+  horas: "0",
+  partes: [{ concepto: "", proveedor: "", costo: "" }],
+});
 
 /** Quita una opción junto con sus conceptos. */
 export function quitarOpcionDeEntrada(entrada: EntradaNormalizada, id: string): EntradaNormalizada {

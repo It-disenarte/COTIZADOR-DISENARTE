@@ -26,6 +26,7 @@ import { calcular, type Desglose, type EntradaCotizacion, ErrorMotor, type Resul
 import { cn, llamarApi } from "@/lib/utils";
 import { problemaDeEntrada } from "@/lib/validacion/cotizacion";
 import { PasoLevantamiento } from "./paso-levantamiento";
+import { PasoMaquila } from "./paso-maquila";
 import { PasoOpciones } from "./paso-opciones";
 import { type ClienteOpcion, PasoDatos } from "./pasos-captura";
 import { PasoOperacion, PasoResumen, PasoReventa } from "./pasos-cierre";
@@ -80,7 +81,7 @@ export function AsistenteCotizacion({
   const ultimoPaso = pasos.length - 1;
   /** Lleva un número de paso del asistente completo (el que usan los errores y alertas) al paso que se ve. */
   const pasoVisible = (completo: number) => (rapida ? pasoDeRapida(completo) : completo);
-  const clave = (rapida ? ["datos", "cotizacion"] : ["datos", "levantamiento", "opciones", "operacion", "reventa", "resumen"])[paso];
+  const clave = (rapida ? ["datos", "cotizacion"] : ["datos", "levantamiento", "maquila", "opciones", "operacion", "reventa", "resumen"])[paso];
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   /** Qué se está haciendo en el servidor, para la pantalla de carga (null = nada). */
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -127,7 +128,10 @@ export function AsistenteCotizacion({
         return {
           resultado: null,
           pendiente: visible({
-            paso: pasoDeErrorMotor(error.codigo),
+            // Un insumo sin costo puede venir de un producto de maquila: se corrige en su paso.
+            paso: borrador.entrada.opciones.some((o) => o.maquilas?.some((m) => m.id === filaId))
+              ? PASO.maquila
+              : pasoDeErrorMotor(error.codigo),
             mensaje: error.message,
             campo: filaId ? idFila(filaId, "insumos") : undefined,
           }),
@@ -201,7 +205,9 @@ export function AsistenteCotizacion({
     setFalta(null);
     // Si la casilla es de un concepto de otra opción, primero se muestra esa opción.
     const fila = borrador.entrada.levantamiento.filas.find((f) => problema.campo?.startsWith(`fila-${f.id}-`));
-    const indice = borrador.entrada.opciones.findIndex((o) => o.id === fila?.opcionId);
+    const indice = borrador.entrada.opciones.findIndex(
+      (o) => o.id === fila?.opcionId || o.maquilas?.some((m) => problema.campo?.startsWith(`fila-${m.id}-`)),
+    );
     if (indice >= 0) setIndiceOpcion(indice);
     if (problema.paso !== paso) await irAlPaso(problema.paso);
     // El paso nuevo tarda un instante en pintarse.
@@ -293,6 +299,18 @@ export function AsistenteCotizacion({
         )}
         {(clave === "levantamiento" || clave === "cotizacion") && (
           <PasoLevantamiento
+            borrador={borrador}
+            cambiar={cambiar}
+            snapshot={snapshot}
+            indiceOpcion={indiceOpcion}
+            setIndiceOpcion={setIndiceOpcion}
+            ranuraCatalogo={ranuraCatalogo}
+            puedeEditarCatalogo={puedeEditarCatalogo}
+            recargarCatalogo={recargarCatalogo}
+          />
+        )}
+        {clave === "maquila" && (
+          <PasoMaquila
             borrador={borrador}
             cambiar={cambiar}
             snapshot={snapshot}
@@ -541,7 +559,9 @@ function ComposicionDelCosto({
   const materiales = Number(desglose.materiales);
   const consumibles = Number(desglose.consumibles);
   const costo = Number(desglose.costoTotal);
-  const operacion = Math.max(costo - materiales - consumibles, 0);
+  const maquila = Number(desglose.maquila ?? 0);
+  const operacion = Math.max(costo - materiales - consumibles - maquila, 0);
+  const recargo = Number(parametros?.pctReventa ?? 0.35);
 
   // Cotización rápida: sin consumibles, con costos indirectos y siempre el margen de error.
   const indirectos = rapida ? Number(parametros?.pctIndirectos ?? 0.05) : 0;
@@ -549,9 +569,12 @@ function ComposicionDelCosto({
   const pctError = ajustes.aplicaMargenError || rapida ? Number(parametros?.pctMargenError ?? 0.1) : 0;
   const pctConsumibles = Number(parametros?.pctConsumibles ?? 0.05);
   const iva = Number(parametros?.iva ?? 0.16);
-  const conError = costo * (1 + pctError);
+  // La maquila no lleva la fórmula del PNO: se suma al final con su recargo.
+  const propio = costo - maquila;
+  const conError = propio * (1 + pctError);
   const conIndirectos = conError * (1 + indirectos);
-  const precio = conIndirectos / (1 - margen);
+  const precioPropio = conIndirectos / (1 - margen);
+  const precio = precioPropio + maquila * (1 + recargo);
   const subtotal = Number(variante.subtotal);
   const descuento = Number(variante.descuento);
   const ajuste = Number(variante.ajustePrecio ?? 0);
@@ -573,10 +596,11 @@ function ComposicionDelCosto({
       {renglon("Materiales", materiales)}
       {ajustes.aplicaConsumibles && !rapida && renglon(`Consumibles (${porcentaje(pctConsumibles)} de materiales)`, consumibles)}
       {renglon("Operación y mano de obra", operacion)}
-      {renglon("Costo", costo, "border-t pt-1 font-medium")}
+      {renglon(maquila > 0 ? "Costo nuestro" : "Costo", propio, "border-t pt-1 font-medium")}
       {pctError > 0 && renglon(`× ${(1 + pctError).toFixed(2)} margen de error`, conError)}
       {indirectos > 0 && renglon(`× ${(1 + indirectos).toFixed(2)} costos indirectos (${porcentaje(indirectos)})`, conIndirectos)}
-      {renglon(`÷ ${(1 - margen).toFixed(2)} margen del ${porcentaje(margen)}`, precio)}
+      {renglon(`÷ ${(1 - margen).toFixed(2)} margen del ${porcentaje(margen)}`, precioPropio)}
+      {maquila > 0 && renglon(`+ Maquila ${formatoMoneda(maquila.toFixed(2))} con ${porcentaje(recargo)} de recargo`, maquila * (1 + recargo))}
       {ajuste > 0 && renglon("+ Ajuste al precio deseado", ajuste)}
       {descuento > 0 && renglon("− Descuento", descuento)}
       {renglon("Subtotal", subtotal, "border-t pt-1 font-medium")}
@@ -640,7 +664,7 @@ function SoloReventaEnVivo({ reventa }: { reventa: ResultadoCotizacion["reventa"
   return (
     <div className="space-y-1 text-sm">
       <p className="text-2xl font-semibold">{formatoMoneda(reventa.total)}</p>
-      <p className="text-muted-foreground">Reventa y maquila · {reventa.items.length} artículo{reventa.items.length === 1 ? "" : "s"}</p>
+      <p className="text-muted-foreground">Reventa · {reventa.items.length} artículo{reventa.items.length === 1 ? "" : "s"}</p>
       <div className="space-y-1 border-t pt-2 text-xs">
         {renglon("Artículos (compra + utilidad de reventa)", articulos.toFixed(2))}
         {(reventa.operacion ?? []).map((f) => (

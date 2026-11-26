@@ -442,17 +442,17 @@ export function PasoReventa({ borrador, cambiar }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-medium">Artículos de reventa y maquila</h3>
+        <h3 className="font-medium">Artículos de reventa</h3>
         <p className="text-sm text-muted-foreground">
-          Lo que no producimos nosotros: producto que solo revendemos (extintores, botiquines, detectores) o trabajo
-          que le encargamos a un proveedor (maquila). Los dos llevan la utilidad de reventa sobre lo que nos cuestan.
-          Si la cotización no lleva ninguno, deja este paso vacío.
+          Lo que compramos y vendemos tal cual, sin agregarle nada (extintores, botiquines, detectores). Lleva la
+          utilidad de reventa sobre lo que nos cuesta. Lo que nos maquilan y completamos va en el paso “Maquila”. Si la
+          cotización no lleva reventa, deja este paso vacío.
         </p>
         <p className="text-sm text-muted-foreground">
-          Si <span className="font-medium text-foreground">todo</span> es reventa o maquila, deja vacía la tabla del
-          paso 2: el PDF sale con estos artículos como la cotización, y el diseño, el envío, la instalación y los extras
-          del paso Operación salen en filas aparte. Si también hay conceptos, estos artículos van en la hoja
-          “Materiales adicionales”.
+          Si <span className="font-medium text-foreground">todo</span> es reventa, deja vacía la tabla del paso 2: el PDF
+          sale con estos artículos como la cotización, y el diseño, el envío, la instalación y los extras del paso
+          Operación salen en filas aparte. Si también hay conceptos o maquila, estos artículos van en la hoja “Materiales
+          adicionales”.
         </p>
       </div>
 
@@ -473,10 +473,10 @@ export function PasoReventa({ borrador, cambiar }: Props) {
                   id={`reventa-nombre-${i}`}
                   value={item.nombre}
                   onChange={(e) => editarItem(i, { nombre: e.target.value })}
-                  placeholder="Detector de humo autónomo 9V · Letras 3D en acero (maquila)"
+                  placeholder="Detector de humo autónomo 9V"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Así sale en el PDF: escríbelo como lo reconoce el cliente. No hace falta decir que es maquila.
+                  Así sale en el PDF: escríbelo como lo reconoce el cliente. 
                 </p>
               </div>
               <div className="space-y-1.5">
@@ -686,10 +686,23 @@ export function PasoResumen({
                   <p className="text-lg font-semibold">{formatoMoneda(v.total)}</p>
                   <p className="text-xs text-muted-foreground">IVA incluido</p>
                   {/* Comprobación obligatoria del PNO-COM-01 (6.8): (venta − costo) ÷ venta ≈ 0.30 */}
-                  <p className={cn("text-xs", Number(v.margenReal) < 0.3 ? "text-accent" : "text-muted-foreground")}>
-                    Utilidad real {formatoFraccion(v.margenReal)}
-                    {Number(v.margenReal) < 0.3 && " · por debajo del 30% autorizado"}
-                  </p>
+                  {v.margenPropio === undefined ? (
+                    <p className={cn("text-xs", Number(v.margenReal) < 0.3 ? "text-accent" : "text-muted-foreground")}>
+                      Utilidad real {formatoFraccion(v.margenReal)}
+                      {Number(v.margenReal) < 0.3 && " · por debajo del 30% autorizado"}
+                    </p>
+                  ) : (
+                    // Con maquila el total baja del 30% porque ella lleva otro recargo: se comprueba aparte lo nuestro.
+                    <p className="text-xs text-muted-foreground">
+                      Utilidad real {formatoFraccion(v.margenReal)}
+                      {v.margenPropio !== null && (
+                        <span className={cn("block", Number(v.margenPropio) < 0.3 && "text-accent")}>
+                          Sin la maquila: {formatoFraccion(v.margenPropio)}
+                          {Number(v.margenPropio) < 0.3 && " · por debajo del 30% autorizado"}
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -699,6 +712,10 @@ export function PasoResumen({
                   <Renglon etiqueta="Materiales" valor={v.desglose.materiales} />
                   <Renglon etiqueta="Consumibles" valor={v.desglose.consumibles} />
                   <Renglon etiqueta="Producción" valor={v.desglose.produccion} />
+                  {v.desglose.maquila !== undefined && <Renglon etiqueta="Maquila" valor={v.desglose.maquila} />}
+                  {v.desglose.manoObraMaquila !== undefined && (
+                    <Renglon etiqueta="Mano de obra en maquila" valor={v.desglose.manoObraMaquila} />
+                  )}
                   <Renglon etiqueta="Instalación por pieza" valor={v.desglose.instalacionPorPieza} />
                   <Renglon etiqueta="Extras por pieza" valor={v.desglose.extrasPorPieza} />
                   <Renglon etiqueta="Diseño" valor={v.desglose.diseno} />
@@ -828,7 +845,7 @@ export function PasoResumen({
       {resultado.reventa.items.length > 0 && (
         <Card>
           <CardContent className="space-y-2 pt-6">
-            <h3 className="font-medium">{soloReventa ? "Reventa y maquila" : "Materiales adicionales"}</h3>
+            <h3 className="font-medium">{soloReventa ? "Reventa" : "Materiales adicionales"}</h3>
             {soloReventa && (
               <p className="text-xs text-muted-foreground">
                 Artículos con la utilidad de reventa sobre lo que nos cuestan; la operación, con la fórmula del PNO.

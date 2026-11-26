@@ -10,7 +10,7 @@ const numero = (v: unknown): number => {
 };
 
 /** Id de las casillas de cada concepto del levantamiento (los inputs del paso 2 llevan estos ids). */
-export const idFila = (filaId: string, campo: "concepto" | "ancho" | "alto" | "cantidad" | "insumos") => `fila-${filaId}-${campo}`;
+export const idFila = (filaId: string, campo: "concepto" | "ancho" | "alto" | "cantidad" | "insumos" | "maquila") => `fila-${filaId}-${campo}`;
 
 /**
  * Lo primero que falta en lo que se capturó, con la casilla exacta. Va antes que la validación general porque
@@ -61,6 +61,36 @@ export function revisarCaptura(borrador: {
     }
     if (porMedidas && numero(fila.altoM) <= 0) {
       return problema("alto", `Falta el alto de ${de}: lleva un insumo que se calcula por m² y sin medidas costaría cero.`);
+    }
+  }
+  return revisarMaquilas(opciones);
+}
+
+/** Lo que falta en los productos de maquila. Sus casillas usan los mismos ids que las de un concepto. */
+function revisarMaquilas(opciones: EntradaNormalizada["opciones"]): Pendiente | null {
+  for (const opcion of opciones) {
+    const enOpcion = opciones.length > 1 ? ` (${opcion.nombre})` : "";
+    for (const [i, producto] of (opcion.maquilas ?? []).entries()) {
+      const nombre = producto.nombre.trim();
+      const de = (nombre ? `“${nombre}”` : `el producto de maquila ${i + 1}`) + enOpcion;
+      const problema = (campo: Parameters<typeof idFila>[1], mensaje: string): Pendiente => ({
+        paso: PASO.maquila,
+        campo: idFila(producto.id, campo),
+        mensaje,
+      });
+
+      if (!nombre) return problema("concepto", `Falta el nombre del producto de maquila ${i + 1}${enOpcion}.`);
+      if (numero(producto.cantidad) <= 0) return problema("cantidad", `Falta la cantidad de ${de}.`);
+      if (producto.partes.length === 0 || producto.partes.some((m) => !m.concepto.trim() || String(m.costo ?? "").trim() === "")) {
+        return problema("maquila", `En ${de} falta escribir qué nos maquilan y cuánto cuesta cada pieza.`);
+      }
+      const porMedidas = (opcion.materiales[producto.id] ?? []).some((c) => c.modo === "por_m2");
+      if (porMedidas && numero(producto.anchoM) <= 0) {
+        return problema("ancho", `Falta el ancho de ${de}: lleva un insumo que se calcula por m².`);
+      }
+      if (porMedidas && numero(producto.altoM) <= 0) {
+        return problema("alto", `Falta el alto de ${de}: lleva un insumo que se calcula por m².`);
+      }
     }
   }
   return null;

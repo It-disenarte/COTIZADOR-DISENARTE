@@ -117,7 +117,7 @@ números aunque cambien los precios: el snapshot se guarda con cada versión.
 
 ## 6. Cómo funciona el cotizador
 
-Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y fotos → Operación → Reventa y maquila → Resumen**.
+Asistente de 6 pasos: **Datos → Levantamiento y materiales → Maquila → Opciones y fotos → Operación → Reventa → Resumen**.
 
 - El **cliente** se captura dentro de la cotización (no hay pantalla de clientes) y se guarda solo.
 - El **levantamiento** es una tabla de conceptos con **una sola columna "Cantidad"**. Si algo va en varias áreas,
@@ -204,12 +204,21 @@ Asistente de 6 pasos: **Datos → Levantamiento y materiales → Opciones y foto
   reparte entre las filas según lo que pesa cada una (`aplicarPrecioObjetivo` en el motor) y el PDF sale con esos
   precios; los centavos se acomodan en una fila de cantidad 1. Nunca baja el precio (para eso está el descuento). En una venta de pura reventa o maquila
   el campo va en la tarjeta de reventa (`ajustes.precioObjetivo`) y reparte entre artículos y filas de operación.
-- **Reventa y maquila** (paso 5): lo que no producimos (producto que se revende o trabajo encargado a un proveedor)
-  lleva el 35% de `pct_reventa` sobre lo que nos cuesta; maquila y reventa se tratan igual. Si **todo** es reventa o
-  maquila, la tabla del paso 2 se deja vacía: el resultado no trae opciones (`opciones: []`), el PDF no lleva
-  consolidado y los artículos son la cotización, con la operación (diseño, mano de obra, envío e instalación, extras)
-  en **filas aparte** con la fórmula del PNO (`reventa.operacion`). El descuento por decisión rápida se resta ahí.
-  Con conceptos, los artículos siguen en la hoja "Materiales adicionales" y la operación va en los conceptos.
+- **Reventa** (paso "Reventa"): lo que se compra y se vende **tal cual**, con el 35% de `pct_reventa` sobre lo que nos cuesta.
+  Si **todo** es reventa, la tabla del levantamiento se deja vacía: el resultado no trae opciones (`opciones: []`), el PDF no
+  lleva consolidado y los artículos son la cotización, con la operación (diseño, mano de obra, envío e instalación, extras)
+  en **filas aparte** con la fórmula del PNO (`reventa.operacion`). El descuento por decisión rápida se resta ahí. Con
+  conceptos o maquila, los artículos siguen en la hoja "Materiales adicionales" y la operación va en los conceptos.
+- **Maquila** (paso "Maquila", `paso-maquila.tsx`; separada de la reventa por decisión del dueño): un **producto** con nombre,
+  cantidad, **una o varias maquilas** (trabajo, quién, costo por pieza), **nuestros insumos** (arrastrados del catálogo, con
+  medida propia para los de m²) y **horas** de trabajo (totales). Cada parte lleva su regla (decisión del dueño): maquila
+  × (1 + `pct_reventa`); insumos, consumibles y horas (× `tarifa_hora_desarrollo`) con la fórmula del PNO. Se guarda en
+  `opciones[].maquilas` (cada opción tiene los suyos); sus insumos, precio manual y descripción usan los mismos mapas que
+  los conceptos, por id del producto. El motor lo trata como un concepto más (misma tabla del PDF, consolidado, reparto de
+  la operación y precio deseado). **El cliente solo ve el nombre** (y la descripción, si se escribe): nunca la maquila, quién
+  la hace ni los insumos. La comprobación del 30% usa `margenPropio` (sin la maquila); en pura maquila no aplica. La
+  cotización rápida no lleva maquila. Lo capturado antes como maquila en la reventa sigue ahí con su mismo precio.
+  Pruebas: `tests/maquila.test.ts`.
 
 ### 6.0 Cotización rápida
 
@@ -289,7 +298,7 @@ El dueño del negocio fue recortando alcance para que la app sea rápida de usar
 | Sin recetas | El dueño las quitó (sept. 2026): cada concepto lleva sus insumos directamente; las tablas quedan solo para cotizaciones anteriores |
 | Correo y WhatsApp independientes | Son dos canales para mandar la misma propuesta; ninguno da por hecho que se mandó el otro |
 | Sin búsqueda de precios de reventa con IA | El dueño la consideró irrelevante (sept. 2026): el precio de compra se captura a mano |
-| Maquila con el mismo 35% que la reventa | El dueño lo decidió (sept. 2026); en una venta de pura reventa o maquila la operación sale en filas aparte |
+| Maquila separada de la reventa | El dueño (nov. 2026): la maquila se completa con insumos y horas nuestras; la parte maquilada conserva el 35% |
 | Se pueden eliminar cotizaciones | Borrado definitivo (con sus fotos) por quien la hizo o quien ve todas; se confirma en pantalla |
 | Digitalización con precios de lista | Los servicios digitales no tienen costo directo; el dueño fija precios de lista (sept. 2026) |
 | Renta con IVA incluido; lo demás IVA aparte | Así se ofrecen los paquetes; el modo dueño, lo hecho a la medida y los extras llevan IVA aparte |

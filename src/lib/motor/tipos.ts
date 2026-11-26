@@ -121,6 +121,26 @@ export type Operacion = {
 /** Un insumo dentro de un concepto: cuánto se usa y cómo (por m², ml por pieza, por pieza o una vez). */
 export type ComponenteConcepto = { insumoId: string; modo: ModoComponente; cantidad: Numerico };
 
+/** Lo que nos hace un proveedor o una persona para un producto de maquila (la base, el cristal…). Costo por pieza. */
+export type ParteMaquila = { concepto: string; proveedor?: string | null; costo: Numerico };
+
+/**
+ * Producto de maquila: una o varias partes que nos hacen fuera más lo que le ponemos nosotros (insumos y horas de
+ * trabajo). Al cliente solo le sale su nombre, cantidad y precio. Sus insumos van en `materiales[id]` de la opción,
+ * igual que su precio manual y su descripción.
+ */
+export type ProductoMaquila = {
+  id: string;
+  nombre: string;
+  cantidad: Numerico;
+  /** Medida para los insumos que se calculan por m² (p. ej. la placa). No sale al cliente. */
+  anchoM: Numerico;
+  altoM: Numerico;
+  /** Horas de trabajo nuestro para todas las piezas. */
+  horas: Numerico;
+  partes: ParteMaquila[];
+};
+
 /**
  * Una opción de precio: una página del PDF. Cada concepto del levantamiento lleva sus propios
  * insumos dentro de la opción; si el cliente quiere comparar materiales, se agrega otra opción.
@@ -132,7 +152,9 @@ export type OpcionCotizacion = {
   descripcion?: string | null;
   /** No entra en el cálculo: es la foto que acompaña a la opción en el PDF. */
   imagenId?: string | null;
-  /** Insumos de cada concepto, por id de fila del levantamiento. */
+  /** Productos de maquila de esta opción; salen en la misma tabla que los conceptos. */
+  maquilas?: ProductoMaquila[];
+  /** Insumos de cada concepto, por id de fila del levantamiento (o de producto de maquila). */
   materiales: Record<string, ComponenteConcepto[]>;
   /** Precio unitario capturado a mano, por id de fila. Vacío = el calculado. */
   preciosManuales?: Record<string, Numerico | null>;
@@ -213,6 +235,9 @@ export type Desglose = {
   instalacionPorPieza: string;
   extrasPorPieza: string;
   variable: string;
+  /** Lo que nos cobran por maquila y nuestras horas en esos productos. Solo si la opción lleva maquila. */
+  maquila?: string;
+  manoObraMaquila?: string;
   diseno: string;
   instalacion: string;
   viaticos: string;
@@ -251,6 +276,11 @@ export type Variante = {
   iva: string;
   total: string;
   margenReal: string;
+  /**
+   * Con maquila: utilidad de lo que sí lleva la fórmula del PNO (sin la maquila y su recargo), que es la que se
+   * comprueba contra el 30%. null = la opción es pura maquila y no hay nada que comprobar. Ausente = sin maquila.
+   */
+  margenPropio?: string | null;
   escenarios: { margen: string; unitario: string; subtotal: string }[];
   alertas: Alerta[];
 };
